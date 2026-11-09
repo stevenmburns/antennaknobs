@@ -829,8 +829,10 @@ class FeatureInfo(NamedTuple):
 # moves the answer (Steve, 11-09): 1e-6 relative, below which a five-figure
 # printout reads the same. Tighter bounds (1e-12, 1e-9) are for refactors of
 # one computation; a feature that redoes the physics is held to what a user
-# can see. At or under it a feature is labelled faster and may be on the
-# hosted allowlist; over it, approximate and local only.
+# can see. At or under it a feature is labelled faster and a server seed may
+# turn it on by default; over it, it is labelled approximate and is on only
+# when a request asks (`feature_seedable`). Both are offered wherever momwire
+# serves them, the hosted app included.
 LAST_DIGITS_DRIFT = 1e-6
 
 
@@ -883,6 +885,16 @@ def _switches_for(info: dict[str, FeatureInfo] | None) -> dict[str, str]:
 
 
 FEATURE_SWITCHES: dict[str, str] = _switches_for(FEATURE_INFO)
+
+
+def feature_seedable(name: str) -> bool:
+    """Whether the server's ANTENNAKNOBS_<NAME> may turn feature ``name`` on
+    for a request that does not say. A feature whose declared drift is over
+    `LAST_DIGITS_DRIFT` moves the answer, so it is only ever on when a request
+    asks for it (Steve, 11-09: offered everywhere it is served, never on by
+    default). The hand-kept table's features are all last-digit ones."""
+    info = (FEATURE_INFO or {}).get(name)
+    return info is None or info.drift <= LAST_DIGITS_DRIFT
 
 
 def feature_kwarg(name: str) -> str:
@@ -1420,7 +1432,7 @@ class MomwireEngine(SimulationEngine):
             asked = self._solver_kwargs.pop(name, None)
             if (features or {}).get(name) is not None:
                 asked = features[name]
-            if asked is None:
+            if asked is None and feature_seedable(name):
                 asked = os.environ.get(env, "") in ("1", "on")
             if asked and feature_served(self._solver, name):
                 self._feature_kwargs[feature_kwarg(name)] = True

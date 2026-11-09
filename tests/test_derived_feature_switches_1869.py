@@ -113,21 +113,49 @@ def test_the_drift_line_sets_label_hover_and_allowlist(described):
     assert specs["coarse_b"].label == "crossing table (faster, approximate)"
     assert "2e-03 relative" in specs["coarse_b"].description
     assert all(s.default is False and s.kind == "bool" for s in specs.values())
-    hosted = adapter._hosted_options(specs)
-    assert set(hosted) == {"fast_a", "edge"}
+    # Approximate or not, every one is on the hosted allowlist (Steve, 11-09).
+    assert set(adapter._hosted_options(specs)) == set(specs)
 
 
-def test_hosted_never_offers_an_approximate_feature(described, monkeypatch):
+def test_an_approximate_feature_is_offered_on_the_hosted_app(described, monkeypatch):
     class _Spec:
         kind = "momwire"
         solver = object()
 
     monkeypatch.setattr(adapter, "feature_served", lambda _s, _n: True)
-    monkeypatch.setattr(adapter, "_HOSTED", False)
-    assert adapter._offers_feature(_Spec, "coarse_b")
-    monkeypatch.setattr(adapter, "_HOSTED", True)
-    assert not adapter._offers_feature(_Spec, "coarse_b")
-    assert adapter._offers_feature(_Spec, "fast_a")
+    for hosted in (False, True):
+        monkeypatch.setattr(adapter, "_HOSTED", hosted)
+        assert adapter._offers_feature(_Spec, "coarse_b")
+        assert adapter._offers_feature(_Spec, "fast_a")
+
+
+def test_a_server_seed_never_turns_an_approximate_feature_on(described, monkeypatch):
+    monkeypatch.setattr(mw_engine, "FEATURE_INFO", described)
+    monkeypatch.setattr(adapter, "FEATURE_SWITCHES", _switches_for(described))
+    for name in ("fast_a", "coarse_b", "edge"):
+        monkeypatch.setenv("ANTENNAKNOBS_" + name.upper(), "1")
+    assert mw_engine.feature_seedable("fast_a")
+    assert mw_engine.feature_seedable("edge")
+    assert not mw_engine.feature_seedable("coarse_b")
+    assert adapter._seeded_default("fast_a", False) is True
+    assert adapter._seeded_default("edge", False) is True
+    assert adapter._seeded_default("coarse_b", False) is False
+
+
+def test_the_engine_ignores_the_seed_for_an_approximate_feature(described, monkeypatch):
+    # The engine-side read of the same seed, through a real construction:
+    # a served, seeded approximate feature never reaches the constructor.
+    monkeypatch.setattr(mw_engine, "FEATURE_INFO", described)
+    monkeypatch.setattr(mw_engine, "FEATURE_SWITCHES", _switches_for(described))
+    monkeypatch.setattr(mw_engine, "feature_served", lambda _s, _n: True)
+    for name in ("fast_a", "coarse_b"):
+        monkeypatch.setenv("ANTENNAKNOBS_" + name.upper(), "1")
+    from test_pair_reuse_hint_2165 import fed_yagi
+
+    eng = mw_engine.MomwireEngine(fed_yagi(1))
+    assert eng._feature_kwargs == {"fast_a": True}
+    asked = mw_engine.MomwireEngine(fed_yagi(1), features={"coarse_b": True})
+    assert asked._feature_kwargs == {"fast_a": True, "coarse_b": True}
 
 
 def test_the_installed_registry_takes_one_path_whole():

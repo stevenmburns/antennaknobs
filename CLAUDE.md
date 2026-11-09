@@ -245,11 +245,25 @@ Four facts change how work goes here.
 - **Option:** an `_OptionSpec` that is off by default, with a per-request
   kwarg.
 - **Server seed:** an optional `ANTENNAKNOBS_<NAME>` server env that seeds an
-  unset request. An explicit off in the request wins over it.
-- **Allowlist:** a hosted-allowlist entry only when the feature can only remove
-  work.
+  unset request, and serves the checkbox ticked (AK#2229: the frontend sends
+  every option it shows, so a seed only reaches the app through the served
+  default). An explicit off in the request wins over it.
+- **Allowlist:** every option is on the hosted allowlist, an approximate
+  feature included (Steve, 11-09: testable on the hosted app). What keeps an
+  approximate one from changing an answer is that it is never on by default:
+  no seed turns it on (`feature_seedable`).
 - **Env:** don't set `MOMWIRE_X_<NAME>` process-wide in the server. A request
   must be able to say no.
+
+**momwire's pass-through features are derived, not wired** (AK#2233). When
+momwire's registry describes them (momwire#1869: `offer`, `label`, `summary`,
+`drift`), `FEATURE_SWITCHES`, the checkboxes and the seeds all follow from
+`momwire._features.FEATURES`, so a new feature needs no change here. `drift`
+is the author's measured bound on |ΔZ|/|Z|; `LAST_DIGITS_DRIFT` (1e-6, a
+five-figure printout reads the same) splits "(faster)", which a seed may turn
+on, from "(faster, approximate)", which only a request turns on. Moving that
+line is Steve's call. A registry without those fields keeps the hand-kept
+table (`_FALLBACK_SWITCHES`, `_FALLBACK_FEATURE_SPECS`), whole.
 
 **A pin bump never turns a feature on.**
 - Every momwire feature is off unless asked for. So moving the pin or the
