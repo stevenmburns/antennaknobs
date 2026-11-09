@@ -70,7 +70,7 @@ one is refused by name.
 
 The solve frequency comes from the GENERATOR element's ``MHz`` — in SimNEC the
 deck's ``FR`` card is advisory; the Generator drives the solve. A list of
-frequencies there (``3.55 14.05 21.1 28.3``) solves at the last, SimNEC's
+frequencies there (``3.6 10.12 18.1 24.9``) solves at the last, SimNEC's
 base frequency, and is kept whole in ``freqs``, the markers SimNEC draws. An armed
 (``doSweep y``, or ``(y)``: the same sweep as SimNEC reopens it, suspended)
 Generator sweep surfaces as ``sweep=(lo, hi)``, with the
@@ -1093,8 +1093,8 @@ def _sibling_path(src: str) -> str:
 _ABSOLUTE = re.compile(r"^(?:[A-Za-z]:/|/)")
 
 
-# A chain value SimNEC binds to another element's parameter: ``=A.C1_F`` is
-# element A's C1_F (a slider on the NEC-portal block, which a script button
+# A chain value SimNEC binds to another element's parameter: ``=A.Cm_F`` is
+# element A's Cm_F (a slider on the NEC-portal block, which a script button
 # may tune), and the chain element reads whatever A saves there.
 _BOUND = re.compile(r"=\s*([A-Za-z_]\w*)\.([A-Za-z_]\w*)\s*")
 
@@ -2462,8 +2462,9 @@ class _DclCards:
     # `$GW_<tag>.JamSegments(<expression>)` (AK#1716): (tag, expression
     # tree, the statement as written).
     jams: tuple[tuple[int, tuple, str], ...] = ()
-    # Input parameters a NECSource load or source reads (`_Script.load_params`).
-    loads: frozenset[str] = frozenset()
+    # The constants and input parameters a NECSource load or source reads,
+    # each with its roles there (`_Script.load_roles`): (name, roles).
+    loads: tuple[tuple[str, frozenset[str]], ...] = ()
 
     @property
     def names(self) -> tuple[str, ...]:
@@ -2695,14 +2696,46 @@ def _dcl_cards(script: _Script, where: str) -> _DclCards:
         jams.append((tag, tree, stmt))
         todo.extend(names)
 
-    # A slider a NECSource load or source reads is a constant to it, as to a
-    # card (`_Script.load_params`).
-    todo.extend(sorted(script.load_params))
-
     # The constants the cards read, and the ones those read, in script order.
     # An input parameter is set before the script runs, so any constant may
     # read it; the parameters come first, in the element's order.
     order = {id(a): k for k, a in enumerate(script.assigns)}
+
+    def load_value(name: str, seen: frozenset[str] = frozenset()) -> float | None:
+        """The value a constant a NECSource reads takes by the cards' rules,
+        through what it reads, or None. One with none stays outside the
+        constants -- read by the load alone, as before, and no knob --
+        rather than refuse a file the load itself reads."""
+        a = constant(name)
+        try:
+            if a is None:
+                if not script.input_param(name):
+                    return None
+                return _sim_eval(_param_constant(script, name, where).tree, {}, "")
+            if name in seen:
+                return None
+            tree = _sim_parse(a.expr, "")
+            env = {}
+            for ref in _sim_names(tree):
+                ra = constant(ref)
+                if ra is not None and order[id(ra)] >= order[id(a)]:
+                    return None
+                env[ref] = load_value(ref, seen | {name})
+                if env[ref] is None:
+                    return None
+            return _sim_eval(tree, env, "")
+        except ValueError:
+            return None
+
+    # A slider or a constant a NECSource load or source reads is a constant
+    # to it, as to a card (`_Script.load_params`, ``load_roles``).
+    loads = sorted(
+        n
+        for n in {*script.load_params, *script.load_roles}
+        if load_value(n) is not None
+    )
+    todo.extend(loads)
+
     param_order = {n: k for k, n in enumerate(script.params)}
     need: dict[str, _DclConstant] = {}
     while todo:
@@ -2742,7 +2775,11 @@ def _dcl_cards(script: _Script, where: str) -> _DclCards:
         constants,
         tuple(dropped),
         tuple(jams),
-        frozenset(script.load_params),
+        tuple(
+            (n, frozenset(script.load_roles.get(n, {"other"})))
+            for n in loads
+            if n in need
+        ),
     )
 
 
@@ -2798,8 +2835,10 @@ def _classify(dcl: _DclCards, where: str) -> tuple[SySymbol, ...]:
             direct.setdefault(n, set()).add("GW")
             int_use.add(n)
             jam_names.add(n)
-    # A slider a NECSource reads sets a load's value or place: the LD role.
-    for n in dcl.loads:
+    # A slider or constant a NECSource reads sets a load's value or place:
+    # the LD role.
+    load_roles = dict(dcl.loads)
+    for n in load_roles:
         direct.setdefault(n, set()).add("LD")
     dependents: dict[str, set[str]] = {}
     for c in dcl.constants:
@@ -2838,6 +2877,11 @@ def _classify(dcl: _DclCards, where: str) -> tuple[SySymbol, ...]:
             kind = "knob"
             integer = c.name in int_use and value.is_integer()
             default = int(value) if integer else value
+        unit = factor = None
+        if kind == "knob" and not integer:
+            unit, factor, default = _load_unit(
+                load_roles.get(c.name), direct.get(c.name), closure(c.name), c, value
+            ) or (None, None, default)
         segment_count = kind == "knob" and bool(closure(c.name) & jam_names)
         out.append(
             SySymbol(
@@ -2851,6 +2895,8 @@ def _classify(dcl: _DclCards, where: str) -> tuple[SySymbol, ...]:
                 assignments=0 if c.param else 1,
                 refs=refs,
                 reaches=reaches,
+                unit=unit,
+                unit_factor=factor,
                 default=default,
                 integer=integer,
                 param_name=_param_name(c),
@@ -2858,6 +2904,34 @@ def _classify(dcl: _DclCards, where: str) -> tuple[SySymbol, ...]:
             )
         )
     return tuple(out)
+
+
+# A load knob's unit by its one role in the load (`_Script.load_roles`):
+# the units the station chain's L and C read in (`file_designs._STATION_KNOBS`).
+_LOAD_UNITS = {
+    "C": ("pF", 1e-12),
+    "L": ("µH", 1e-6),
+    "R": ("Ω", None),
+    "%": ("%", None),
+}
+
+
+def _load_unit(roles, direct, closure, c: _DclConstant, value: float):
+    """``(unit, factor, default)`` for a knob a NECSource reads in one role
+    only (`_LOAD_UNITS`), or None. Only when that is all it does: a name in
+    two roles, also on a card, or read by another constant keeps SI and no
+    unit -- one value, so one unit, or none. The default is the value shown
+    in the unit to 12 significant digits, as a station knob's is; at it the
+    knob stands for the value saved (`SySymbol.symbol_value`)."""
+    if not roles or len(roles) != 1 or direct != {"LD"} or closure != {c.name}:
+        return None
+    spec = _LOAD_UNITS.get(next(iter(roles)))
+    if spec is None:
+        return None
+    unit, factor = spec
+    if factor is None:
+        return unit, None, value
+    return unit, factor, float(f"{value / factor:.12g}")
 
 
 def _param_name(c: _DclConstant) -> str:
@@ -3204,6 +3278,10 @@ class _Script:
         # Input parameters (sliders, AK#1716) a NECSource load or source
         # reads, for its value or its place: knobs, as the cards' are.
         self.load_params: set[str] = set()
+        # Every name an applied NECSource reads, by the role it plays there
+        # (`_apply_loads`): "C", "L" or "R" as the one argument of that
+        # component, "%" as the place, "other" anywhere else.
+        self.load_roles: dict[str, set[str]] = {}
         # Every assignment the script makes, in order (AK#1714): what
         # `_DclCards` reads the cards' names from.
         self.assigns: list[_Assign] = []
@@ -3538,6 +3616,10 @@ class _Script:
                 if self.input_param(name):
                     return ("num", complex(param_value(name)))
                 raise _Unread(f"{name} has no one constant value")
+            if name in self._overrides:
+                # A constant a load reads is a knob (`_dcl_cards`), set at
+                # its definition, as the cards' constants are.
+                return ("num", complex(float(self._overrides[name])))
             if cyclic(name):
                 raise _Unread(f"{name} is defined in terms of itself")
             return self._zparse(consts[name])
@@ -3545,25 +3627,78 @@ class _Script:
         def written(text: str) -> str | None:
             """The number ``text`` is as WRITTEN: itself when it is a number,
             or the number a bare name stands for -- a constant set to one
-            (``dcl P = 66.4;``, through names set to names) or a slider's
+            (``dcl P = 24.6;``, through names set to names) or a slider's
             saved value. None for anything computed. A place given by name is
-            then read to the written number's own decimals, as if inline."""
+            then read to the written number's own decimals, as if inline.
+            A knob set to the value as written reads as written, so a knob
+            at its default is the place imported; set elsewhere it is that
+            value's own shortest spelling."""
             name = text.strip()
             for _ in range(8):
                 if re.fullmatch(_NUM, name):
                     return name
-                if name in consts:
+                if self.input_param(name):
+                    param_value(name)
+                    saved = (self.params.get(name) or "").strip()
+                elif name in consts and name in self._overrides:
+                    saved = consts[name]
+                elif name in consts:
                     name = consts[name]
                     continue
-                if self.input_param(name) and name not in self._overrides:
-                    param_value(name)
-                    raw = (self.params.get(name) or "").strip()
-                    return raw if re.fullmatch(_NUM, raw) else None
-                if self.input_param(name):
-                    v = param_value(name)
-                    return str(int(v)) if v.is_integer() else repr(v)
-                return None
+                else:
+                    return None
+                if not re.fullmatch(_NUM, saved):
+                    # Computed: exact, at any knob value.
+                    return None
+                if name not in self._overrides:
+                    return saved
+                v = float(self._overrides[name])
+                if v == _si_float(saved):
+                    return saved
+                return str(int(v)) if v.is_integer() else repr(v)
             return None
+
+        def roles(tree, seen: frozenset[str] = frozenset()) -> None:
+            """Record in ``load_roles`` the role each name in ``tree`` plays
+            (`_Script.load_roles`), through the constants it names."""
+            kind = tree[0]
+            if kind == "paren":
+                roles(tree[1], seen)
+            elif kind == "name":
+                role(tree[1], "other", seen)
+            elif kind == "call":
+                arg = tree[2][0] if len(tree[2]) == 1 else None
+                while arg is not None and arg[0] == "paren":
+                    arg = arg[1]
+                if tree[1] in ("C", "L", "R") and arg is not None and arg[0] == "name":
+                    role(arg[1], tree[1], seen)
+                else:
+                    for a in tree[2]:
+                        roles(a, seen)
+            elif kind == "un":
+                roles(tree[2], seen)
+            elif kind == "bin":
+                roles(tree[2], seen)
+                roles(tree[3], seen)
+
+        def role(name: str, what: str, seen: frozenset[str]) -> None:
+            self.load_roles.setdefault(name, set()).add(what)
+            if name in consts and name not in seen:
+                try:
+                    tree = self._zparse(consts[name])
+                except _Unread:
+                    return
+                roles(tree, seen | {name})
+
+        def read_roles(expr: str | None, pct_text: str) -> None:
+            """The roles an applied load's value ``expr`` (None for a feed)
+            and its place ``pct_text`` give the names they read."""
+            if expr is not None:
+                roles(self._zparse(expr))
+            if re.fullmatch(r"\$?[A-Za-z_]\w*", pct_text.strip()):
+                role(pct_text.strip(), "%", frozenset())
+            elif not re.fullmatch(_NUM, pct_text.strip()):
+                roles(self._zparse(pct_text))
 
         def number(text: str) -> float:
             v = _znum(self._zparse(text), lookup)
@@ -3646,6 +3781,7 @@ class _Script:
                     self.knot_feeds.append((tag, seg, end))
                 else:
                     self.cards.append(f"EX 0 {tag} {seg} 0 1 0")
+                read_roles(None, pct_text)
                 has_ex = True
                 continue
             values, why = (
@@ -3659,6 +3795,7 @@ class _Script:
                 continue
             used.add(key)
             add_load(values, tag, at)
+            read_roles(comp[0], pct_text)
         for expr, ref, pct_text, stmt in self._inline_loads:
             values, why = values_of(expr)
             tag, at, why = place(ref, pct_text) if values else (None, None, why)
@@ -3666,6 +3803,7 @@ class _Script:
                 self.ignored.append(_located(stmt, why))
                 continue
             add_load(values, tag, at)
+            read_roles(expr, pct_text)
         for key, (_expr, stmt) in self._r_components.items():
             if key not in used:
                 self.ignored.append(stmt)
@@ -3705,6 +3843,11 @@ class _Script:
     def _directive(self, stmt: str, where: str) -> None:
         """Apply one statement the script runs, read from its parsed form
         (`_form`, AK#2204), or leave it in ``ignored``."""
+        if _BARE_NAME.match(stmt) and stmt in self.params:
+            # `Cm_F;` declares a slider the element saves (AK#1716): what reads
+            # it -- a card, a NECSource, a station value bound to it
+            # (`=A.Cm_F`) -- reads the saved value. Nothing to apply.
+            return
         if _PORT_DECL.match(stmt):
             # Port declaration (P1 w1 gnd): circuit structure, and the node
             # pair a source NECSource names (AK#2195).
@@ -4104,7 +4247,7 @@ def _expr_grid(expr: str, pts: tuple[float, ...]) -> tuple[str, float] | None:
 
 def _gen_mhz(p, where: str) -> tuple[float | None, tuple[float, ...]]:
     """``(freq_mhz, freqs)`` from the Generator's ``MHz``. SimNEC takes a
-    space-separated list there (``3.55 14.05 21.1 28.3``): each value is a
+    space-separated list there (``3.6 10.12 18.1 24.9``): each value is a
     marker on its charts and an entry of ``GetParamValueArray(G.MHz)`` for a
     script to loop over, and the circuit solves at the LAST one, its base
     frequency. ``freqs`` is the list as written, one value or several; empty
@@ -4620,8 +4763,8 @@ def _chain_with_values(chain, values):
             # default builds the file exactly as imported. A knob's shown
             # default keeps 12 significant digits (`_station_symbols`), which
             # is up to 5e-12 off a value saved to full precision (a C SimNEC's
-            # optimizer left at 1.7827090187647904E-10 shows as
-            # 178.270901876 pF, 2.7e-12 away), so 1e-11 is the tolerance.
+            # optimizer left at 1.6448725733350855E-10 shows as
+            # 164.487257334 pF, 3.0e-12 away), so 1e-11 is the tolerance.
             continue
         edits.setdefault(label, {})[param] = repr(v)
     if not edits:

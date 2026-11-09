@@ -278,22 +278,36 @@ A place along a wire is taken exactly: a percentage that lands on a segment
 centre is that centre, and one on a knot (between two segments, or a wire's
 end, as `100` is) sits at that knot, as a NEC-5 deck's end field puts it.
 A percentage written to a few decimals counts within half its last digit, and
-so does one given by name (`dcl P = 66.4;` or a slider saved at `66.4`, then
+so does one given by name (`dcl P = 24.6;` or a slider saved at `24.6`, then
 `NECSource(…, $GW_1, P)`), read to the decimals it is written with; a whole
 number, or a place the script computes, is exact. Anywhere else, the
 percentage itself is the place, never moved to the nearest site: the feed or
-load is carried at that fraction of the wire, as a 4nec2 `LD … 71.89%` card
+load is carried at that fraction of the wire, as a 4nec2 `LD … 41.23%` card
 is, and the wire is split so the port sits exactly there (the placement note
 says so). Two loads at one place add in series, as two `LD` cards on one
 segment do in NEC.
 
-A value or a place may also name a **slider**: a bare `Cap_F;` in the script
-whose value SimNEC saves on the element (`<numericParam>Cap_F</numericParam>`).
+A value or a place may also name a **slider**: a bare `Cx_F;` in the script
+whose value SimNEC saves on the element (`<numericParam>Cx_F</numericParam>`).
 It is read at its saved value and offered as a knob, like a slider the cards
 read; a `Button` that tunes it does not change that, since SimNEC runs a
-button only when it is clicked.
+button only when it is clicked. The bare declaration is not a directive, so
+the import note never lists it as one not applied. The knob reads in the unit of what it sets,
+as the station's knobs do: the one argument of `C(…)` in pF, of `L(…)` in
+µH, of `R(…)` in Ω, and a place in %. A name that plays two parts — a `C` in
+one load and an `L` in another, a `C(Cx_F * 2)`, or a card field as well —
+reads in SI with no unit. At its default the knob is the saved value itself,
+so a C SimNEC's optimizer left at `1.6448725733350855E-10` shows as
+164.487257334 pF and still builds the file bit for bit.
 
-The Generator's `MHz` may list several frequencies (`3.55 14.05 21.1 28.3`):
+A **constant** a value or a place names (`dcl Cx_F = 270p;` then
+`NECSource(C(Cx_F), $GW_1, Px)`) is a knob the same way, `dcl_Cx_F`
+in pF, by the rules the cards' constants follow (below): set once, at top
+level, to an expression naming no other constant. One computed from another
+(`dcl Cx_F = Base * 2;`) follows the knob it reads; one set twice has no
+one value, and the load that reads it is refused by name.
+
+The Generator's `MHz` may list several frequencies (`3.6 10.12 18.1 24.9`):
 SimNEC solves at the last and marks every one on its charts, so the design
 opens at the last and offers each as a band.
 
@@ -390,9 +404,10 @@ SimNEC treats as advisory (the Generator's MHz drives the solve): an `FR` that
 names an undefined constant — AC6LA's 3-el Yagi names a `freq` whose `dcl` is
 commented out — is dropped, and the note says so.
 
-Constants used only outside the NEC block, such as the `L`/`C` values of an
-N-block trap (`R2 (L(L_23, Q_23) ||| C(C_23)) r2a r2b;`), are not read, and
-the statements that use them are listed as not applied, as before.
+A constant used only outside the NEC block is a knob when a `NECSource`
+load the import applies reads it (above). One in a value the import does not
+read, such as the `Q` of an N-block trap's `L(L_23, Q_23)`, is not, and the
+statements that use it are listed as not applied, as before.
 
 ### Element parameters are knobs
 
