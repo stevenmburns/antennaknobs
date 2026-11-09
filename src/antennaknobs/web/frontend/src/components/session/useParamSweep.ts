@@ -56,6 +56,9 @@ export type ParamSweepHandle = {
   hold: () => void;
   /** The app's Cancel: stops it the way its own Stop does. */
   abort: () => void;
+  /** Stop whatever runs and drop the drawn points; nothing re-runs by
+   *  itself until Run or a changed input. */
+  clear: () => void;
 };
 
 /** How many times one request is asked for again after the server dropped
@@ -474,6 +477,13 @@ export function useParamSweep({
     setParamSweepRunning(false);
   }
 
+  // Clear: Stop, then drop the points. Stopped is what keeps the effect from
+  // re-running it until a parameter changes or Run, as after Stop.
+  function clearParamSweep() {
+    stopParamSweep();
+    setParamSweep(null);
+  }
+
   // The header's Run: the same sweep again, now (no dwell), whatever stopped
   // it. Still behind the poor-match gate (runParamSweep checks it).
   function runParamSweepNow() {
@@ -514,6 +524,7 @@ export function useParamSweep({
     running: paramSweepRunning,
     phase: paramSweepRunning ? "running" : paramSweepQueued ? "queued" : "idle",
     stop: stopParamSweep,
+    clear: clearParamSweep,
     runNow: runParamSweepNow,
     arm: armParamSweep,
     hold: holdParamSweep,

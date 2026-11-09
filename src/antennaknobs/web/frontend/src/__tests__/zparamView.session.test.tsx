@@ -355,6 +355,36 @@ describe("Stop", () => {
     await user.click(screen.getByRole("button", { name: "run · re-run?" }));
     await untilDom(() => bodies.length === n + 1);
   });
+
+  it("Clear mid-run stops it and drops the points, and nothing re-runs by itself", async () => {
+    const user = userEvent.setup();
+    const bodies: Body[] = [];
+    const signals: AbortSignal[] = [];
+    const { container } = await mountReady({
+      examples: [EXAMPLE],
+      pinned: ["antenna", "zparam"],
+      routes: { "/param_sweep": slowRoute(bodies, signals) },
+    });
+    const gap = screen.getByRole("slider", { name: "Gap" });
+    fireEvent.contextMenu(gap);
+    await user.click(screen.getByRole("button", { name: "Sweep this knob…" }));
+    const chart = () =>
+      [...container.querySelectorAll("canvas.zparam")].find(
+        (c) => !c.closest(".thumbstrip"),
+      ) as HTMLElement;
+    await untilDom(() => Number(chart()?.dataset.points) >= 3);
+    const n = bodies.length;
+    await user.click(screen.getByRole("button", { name: "clear" }));
+    expect(signals[signals.length - 1].aborted).toBe(true);
+    await untilDom(() => Number(chart()?.dataset.points ?? 0) === 0);
+    expect(chart().dataset.phase).toBe("idle");
+    // No points, no run: Clear itself is gone, and Run is offered.
+    expect(screen.queryByRole("button", { name: "clear" })).toBeNull();
+    await new Promise((r) => setTimeout(r, 300));
+    expect(bodies.length).toBe(n);
+    await user.click(screen.getByRole("button", { name: "run" }));
+    await untilDom(() => bodies.length === n + 1);
+  });
 });
 
 describe("R = Z0 follows the session's Zo (AK#1735)", () => {

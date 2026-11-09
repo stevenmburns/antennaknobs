@@ -3471,9 +3471,11 @@ function DesignSessionBody({
       armFreq: () => all.forEach((r) => r.freq.arm()),
       runFreqNow: () => live.forEach((r) => r.freq.runNow()),
       stopFreq: () => live.forEach((r) => r.freq.abort()),
+      clearFreq: () => live.forEach((r) => r.freq.clear()),
       armParam: () => all.forEach((r) => r.param.arm()),
       runParamNow: () => live.forEach((r) => r.param.runNow()),
       stopParam: () => live.forEach((r) => r.param.stop()),
+      clearParam: () => live.forEach((r) => r.param.clear()),
       armPattern: () => all.forEach((r) => r.pattern.arm()),
       runPatternNow: () => live.forEach((r) => r.pattern.runNow()),
       stopPattern: () => live.forEach((r) => r.pattern.stop()),
@@ -5236,6 +5238,10 @@ function DesignSessionBody({
           stale: runners.some((r) => r.freq.stale),
           onStop: ctl.stopFreq,
           onRun: ctl.runFreqNow,
+          canClear: runners.some(
+            (r) => sweepStoppable(r.freq) || (r.freq.sweep?.freqs_mhz.length ?? 0) > 0,
+          ),
+          onClear: ctl.clearFreq,
         }}
         chrome={chrome}
       />
@@ -5284,6 +5290,10 @@ function DesignSessionBody({
             p0.data.values.length > 0,
           onStop: ctl.stopParam,
           onRun: ctl.runParamNow,
+          canClear: runners.some(
+            (r) => r.param.running || (r.param.data?.values.length ?? 0) > 0,
+          ),
+          onClear: ctl.clearParam,
         }}
         costHint={costHintOf(m)}
         analyses={analyses}

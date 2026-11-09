@@ -20,6 +20,7 @@ import {
   ChartViewPick,
   type ChartViewPickProps,
   ChartChromeControls,
+  ClearButton,
   DwellSwitch,
 } from "./AnalysisChartControls";
 import type { SchemaParamSpec } from "../../lib/params";
@@ -73,6 +74,10 @@ export function ZParamControls({
     done: boolean;
     onStop: () => void;
     onRun: () => void;
+    /** Points drawn or a run under way: Clear is offered. */
+    canClear?: boolean;
+    /** Stop whatever runs and drop the points. */
+    onClear?: () => void;
   };
   /** A word on cost when the request is large, or null. */
   costHint?: string | null;
@@ -148,6 +153,7 @@ export function ZParamControls({
           {run.partial ? `${run.received}/${values.length} · run` : "run"}
         </button>
       )}
+      <ClearButton run={run} />
       {chrome && <DwellSwitch dwell={chrome.dwell} onDwell={chrome.onDwell} />}
     </span>
   );

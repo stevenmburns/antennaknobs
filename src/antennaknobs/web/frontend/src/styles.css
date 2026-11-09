@@ -5278,6 +5278,22 @@ div.opt-bands-readout {
 .zparam-run-done {
   font-family: var(--font-mono);
 }
+/* A sweep chart's Clear: beside Run / Stop, quieter than either, since it
+   discards rather than solves. */
+.zparam-clear {
+  padding: 0 var(--space-2);
+  font-family: var(--font-mono);
+  font-size: var(--text-xs);
+  background: transparent;
+  color: var(--fg-muted, var(--fg));
+  border: 1px solid var(--border-control);
+  border-radius: var(--r-sm);
+  cursor: pointer;
+}
+.zparam-clear:hover {
+  color: var(--fg);
+  background: var(--inset);
+}
 /* The analysis chart (AK#1757 step 5): its dwell switch off, a change leaves
    the drawn curve for inputs that have since moved. Run asks "re-run?"; the
    curve dims inside the chart's canvas (the charts' `stale` prop, unit 3),
