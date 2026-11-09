@@ -363,7 +363,12 @@ def _topology(deck) -> dict:
         "overlaps": _overlaps(wires),
         "plane": plane,
         "feeds": tuple((f.wire, f.edge, f.current) for f in deck.feeds),
-        "loads": tuple(ld.wire for ld in deck.loads),
+        # The wires the loads sit on, as a multiset: which wire each load
+        # is on is the topology, their order in the deck is not. A knob
+        # moving a SimNEC NECSource load between a segment centre (an LD
+        # card, read with the deck) and a knot or a place between sites
+        # (added after it) reorders the list without moving any load.
+        "loads": tuple(sorted(ld.wire for ld in deck.loads)),
         "lines": tuple((t.wire_a, t.wire_b) for t in (*deck.tls, *deck.nts)),
         "virtual": (deck.virtual_anchors, deck.virtual_segment_wires),
     }
