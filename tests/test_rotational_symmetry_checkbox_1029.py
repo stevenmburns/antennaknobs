@@ -94,6 +94,8 @@ def test_every_other_served_spec_keeps_its_description_field_and_it_is_usually_n
             "point_cplx_staged",
             "factored_columns",
             "height_sheet_recal",
+            "crossing_table",
+            "crossing_above_rule",
         ):
             assert row["description"] is None
 

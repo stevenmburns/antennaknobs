@@ -290,6 +290,28 @@ export const SERVED_OPTION_SPECS: ModelOptionSpecs =
     "shown_when_value": null,
     "description": "Build one table for a wire just above the ground (a low counterpoise over a ground rod) and read it from both parts of the fill, instead of computing those entries twice. Results change only in the last digits."
   },
+  "crossing_table": {
+    "kind": "bool",
+    "label": "table for wires crossing the ground (faster, approximate)",
+    "default": false,
+    "auto_when_null": false,
+    "shown_when": null,
+    "gate_label": null,
+    "gate_on_value": null,
+    "shown_when_value": null,
+    "description": "Where a wire crosses the ground (an EFHW over a ground rod), read the entries near the crossing from one table per frequency instead of computing each. Coarser: input impedance moves by about 0.1 ohm on an EFHW. Results move by up to 1e-03 relative: compare against a solve with this off before trusting them."
+  },
+  "crossing_above_rule": {
+    "kind": "bool",
+    "label": "lighter above-ground rule at a crossing (faster)",
+    "default": false,
+    "auto_when_null": false,
+    "shown_when": null,
+    "gate_label": null,
+    "gate_on_value": null,
+    "shown_when_value": null,
+    "description": "On a deck where a wire crosses the ground, fill the above-ground pairs with the rule used when nothing crosses, keeping the finer rule next to the crossing. Helps nec5-bspline and nec42-bspline when most of the antenna is above ground. Results change only in the last digits."
+  },
   "rotational_symmetry": {
     "kind": "bool",
     "label": "rotational symmetry (radial screens)",

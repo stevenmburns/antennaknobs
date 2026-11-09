@@ -185,6 +185,11 @@ describe.each(BSPLINE_FAMILY)("%s — the panel the schema draws", (name) => {
             "reuse repeated geometry (faster fill)",
             // ADDED with momwire 0.88.0 (#1847), bspline alone, unticked.
             "share buried tables across a sweep (faster)",
+            // ADDED with momwire 0.89.0 (#1860), from its registry (AK#2233).
+            "factored rod columns (faster)",
+            "shared near-ground tables (faster)",
+            "table for wires crossing the ground (faster, approximate)",
+            "lighter above-ground rule at a crossing (faster)",
           ]
         : []),
     ]);
@@ -327,6 +332,11 @@ describe.each(BSPLINE_FAMILY)("%s — the panel the schema draws", (name) => {
             "reuse repeated geometry (faster fill)",
             // ADDED with momwire 0.88.0 (#1847), bspline alone, in spec order.
             "share buried tables across a sweep (faster)",
+            // ADDED with momwire 0.89.0 (#1860), from its registry (AK#2233).
+            "factored rod columns (faster)",
+            "shared near-ground tables (faster)",
+            "table for wires crossing the ground (faster, approximate)",
+            "lighter above-ground rule at a crossing (faster)",
           ]
         : []),
       // ADDED DELIBERATELY, and it is why this list is asserted rather than
@@ -376,10 +386,16 @@ describe("the backends that never had a bespoke panel", () => {
     ]);
   });
 
-  it("razor-2p draws only the shared mesh knobs and the kernel toggle", () => {
+  it("razor-2p draws only the shared mesh knobs, the kernel toggle and the features momwire serves it", () => {
     mount(entry("razor-2p"), defaultOptsFor(entry("razor-2p"), SERVED_OPTION_SPECS));
     const c = controls();
-    expect(c.boxes.map((x) => x.label)).toEqual(["extended kernel (EK)"]);
+    expect(c.boxes.map((x) => x.label)).toEqual([
+      "extended kernel (EK)",
+      // ADDED with momwire 0.89.0 (#1860), from its registry (AK#2233).
+      "factored rod columns (faster)",
+      "shared near-ground tables (faster)",
+      "table for wires crossing the ground (faster, approximate)",
+    ]);
     // `degree` and `n_qp_source` are ACCEPTED by RazorSolver and deliberately
     // not exposed; a renderer driven by acceptance would draw both.
     expect(c.numbers.some((n) => n.label?.startsWith("n_qp_source"))).toBe(false);

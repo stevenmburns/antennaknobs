@@ -120,6 +120,12 @@ def test_the_kwarg_tuples_match_what_the_server_measured():
         # momwire#1847 (0.88.0): buried transmitted tables shared across a
         # sweep, a pass-through feature offered where momwire certifies it.
         "transmitted_anchors",
+        # momwire#1860 (0.89.0): the EFHW levers, derived from momwire's
+        # registry (AK#2233), offered where the solver takes each.
+        "factored_columns",
+        "height_sheet_recal",
+        "crossing_table",
+        "crossing_above_rule",
     ]
     assert _ts_tuple(src, "RAZOR_KWARGS") == live["razor-2p"]
     # The NEC-4.2 row exists only where $NEC42_EXE resolves, so it is asked for.
