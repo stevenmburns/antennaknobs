@@ -351,3 +351,10 @@ def test_a_station_value_saved_to_full_precision_is_still_a_knob():
     assert B.default_params["stn_C1_F"] == 178.270901876
     plain = builder_from_text("plain.ssn", _bound_file(c1_f="1.7827090187647904E-10"))
     assert _z(B) == _z(plain)
+
+
+@pytest.mark.parametrize("pct", ["150", "-5", "100.5"])
+def test_a_place_off_the_wire_is_refused(pct):
+    # Between sites is carried as that place; past either end is no place.
+    with pytest.raises(ValueError, match="off the wire"):
+        builder_from_text("t.ssn", _inline_file(pct=pct))
