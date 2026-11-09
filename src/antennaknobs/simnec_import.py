@@ -69,7 +69,9 @@ output such as ``Trap23 = R2.z;``, a string), more than once, or inside a
 one is refused by name.
 
 The solve frequency comes from the GENERATOR element's ``MHz`` — in SimNEC the
-deck's ``FR`` card is advisory; the Generator drives the solve — and an armed
+deck's ``FR`` card is advisory; the Generator drives the solve. A list of
+frequencies there (``3.55 14.05 21.1 28.3``) solves at the last, SimNEC's
+base frequency, and is kept whole in ``freqs``, the markers SimNEC draws. An armed
 (``doSweep y``, or ``(y)``: the same sweep as SimNEC reopens it, suspended)
 Generator sweep surfaces as ``sweep=(lo, hi)``, with the
 frequencies it visits in ``sweep_points``: ``points`` values over from..to for
@@ -1340,6 +1342,9 @@ class SsnCircuit:
     # Reads a file a chain element names (an S block's .s2p), by its path
     # beside the .ssn; None when the circuit was parsed from bare text.
     files: object = field(default=None, compare=False, repr=False)
+    # Every frequency the Generator's MHz lists, MHz, as written: SimNEC's
+    # chart markers. ``freq_mhz`` is the last of them (`_gen_mhz`).
+    freqs: tuple[float, ...] = ()
 
     def skipped_note(self) -> str | None:
         """One human-readable sentence naming what the file carries that the
@@ -3950,6 +3955,23 @@ def _expr_grid(expr: str, pts: tuple[float, ...]) -> tuple[str, float] | None:
     return "lin", _sweep_number(step)
 
 
+def _gen_mhz(p, where: str) -> tuple[float | None, tuple[float, ...]]:
+    """``(freq_mhz, freqs)`` from the Generator's ``MHz``. SimNEC takes a
+    space-separated list there (``3.55 14.05 21.1 28.3``): each value is a
+    marker on its charts and an entry of ``GetParamValueArray(G.MHz)`` for a
+    script to loop over, and the circuit solves at the LAST one, its base
+    frequency. ``freqs`` is the list as written, one value or several; empty
+    with no MHz."""
+    raw = (p.get("MHz") or "").strip()
+    if not raw:
+        return None, ()
+    try:
+        freqs = tuple(float(v) for v in raw.split())
+    except ValueError:
+        raise ValueError(f"{where}: bad GENERATOR MHz {p['MHz']!r}") from None
+    return freqs[-1], freqs
+
+
 def _gen_sweep(gen):
     """``(sweep, points, grid, note)`` for the Generator's frequency sweep.
 
@@ -4316,14 +4338,12 @@ def parse_ssn(
         deck = replace(deck, conductivity=script.conductivity)
 
     freq_mhz = None
+    gen_freqs: tuple[float, ...] = ()
     sweep = sweep_points = sweep_grid = sweep_note = None
     gen_zo = None
     if generator is not None:
         p = _params(generator)
-        try:
-            freq_mhz = float(p["MHz"]) if p.get("MHz") else None
-        except ValueError:
-            raise ValueError(f"{name}: bad GENERATOR MHz {p['MHz']!r}") from None
+        freq_mhz, gen_freqs = _gen_mhz(p, name)
         try:
             gen_zo = float(p["Zo"]) if p.get("Zo") else None
         except ValueError:
@@ -4349,6 +4369,7 @@ def parse_ssn(
         saved_param_notes=_saved_param_notes(script, dcl, name),
         chain_notes=_chain_notes(chain) + stored_note(chain),
         files=files,
+        freqs=gen_freqs,
     )
 
 
@@ -4488,6 +4509,8 @@ class SsnStation:
     other_elements: tuple[str, ...] = ()
     chain_notes: tuple[str, ...] = ()
     files: object = field(default=None, compare=False, repr=False)
+    # Every frequency the Generator's MHz lists (`SsnCircuit.freqs`).
+    freqs: tuple[float, ...] = ()
 
     def network(self, antenna, *, rig_port: str = "rig"):
         """``antenna`` (a ``network.Network`` with one ``Driven`` source, such
@@ -4621,10 +4644,7 @@ def parse_ssn_station(text: str, *, name: str = "SimNEC circuit", files=None):
         chain_doc.reverse()
     chain = tuple(chain_doc)
     p = _params(elements[gen_pos])
-    try:
-        freq_mhz = float(p["MHz"]) if p.get("MHz") else None
-    except ValueError:
-        raise ValueError(f"{name}: bad GENERATOR MHz {p['MHz']!r}") from None
+    freq_mhz, freqs = _gen_mhz(p, name)
     try:
         gen_zo = float(p["Zo"]) if p.get("Zo") else None
     except ValueError:
@@ -4640,6 +4660,7 @@ def parse_ssn_station(text: str, *, name: str = "SimNEC circuit", files=None):
         other_elements=tuple(other),
         chain_notes=_chain_notes(chain) + stored_note(chain),
         files=files,
+        freqs=freqs,
     )
 
 

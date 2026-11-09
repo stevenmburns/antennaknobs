@@ -130,6 +130,7 @@ def _make_builder(
     target_z0=None,
     c_light_mhz_m=NEC_C_LIGHT_MHZ_M,
     seed_card=None,
+    bands=(),
 ):
     ui: dict = {}
     # AK#1735: the reference impedance the file itself names (a `.ssn`
@@ -242,6 +243,16 @@ def _make_builder(
             if knobs is not None:
                 return knobs.network_for(self)
             return network_fn()
+
+    if bands:
+        _bands = tuple(bands)
+
+        def operating_bands(self):
+            """The frequencies the file itself names (a `.ssn` Generator's MHz
+            list), for the workbench's band list (AK#2108)."""
+            return list(_bands)
+
+        Builder.operating_bands = operating_bands
 
     if knobs is not None:
         # The deck re-evaluated at an instance's knob values: `engine`,
@@ -938,6 +949,22 @@ def _ssn_builder(path: Path, text: str, refine: int = 1, limits=None, dialect=No
     meas_range = circuit.sweep or deck.freq_mhz
     sweep_grid = circuit.sweep_grid if circuit.sweep else deck.freq_grid
     knobs, knob_note = _SyKnobs.for_circuit(path, text, circuit, freq, limits)
+    # SimNEC solves a Generator MHz list at its last value and marks every
+    # one on its charts: the design opens at that last one (`freq`), and
+    # offers each as a band.
+    bands = (
+        tuple((f"{f:g} MHz", f) for f in circuit.freqs)
+        if len(circuit.freqs) > 1
+        else ()
+    )
+    bands_note = (
+        f"The Generator lists {len(bands)} frequencies "
+        f"({', '.join(f'{f:g}' for f in circuit.freqs)} MHz): the design "
+        f"opens at the last, {circuit.freqs[-1]:g} MHz, as SimNEC solves it, "
+        "and offers each as a band."
+        if bands
+        else None
+    )
     return _make_builder(
         path.stem,
         freq,
@@ -947,6 +974,7 @@ def _ssn_builder(path: Path, text: str, refine: int = 1, limits=None, dialect=No
             circuit.mesh_note(),
             _ground_note(circuit.ground),
             freq_note,
+            bands_note,
             knob_note,
         ],
         lambda: deck.wire_tuples(specs=True),
@@ -967,6 +995,7 @@ def _ssn_builder(path: Path, text: str, refine: int = 1, limits=None, dialect=No
         sweep_grid=sweep_grid,
         knobs=knobs,
         target_z0=_generator_zo(circuit.gen_zo),
+        bands=bands,
     )
 
 
