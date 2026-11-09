@@ -83,7 +83,7 @@ cascade order:
 
 | antennaknobs branch | SimNEC element | carried values |
 | --- | --- | --- |
-| `TL` | `SERIES_TLINE` | Zo, VFnom, length (ft), k1/k2 matched-loss coefficients (dB/100 ft = k1·√f + k2·f — the same cable-table convention both sides), loss model pinned to `k0k1k2` |
+| `TL` | `SERIES_TLINE` | Zo, VFnom, length (ft), k0/k1/k2 matched-loss coefficients (dB/100 ft = k0 + k1·√f + k2·f — the same cable-table convention both sides), loss model pinned to `k0k1k2` |
 | `TwoPort` L/C arm | `SERIES_IND` / `SERIES_CAP` | H / F, component Q quoted at the export frequency |
 | `Shunt` L/C leg | `SHUNT_IND` / `SHUNT_CAP` | H / F, Q likewise |
 | ideal `Transformer` | `TRANSFORMER2` (`Mdl ideal`) | turns ratio (SimNEC's N is the antenna:generator voltage ratio — handled internally, validated live) |

@@ -744,8 +744,25 @@ def test_a_catalog_cable_is_labelled_with_its_vf_and_matched_loss():
     assert el.label == "50 Ω · VF 0.80"
     want_db = (0.27 * 14.0**0.5 + 0.0055 * 14.0) * tl.length / 30.48
     assert el.sublabel.endswith(f" · {want_db:.2f} dB")
-    assert "K1 0.27" in el.hint and "K2 0.0055" in el.hint
+    assert "K0 0, K1 0.27, K2 0.0055" in el.hint
     assert "at 14 MHz" in el.hint
+
+
+def test_a_lines_k0_is_in_its_loss_and_its_hover():
+    """A SimNEC K0K1K2 line carries k0, the conductors' DC loss, which is
+    flat in frequency: dB/100 ft = k0 + k1·√f + k2·f. 100 ft at 4 MHz with
+    k0 0.1, k1 0.2, k2 0.01 loses 0.1 + 0.4 + 0.04 = 0.54 dB, and a line with
+    only a k0 is still lossy."""
+    (el,) = default_elements(
+        TL("a", "b", z0=450.0, length=30.48, vf=0.91, k0=0.1, k1=0.2, k2=0.01),
+        None,
+        4.0,
+    )
+    assert el.sublabel.endswith(" · 0.54 dB")
+    assert "K0 0.1, K1 0.2, K2 0.01" in el.hint
+    assert "K0 + K1·√f + K2·f" in el.hint
+    (only,) = default_elements(TL("a", "b", z0=50.0, length=30.48, k0=0.25), None, 4.0)
+    assert only.sublabel.endswith(" · 0.25 dB")
 
 
 def test_a_hand_written_transposed_line_shows_both():
@@ -768,5 +785,5 @@ def test_the_drawing_carries_the_k1_k2_hover():
     pytest.importorskip("schemdraw")
     net = build("dipoles.invvee_coax_station").build_network()
     svg = render_svg(lower(net, freq_mhz=14.0))
-    assert "<title>K1 0.27, K2 0.0055" in svg
+    assert "<title>K0 0, K1 0.27, K2 0.0055" in svg
     assert "VF 0.80" in svg
