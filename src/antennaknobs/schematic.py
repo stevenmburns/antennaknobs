@@ -454,22 +454,24 @@ _M_PER_100_FT = 30.48
 def _tl_element(branch, freq_mhz: float | None) -> Element:
     """A `TL` labelled with what it solves (AK#2144): Z0, VF and whether it
     is transposed on the first line; its length and, when lossy, its
-    matched loss at the drawing frequency on the second. Its raw K1 and K2,
-    and that frequency, are the hover, so a catalog cable can be checked
+    matched loss at the drawing frequency on the second. Its raw K0, K1 and
+    K2, and that frequency, are the hover, so a catalog cable can be checked
     against a data sheet.
 
     Matched loss is the cable-table convention momwire's `TL` documents:
-    dB per 100 ft = k1·√f + k2·f, f in MHz."""
+    dB per 100 ft = k0 + k1·√f + k2·f, f in MHz. k0 (the conductors' DC
+    loss) is zero in the catalog and carried by SimNEC's K0K1K2 lines."""
     vf = float(getattr(branch, "vf", 1.0) or 1.0)
+    k0 = float(getattr(branch, "k0", 0.0) or 0.0)
     k1 = float(getattr(branch, "k1", 0.0) or 0.0)
     k2 = float(getattr(branch, "k2", 0.0) or 0.0)
     label = f"{_val(branch.z0)} Ω · VF {vf:.2f}"
     if getattr(branch, "transposed", False):
         label += " · transposed"
     sub = _fmt_len(branch.length)
-    hint = f"K1 {k1:g}, K2 {k2:g} (dB/100 ft = K1·√f + K2·f, f in MHz)"
-    if (k1 or k2) and freq_mhz:
-        per_100ft = k1 * math.sqrt(freq_mhz) + k2 * freq_mhz
+    hint = f"K0 {k0:g}, K1 {k1:g}, K2 {k2:g} (dB/100 ft = K0 + K1·√f + K2·f, f in MHz)"
+    if (k0 or k1 or k2) and freq_mhz:
+        per_100ft = k0 + k1 * math.sqrt(freq_mhz) + k2 * freq_mhz
         loss_db = per_100ft * float(branch.length) / _M_PER_100_FT
         # The frequency is the drawing's own; it goes in the hover, so the
         # second line stays as narrow as the symbol (a 5 m line's

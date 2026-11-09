@@ -1994,8 +1994,10 @@ to themed SVG on every knob change; no solve is involved, so component labels
   and velocity factor, marked *transposed* when it is, and carries its length
   and, when it has loss, its matched loss at the measurement frequency
   (`50 Ω · VF 0.80` over `30.48 m · 1.6 dB`). Hovering the label shows the raw
-  K1 and K2 (dB per 100 ft = K1·√f + K2·f, f in MHz), so a catalog cable can
-  be checked against its data sheet.
+  K0, K1 and K2 (dB per 100 ft = K0 + K1·√f + K2·f, f in MHz), so a catalog
+  cable can be checked against its data sheet. K0 is zero for the catalog's
+  cables; a SimNEC line saved with a K0 carries it into both the figure and
+  the hover.
 - Roughly two-thirds of the catalog is a bare antenna with no feed circuit at
   all. Those say so — *"No feed circuit — this design is the bare antenna"* —
   instead of showing an empty box.
