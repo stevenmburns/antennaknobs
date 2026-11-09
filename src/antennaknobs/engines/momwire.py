@@ -22,6 +22,7 @@ import numpy as np
 import momwire
 from momwire import BSplineSolver, RazorSolver
 
+from .. import mw
 from .. import advisory_words, in_medium
 from ..engine import (
     FarField,
@@ -865,11 +866,9 @@ def _derive_features(registry) -> dict[str, FeatureInfo] | None:
 
 
 def _registry_features() -> dict[str, FeatureInfo] | None:
-    try:
-        from momwire import _features
-    except ImportError:
-        return None
-    return _derive_features(getattr(_features, "FEATURES", {}) or {})
+    from ..mw import feature_registry
+
+    return _derive_features(feature_registry() or {})
 
 
 # None: this momwire's registry is not descriptive, so the adapter keeps its
@@ -913,10 +912,10 @@ def feature_served(solver_cls, name) -> bool:
     Steve's call, so neither is offered."""
     if not _takes_kwarg(solver_cls, feature_kwarg(name)):
         return False
-    try:
-        from momwire import _features
+    from ..mw import feature_certified
 
-        return _features.certified(name)
+    try:
+        return feature_certified(name)
     except (ImportError, KeyError, ValueError):
         return False
 
@@ -1049,20 +1048,18 @@ def _y_cache_base(solver):
 
 
 def _swept_y(solver, k_array):
-    """``solver.compute_y_matrix_swept(k_array)`` as complex128, each
+    """The solver's swept port admittance (`mw.swept_y`) as complex128, each
     frequency served from `_FILL_CACHE` when the same configuration has swept
     it; the rest are solved in one swept call, in their order."""
     k_array = np.asarray(k_array, dtype=float)
     base = _y_cache_base(solver)
     if base is None or _z_cache_cap() == 0:
-        return np.asarray(solver.compute_y_matrix_swept(k_array), dtype=np.complex128)
+        return mw.swept_y(solver, k_array)
     keys = [("Y", (base, float(k))) for k in k_array]
     kept = _cache_take(keys)
     missing = [i for i, Y in enumerate(kept) if Y is None]
     if missing:
-        solved = np.asarray(
-            solver.compute_y_matrix_swept(k_array[missing]), dtype=np.complex128
-        )
+        solved = mw.swept_y(solver, k_array[missing])
         fresh = []
         for row, i in enumerate(missing):
             frozen = solved[row].copy()

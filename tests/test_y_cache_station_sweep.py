@@ -31,14 +31,17 @@ _FREQS = np.linspace(6.9, 7.3, 9)
 
 @pytest.fixture
 def sweeps(monkeypatch):
+    # The swept solution stream the engine reads through the momwire layer
+    # (`antennaknobs.mw.swept_y`, AK#2219): one entry per swept solve, its
+    # length the number of frequencies that solve covered.
     calls: list[int] = []
-    real = BSplineSolver.compute_y_matrix_swept
+    real = BSplineSolver._port_solutions_swept
 
     def spy(self, k_array, *a, **k):
         calls.append(len(k_array))
         return real(self, k_array, *a, **k)
 
-    monkeypatch.setattr(BSplineSolver, "compute_y_matrix_swept", spy)
+    monkeypatch.setattr(BSplineSolver, "_port_solutions_swept", spy)
     return calls
 
 
