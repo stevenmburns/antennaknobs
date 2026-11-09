@@ -217,9 +217,17 @@ def test_a_knot_between_segments_matches_the_nec5_deck_of_it():
     assert z(ssn.deck) == pytest.approx(z(nec5), rel=1e-9)
 
 
-def test_a_place_that_is_neither_centre_nor_knot_is_refused_not_moved():
-    with pytest.raises(ValueError, match="neither a segment centre nor a knot"):
-        _z(_ssn(_script("$ld = NECSource(R(1k) ||| L(2u), $GW_1, 40);")))
+def test_a_place_that_is_neither_centre_nor_knot_is_that_place_not_moved():
+    """40 % of 21 segments is 8.4 segments in: no centre and no knot, so the
+    load is carried at 0.4 of the wire, never moved to the nearest site."""
+    c = parse_ssn(
+        _ssn(_script("$ld = NECSource(R(1k) ||| L(2u), $GW_1, 40);")),
+        name="t.ssn",
+        network=True,
+    )
+    (ld,) = c.deck.loads
+    assert (ld.seg, ld.edge, ld.at) == (9, 0, 0.4)
+    assert c.network().ports["load1"].at == 0.4
 
 
 # --- AK#2196: a buried wire exports --------------------------------------------
