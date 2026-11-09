@@ -6184,6 +6184,20 @@ def axis_value_labels() -> dict[str, dict[str, str]]:
     return {a: dict(v) for a, v in _AXIS_VALUE_LABELS.items()}
 
 
+# The server env that seeds each speed switch's unset request. The frontend
+# sends every option it shows, so an unset request never reaches the engine
+# from the app; the seed only takes effect there if the served default
+# carries it. An explicit off in a request still wins.
+_SEED_ENVS = {"pair_reuse": "ANTENNAKNOBS_PAIR_REUSE", **FEATURE_SWITCHES}
+
+
+def _seeded_default(key: str, default):
+    env = _SEED_ENVS.get(key)
+    if env is not None and os.environ.get(env, "") in ("1", "on"):
+        return True
+    return default
+
+
 def model_option_specs() -> dict[str, dict]:
     """Every solver knob, described once, for a generic renderer (#1006 G2-6).
 
@@ -6202,7 +6216,7 @@ def model_option_specs() -> dict[str, dict]:
         row = {
             "kind": spec.kind,
             "label": spec.label,
-            "default": spec.default,
+            "default": _seeded_default(key, spec.default),
             "auto_when_null": spec.auto_when_null,
             "shown_when": spec.shown_when,
             "gate_label": spec.gate_label,
