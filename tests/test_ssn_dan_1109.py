@@ -19,7 +19,7 @@ Every fixture is synthetic.
 from __future__ import annotations
 
 import pytest
-from test_simnec_import import _SCRIPT_M, _ssn
+from test_simnec_import import _SCRIPT_M, _el, _ssn
 
 import antennaknobs.simnec_import as simnec_import
 from antennaknobs.cli import make_engine_factory
@@ -310,3 +310,44 @@ def test_a_source_on_no_site_is_carried_as_that_fraction():
     )
     (f,) = parse_ssn(text, network=True).deck.feeds
     assert (f.seg, f.edge, f.at) == (88, 0, 0.7189)
+
+
+# --- a station value bound to the block's slider ------------------------------
+
+
+def _bound_file(c1_f="=A.C1_F", saved="90.85p") -> str:
+    """The dipole with a shunt C between it and the Generator whose F is
+    written ``c1_f``, and the NETWORK block, labelled A, saving a C1_F
+    slider at ``saved``."""
+    text = _with_sliders(
+        _ssn(_SCRIPT_M, extra_elements=_el("SHUNT_CAP", {"F": c1_f, "Q": 0}, "C1")),
+        C1_F=saved,
+    )
+    old = "<type>NETWORK</type>"
+    assert text.count(old) == 1
+    return text.replace(old, old + "<sweeperLabel>A</sweeperLabel>")
+
+
+def test_a_station_value_bound_to_a_slider_reads_its_saved_value():
+    c = parse_ssn(_bound_file(), network=True)
+    (c1,) = c.chain
+    assert c1.get("F") == "90.85p"
+    assert "SHUNT_CAP C1's F is A.C1_F, read at its saved value 90.85p" in c.chain_notes
+    assert parse_ssn_station(_bound_file()).chain == c.chain
+    B = builder_from_text("bound.ssn", _bound_file())
+    assert B.default_params["stn_C1_F"] == 90.85
+    assert _z(B) == _z(builder_from_text("plain.ssn", _bound_file(c1_f="90.85p")))
+
+
+def test_a_binding_to_nothing_is_still_refused_by_name():
+    with pytest.raises(ValueError, match=r"bad 'F' value '=B\.C1_F'"):
+        builder_from_text("bound.ssn", _bound_file(c1_f="=B.C1_F"))
+
+
+def test_a_station_value_saved_to_full_precision_is_still_a_knob():
+    """1.7827090187647904E-10 shows as 178.270901876 pF (12 digits), 2.7e-12
+    off: the knob at that default is still the file as saved."""
+    B = builder_from_text("full.ssn", _bound_file(saved="1.7827090187647904E-10"))
+    assert B.default_params["stn_C1_F"] == 178.270901876
+    plain = builder_from_text("plain.ssn", _bound_file(c1_f="1.7827090187647904E-10"))
+    assert _z(B) == _z(plain)
