@@ -1817,12 +1817,41 @@ went from 22.9 to 6.5 s with the vectorised fill. On a 30-point sweep over 24
 radials, nec5-bspline went from 63.8 to 40.4 s with shared tables, each point
 a fresh process.
 
+## Faster wires near and through the ground (opt-in)
+
+momwire 0.89.0 adds four more switches for the shape an end-fed half-wave
+usually has: a counterpoise just above the ground, and a rod or vertical
+crossing it. All are off by default.
+
+| option | tab | env | what it does |
+|---|---|---|---|
+| **factored rod columns** | B-spline, razor-2p | `ANTENNAKNOBS_FACTORED_COLUMNS=1` | fills a buried rod's column of entries under a vertical from shared factors (momwire#1860) |
+| **shared near-ground tables** | B-spline, razor-2p | `ANTENNAKNOBS_HEIGHT_SHEET_RECAL=1` | builds one table for a wire just above the ground and reads it from both parts of the fill |
+| **lighter above-ground rule at a crossing** | B-spline | `ANTENNAKNOBS_CROSSING_ABOVE_RULE=1` | fills the above-ground part of a crossing at the rule the no-rod design uses |
+| **table for wires crossing the ground** *(approximate)* | B-spline, razor-2p | — | reads the crossing entries from one table per frequency; input impedance moves by about 0.1 Ω on an EFHW |
+
+On an EFHW deck with a 3 m buried rod and a 4 m counterpoise 1 cm above
+Sommerfeld ground, an 11-point sweep through the app on an 8-core laptop went
+from 14.4 to 12.0 s on nec5-razor-2p and from 27.2 to 23.9 s on nec5-bspline
+with the first two switches on.
+
+**Last digits or approximate.** momwire's own feature list records, for each
+switch, the largest change in input impedance its author measured with it on.
+At or under one part in a million (a five-figure printout reads the same) a
+box is labelled *faster* and its server env var may turn it on by default.
+Over that line it is labelled *faster, approximate*, its hover gives the
+bound, and it is on only when you tick it: no env var turns it on, on a local
+install or the hosted app. The table above lists no env var for that reason.
+
 A tab shows each box only where the installed momwire has the switch and
 certifies it on this platform. Today that means Linux with the avx2
-accelerator, which is what the hosted app runs. The env var seeds a request
-that does not say; an explicit off in the request wins. An explicit
-`False` on the engine (`features={"transmitted_anchors": False}`) does the
-same from Python.
+accelerator, which is what the hosted app runs. These switches come from
+momwire's feature list itself, so a new one appears on its tab without an
+antennaknobs change.
+
+The env var seeds a request that does not say, and the box comes up ticked.
+An untick in the request, or an explicit `False` on the engine
+(`features={"transmitted_anchors": False}`) from Python, wins.
 
 ## Exporting to NEC
 
