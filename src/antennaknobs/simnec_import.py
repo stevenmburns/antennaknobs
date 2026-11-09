@@ -1093,6 +1093,60 @@ def _sibling_path(src: str) -> str:
 _ABSOLUTE = re.compile(r"^(?:[A-Za-z]:/|/)")
 
 
+# A chain value SimNEC binds to another element's parameter: ``=A.C1_F`` is
+# element A's C1_F (a slider on the NEC-portal block, which a script button
+# may tune), and the chain element reads whatever A saves there.
+_BOUND = re.compile(r"=\s*([A-Za-z_]\w*)\.([A-Za-z_]\w*)\s*")
+
+
+def _bound_values(chain, elements) -> tuple[tuple[SsnElement, ...], tuple[str, ...]]:
+    """``(chain, notes)``: each chain parameter written ``=<label>.<param>``
+    (`_BOUND`) read as the value the element labelled ``<label>`` saves for
+    ``<param>`` -- one of its ``<p><n>`` parameters or a ``<numericParam>``
+    slider -- through further bindings, and a note per value so read. A
+    binding to a label no one element carries, to a parameter it does not
+    save, or around a loop is left as written, and the value refuses by
+    name where it is read."""
+    saved: dict[str, dict[str, str | None] | None] = {}
+    for el in elements:
+        label = el.findtext("sweeperLabel")
+        if not label:
+            continue
+        vals = {p.findtext("n"): p.findtext("v") for p in el.findall("p")}
+        vals.update(_numeric_params(el))
+        saved[label] = None if label in saved else vals
+
+    def resolve(text):
+        seen = set()
+        while text is not None:
+            m = _BOUND.fullmatch(text)
+            if m is None:
+                return text
+            if m.groups() in seen:
+                return None
+            seen.add(m.groups())
+            vals = saved.get(m.group(1))
+            text = vals.get(m.group(2)) if vals else None
+        return None
+
+    out, notes = [], []
+    for el in chain:
+        params = []
+        for n, v in el.params:
+            got = resolve(v) if v is not None and _BOUND.fullmatch(v) else None
+            if got is None:
+                params.append((n, v))
+                continue
+            params.append((n, got))
+            where = f"{el.typ} {el.label}" if el.label else el.typ
+            notes.append(
+                f"{where}'s {n} is {v.strip()[1:].strip()}, read at its saved "
+                f"value {got.strip()}"
+            )
+        out.append(replace(el, params=tuple(params)))
+    return tuple(out), tuple(notes)
+
+
 def _chain_notes(chain) -> tuple[str, ...]:
     """What reading a station chain approximated or redirected, one sentence
     each, for `skipped_note` (AK#2200)."""
@@ -4326,7 +4380,7 @@ def parse_ssn(
     # Orient the chain generator→antenna, whichever way the file ran.
     if gen_pos is not None and nec_pos < gen_pos:
         chain_doc.reverse()
-    chain = tuple(chain_doc)
+    chain, bound_notes = _bound_values(tuple(chain_doc), elements)
 
     script = _Script(
         infos[nec_pos][1]["equ"] or "",
@@ -4454,7 +4508,7 @@ def parse_ssn(
         sweep_grid=sweep_grid,
         dropped_fr=dcl.dropped,
         saved_param_notes=_saved_param_notes(script, dcl, name),
-        chain_notes=_chain_notes(chain) + stored_note(chain),
+        chain_notes=bound_notes + _chain_notes(chain) + stored_note(chain),
         files=files,
         freqs=gen_freqs,
     )
@@ -4555,10 +4609,13 @@ def _chain_with_values(chain, values):
             ) from None
         if not math.isfinite(v):
             raise ValueError(f"station value {key!r}: {v!r} is not finite")
-        if math.isclose(v, _chain_f(el, param), rel_tol=1e-12, abs_tol=0.0):
-            # The value the file already has (to 1e-12, which a knob's shown
-            # default and its unit scaling round within): left as saved, so a
-            # knob at its default builds the file exactly as imported.
+        if math.isclose(v, _chain_f(el, param), rel_tol=1e-11, abs_tol=0.0):
+            # The value the file already has: left as saved, so a knob at its
+            # default builds the file exactly as imported. A knob's shown
+            # default keeps 12 significant digits (`_station_symbols`), which
+            # is up to 5e-12 off a value saved to full precision (a C SimNEC's
+            # optimizer left at 1.7827090187647904E-10 shows as
+            # 178.270901876 pF, 2.7e-12 away), so 1e-11 is the tolerance.
             continue
         edits.setdefault(label, {})[param] = repr(v)
     if not edits:
@@ -4729,7 +4786,7 @@ def parse_ssn_station(text: str, *, name: str = "SimNEC circuit", files=None):
             other.append(typ)
     if end < gen_pos:
         chain_doc.reverse()
-    chain = tuple(chain_doc)
+    chain, bound_notes = _bound_values(tuple(chain_doc), elements)
     p = _params(elements[gen_pos])
     freq_mhz, freqs = _gen_mhz(p, name)
     try:
@@ -4745,7 +4802,7 @@ def parse_ssn_station(text: str, *, name: str = "SimNEC circuit", files=None):
         sweep_points=sweep_points,
         antenna=None if blocks else _element(elements[end]),
         other_elements=tuple(other),
-        chain_notes=_chain_notes(chain) + stored_note(chain),
+        chain_notes=bound_notes + _chain_notes(chain) + stored_note(chain),
         files=files,
         freqs=freqs,
     )
