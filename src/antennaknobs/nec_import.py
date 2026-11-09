@@ -3376,10 +3376,16 @@ class SySymbol:
     def symbol_value(self, knob_value) -> float:
         """The value the SY symbol takes when the knob reads ``knob_value``:
         whole for an integer knob, times the unit factor for a unit knob.
-        At the knob's default this is bit for bit the deck's own value."""
+        At the knob's default this is bit for bit the deck's own value: a
+        unit knob's default is the value shown in its unit, which need not
+        multiply back to the value saved (a C saved as
+        1.6448725733350855E-10 shows as 164.487257334 pF, 3.0e-12 off), so
+        the default stands for ``value`` itself."""
         if self.integer:
             return float(int(round(float(knob_value))))
         if self.unit_factor is not None:
+            if float(knob_value) == self.default:
+                return float(self.value)
             return float(knob_value) * self.unit_factor
         return float(knob_value)
 

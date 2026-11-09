@@ -1,15 +1,15 @@
 """SimNEC ``.ssn`` forms a user's files carry that the import refused.
 
-- A Generator ``MHz`` holding several frequencies (``3.55 14.05 21.1 28.3``):
+- A Generator ``MHz`` holding several frequencies (``3.6 10.12 18.1 24.9``):
   SimNEC solves at the last and marks every one; the design opens at the last
   and offers each as a band.
-- A NECSource whose value or place names a slider (a bare ``Cap_F;`` saved as
+- A NECSource whose value or place names a slider (a bare ``Cx_F;`` saved as
   a ``<numericParam>``): read at the saved value, and a knob whose every
   value is the file saved with it.
 - A place given by name is read to its written number's decimals, as the
-  same number inline is: ``dcl P = 66.4;`` on 122 segments is knot 81.
-- A place on no site of the wire (71.89 % of 122 segments) is that place,
-  exactly: the same positioned port a 4nec2 ``71.89%`` LD card gives
+  same number inline is: ``dcl P = 24.6;`` on 122 segments is knot 30.
+- A place on no site of the wire (41.23 % of 122 segments) is that place,
+  exactly: the same positioned port a 4nec2 ``41.23%`` LD card gives
   (AK#1496), which each engine meshes around (AK#1511) -- not a refusal, and
   not the nearest site.
 
@@ -38,24 +38,24 @@ def _with_mhz(text: str, mhz: str) -> str:
 
 
 def test_a_generator_mhz_list_solves_at_its_last_frequency_and_keeps_them_all():
-    text = _with_mhz(_ssn(_SCRIPT_M), "3.55 14.05 21.1 28.3")
+    text = _with_mhz(_ssn(_SCRIPT_M), "3.6 10.12 18.1 24.9")
     c = parse_ssn(text)
-    assert c.freq_mhz == 28.3
-    assert c.freqs == (3.55, 14.05, 21.1, 28.3)
+    assert c.freq_mhz == 24.9
+    assert c.freqs == (3.6, 10.12, 18.1, 24.9)
     assert parse_ssn_station(text).freqs == c.freqs
-    assert parse_ssn_station(text).freq_mhz == 28.3
+    assert parse_ssn_station(text).freq_mhz == 24.9
 
 
 def test_a_listed_design_opens_at_the_last_and_offers_each_as_a_band():
     B = builder_from_text(
-        "multi.ssn", _with_mhz(_ssn(_SCRIPT_M), "3.55 14.05 21.1 28.3")
+        "multi.ssn", _with_mhz(_ssn(_SCRIPT_M), "3.6 10.12 18.1 24.9")
     )
-    assert B.default_params["freq"] == 28.3 == B.default_params["design_freq"]
+    assert B.default_params["freq"] == 24.9 == B.default_params["design_freq"]
     assert B().operating_bands() == [
-        ("3.55 MHz", 3.55),
-        ("14.05 MHz", 14.05),
-        ("21.1 MHz", 21.1),
-        ("28.3 MHz", 28.3),
+        ("3.6 MHz", 3.6),
+        ("10.12 MHz", 10.12),
+        ("18.1 MHz", 18.1),
+        ("24.9 MHz", 24.9),
     ]
     assert "lists 4 frequencies" in B.default_params["ui_params"]["notes"]
 
@@ -70,16 +70,16 @@ def test_one_generator_frequency_is_read_as_before_with_no_bands():
 
 
 def test_a_list_with_a_word_in_it_is_refused_by_name():
-    with pytest.raises(ValueError, match=r"bad GENERATOR MHz '3\.55 abc'"):
-        parse_ssn(_with_mhz(_ssn(_SCRIPT_M), "3.55 abc"))
+    with pytest.raises(ValueError, match=r"bad GENERATOR MHz '3\.6 abc'"):
+        parse_ssn(_with_mhz(_ssn(_SCRIPT_M), "3.6 abc"))
 
 
 # --- a NECSource reading a slider, and its place -----------------------------
 
 # A 10 m, 122-segment wire fed at segment 61's centre: knot k sits at
-# k / 122 of the wire, segment s's centre at (s - 0.5) / 122. 66.4 % is
-# 81.008 segments in, within half a digit (0.061 segments) of knot 81;
-# 71.89 % is 87.706 in, 0.21 from segment 88's centre and 0.29 from knot 88.
+# k / 122 of the wire, segment s's centre at (s - 0.5) / 122. 24.6 % is
+# 30.012 segments in, within half a digit (0.061 segments) of knot 30;
+# 41.23 % is 50.301 in, 0.20 from segment 51's centre and 0.30 from knot 50.
 _WIRE = "GW 1 122 0 -5 10 0 5 10 0.0005"
 _FEED = "EX 0 1 61 0 1 0"
 
@@ -104,20 +104,20 @@ def _with_sliders(text: str, **saved: str) -> str:
     return head + sliders + equ + tail
 
 
-def _slider_file(cap_f="47p", cap_pct="71.89"):
+def _slider_file(cx_f="47p", px="41.23"):
     return _with_sliders(
         _ssn(
             _script(
-                "$cap = NECSource(C(Cap_F), $GW_1, Cap_Pct);",
-                before=("Cap_F;", "Cap_Pct;"),
+                "$cap = NECSource(C(Cx_F), $GW_1, Px);",
+                before=("Cx_F;", "Px;"),
             )
         ),
-        Cap_F=cap_f,
-        Cap_Pct=cap_pct,
+        Cx_F=cx_f,
+        Px=px,
     )
 
 
-def _inline_file(value="47p", pct="71.89"):
+def _inline_file(value="47p", pct="41.23"):
     return _ssn(_script(f"$cap = NECSource(C({value}), $GW_1, {pct});"))
 
 
@@ -130,25 +130,26 @@ def test_a_necsource_reads_its_sliders_saved_values():
     (ld,) = parse_ssn(_slider_file(), network=True).deck.loads
     (inline,) = parse_ssn(_inline_file(), network=True).deck.loads
     assert ld == inline
-    assert ld.c == pytest.approx(47e-12, rel=1e-15) and ld.at == 0.7189
+    assert ld.c == pytest.approx(47e-12, rel=1e-15) and ld.at == 41.23 / 100
 
 
 def test_the_sliders_a_necsource_reads_are_knobs():
     B = builder_from_text("sliders.ssn", _slider_file())
     p = B.default_params
-    assert p["par_Cap_F"] == pytest.approx(47e-12, rel=1e-15)
-    assert p["par_Cap_Pct"] == 71.89
+    # A C reads in pF, as a station knob's does (AK#2234 follow-up).
+    assert p["par_Cx_F"] == 47.0
+    assert p["par_Px"] == 41.23
 
 
 @pytest.mark.parametrize(
     ("knob", "saved"),
     [
-        ({"par_Cap_F": 33e-12}, {"cap_f": "33p"}),
-        ({"par_Cap_Pct": 40.0}, {"cap_pct": "40"}),
-        ({"par_Cap_Pct": 66.4}, {"cap_pct": "66.4"}),
+        ({"par_Cx_F": 33.0}, {"cx_f": "33p"}),
+        ({"par_Px": 40.0}, {"px": "40"}),
+        ({"par_Px": 24.6}, {"px": "24.6"}),
         (
-            {"par_Cap_F": 1e-10, "par_Cap_Pct": 22.5},
-            {"cap_f": "100p", "cap_pct": "22.5"},
+            {"par_Cx_F": 100.0, "par_Px": 22.5},
+            {"cx_f": "100p", "px": "22.5"},
         ),
     ],
 )
@@ -167,72 +168,72 @@ def test_a_slider_a_button_tunes_is_still_a_knob():
     text = _with_sliders(
         _ssn(
             _script(
-                "$cap = NECSource(C(Cap_F), $GW_1, Cap_Pct);",
+                "$cap = NECSource(C(Cx_F), $GW_1, Px);",
                 "Button Tune() {",
                 "    $NM = NelderMead",
-                "        (POSITIVES, TOLERANCE=0.01, COUNT=10, Cap_F, Cap_Pct) {",
+                "        (POSITIVES, TOLERANCE=0.01, COUNT=10, Cx_F, Px) {",
                 "            SWR(A.Z, 50);",
                 "    }",
                 "}",
-                before=("Cap_F;", "Cap_Pct;"),
+                before=("Cx_F;", "Px;"),
             )
         ),
-        Cap_F="47p",
-        Cap_Pct="71.89",
+        Cx_F="47p",
+        Px="41.23",
     )
     p = builder_from_text("button.ssn", text).default_params
-    assert "par_Cap_F" in p and "par_Cap_Pct" in p
+    assert "par_Cx_F" in p and "par_Px" in p
 
 
 @pytest.mark.parametrize(
     "named",
     [
-        _ssn(_script("$cap = NECSource(C(47p), $GW_1, P);", before=("dcl P = 66.4;",))),
+        _ssn(_script("$cap = NECSource(C(47p), $GW_1, P);", before=("dcl P = 24.6;",))),
         _ssn(
             _script(
                 "$cap = NECSource(C(47p), $GW_1, P);",
-                before=("dcl Q = 66.4;", "dcl P = Q;"),
+                before=("dcl Q = 24.6;", "dcl P = Q;"),
             )
         ),
         _with_sliders(
             _ssn(_script("$cap = NECSource(C(47p), $GW_1, P);", before=("P;",))),
-            P="66.4",
+            P="24.6",
         ),
     ],
     ids=["dcl", "dcl-of-dcl", "slider"],
 )
 def test_a_place_by_name_is_read_to_its_written_decimals(named):
-    """66.4 written inline is knot 81 of 122 (81.008, within half its last
+    """24.6 written inline is knot 30 of 122 (30.012, within half its last
     digit); the same number by name is the same knot, to the bit."""
-    (inline,) = parse_ssn(_inline_file(pct="66.4"), network=True).deck.loads
+    (inline,) = parse_ssn(_inline_file(pct="24.6"), network=True).deck.loads
     (ld,) = parse_ssn(named, network=True).deck.loads
-    assert (inline.seg, inline.edge, inline.at) == (81, 2, None)
+    assert (inline.seg, inline.edge, inline.at) == (30, 2, None)
     assert ld == inline
     assert _z(builder_from_text("n.ssn", named)) == _z(
-        builder_from_text("i.ssn", _inline_file(pct="66.4"))
+        builder_from_text("i.ssn", _inline_file(pct="24.6"))
     )
 
 
 def test_a_computed_place_stays_exact():
-    """``P * 1`` is computed, so it has no written decimals: 66.4 % is then
-    0.008 segments off knot 81, and is carried as that place."""
+    """``P * 1`` is computed, so it has no written decimals: 24.6 % is then
+    0.012 segments off knot 30, and is carried as that place."""
     (ld,) = parse_ssn(
         _ssn(
             _script(
-                "$cap = NECSource(C(47p), $GW_1, P * 1);", before=("dcl P = 66.4;",)
+                "$cap = NECSource(C(47p), $GW_1, P * 1);", before=("dcl P = 24.6;",)
             )
         ),
         network=True,
     ).deck.loads
-    assert (ld.edge, ld.at) == (0, 0.664)
+    assert (ld.edge, ld.at) == (0, 24.6 / 100)
 
 
 # --- a place on no site -------------------------------------------------------
 
 # The same load as a 4nec2 percentage on a .nec deck (AK#1496): the existing
-# positioned-load route, the oracle for where 71.89 % lands.
+# positioned-load route, the oracle for where 41.23 % lands.
 _NEC_AT = (
-    f"CM\nCE\n{_WIRE}\nGE 0\n{_FEED}\nLD 0 1 71.89% 71.89% 0 0 47e-12\n"
+    f"CM\nCE\n{_WIRE}\nGE 0\n{_FEED}\nLD 0 1 41.23% 41.23% 0 0 47e-12\n"
     "FR 0 1 0 0 7.1 0\nXQ\nEN\n"
 )
 
@@ -242,16 +243,16 @@ def _engine(cls, engine):
 
 
 def _off_site_zs(engine):
-    """``(at 71.89 %, the 4nec2 deck at 71.89 %, segment 88's centre, knot 88)``."""
-    seg88 = repr(87.5 / 122 * 100)
-    knot88 = repr(88 / 122 * 100)
+    """``(at 41.23 %, the 4nec2 deck at 41.23 %, segment 51's centre, knot 50)``."""
+    seg51 = repr(50.5 / 122 * 100)
+    knot50 = repr(50 / 122 * 100)
     return tuple(
         _z(builder_from_text(n, t), engine)
         for n, t in (
             ("at.ssn", _inline_file()),
             ("at.nec", _NEC_AT),
-            ("c88.ssn", _inline_file(pct=seg88)),
-            ("k88.ssn", _inline_file(pct=knot88)),
+            ("c51.ssn", _inline_file(pct=seg51)),
+            ("k50.ssn", _inline_file(pct=knot50)),
         )
     )
 
@@ -268,11 +269,11 @@ def _lands_at_the_place(engine) -> bool:
 def test_a_place_on_no_site_is_carried_as_that_fraction():
     c = parse_ssn(_inline_file(), network=True)
     (ld,) = c.deck.loads
-    # Segment 88 is the one whose centre is nearest, as a 4nec2 percentage
+    # Segment 51 is the one whose centre is nearest, as a 4nec2 percentage
     # records it; the place is the fraction.
-    assert (ld.seg, ld.edge, ld.at) == (88, 0, 0.7189)
+    assert (ld.seg, ld.edge, ld.at) == (51, 0, 41.23 / 100)
     port = c.network().ports["load1"]
-    assert (port.wire, port.at) == ("w1", 0.7189)
+    assert (port.wire, port.at) == ("w1", 41.23 / 100)
 
 
 @pytest.mark.parametrize("engine", ["momwire:bspline", "momwire:razor-2p"])
@@ -283,7 +284,7 @@ def test_a_place_on_no_site_solves_there_not_at_the_nearest_site(engine):
         for a in _engine(builder_from_text("at.ssn", _inline_file()), engine).advisories
         if a["category"] == "FeedPlacement"
     ]
-    assert any("'load1' at 0.7189" in t and "split" in t for t in texts), texts
+    assert any("'load1' at 0.4123" in t and "split" in t for t in texts), texts
 
 
 def test_rounding_the_place_to_a_site_fails_the_check(monkeypatch):
@@ -305,23 +306,23 @@ def test_a_source_on_no_site_is_carried_as_that_fraction():
     text = _ssn(
         "\n".join(
             ["//t", "P1 w1 gnd;", "P2 w2 gnd;", "NECUnits meters;", "NEC2", _WIRE]
-            + ["NECEND", "$src = NECSource({w2, gnd}, $GW_1, 71.89);"]
+            + ["NECEND", "$src = NECSource({w2, gnd}, $GW_1, 41.23);"]
         )
     )
     (f,) = parse_ssn(text, network=True).deck.feeds
-    assert (f.seg, f.edge, f.at) == (88, 0, 0.7189)
+    assert (f.seg, f.edge, f.at) == (51, 0, 41.23 / 100)
 
 
 # --- a station value bound to the block's slider ------------------------------
 
 
-def _bound_file(c1_f="=A.C1_F", saved="90.85p") -> str:
+def _bound_file(c1_f="=A.Cm_F", saved="68.2p") -> str:
     """The dipole with a shunt C between it and the Generator whose F is
-    written ``c1_f``, and the NETWORK block, labelled A, saving a C1_F
+    written ``c1_f``, and the NETWORK block, labelled A, saving a Cm_F
     slider at ``saved``."""
     text = _with_sliders(
         _ssn(_SCRIPT_M, extra_elements=_el("SHUNT_CAP", {"F": c1_f, "Q": 0}, "C1")),
-        C1_F=saved,
+        Cm_F=saved,
     )
     old = "<type>NETWORK</type>"
     assert text.count(old) == 1
@@ -331,25 +332,25 @@ def _bound_file(c1_f="=A.C1_F", saved="90.85p") -> str:
 def test_a_station_value_bound_to_a_slider_reads_its_saved_value():
     c = parse_ssn(_bound_file(), network=True)
     (c1,) = c.chain
-    assert c1.get("F") == "90.85p"
-    assert "SHUNT_CAP C1's F is A.C1_F, read at its saved value 90.85p" in c.chain_notes
+    assert c1.get("F") == "68.2p"
+    assert "SHUNT_CAP C1's F is A.Cm_F, read at its saved value 68.2p" in c.chain_notes
     assert parse_ssn_station(_bound_file()).chain == c.chain
     B = builder_from_text("bound.ssn", _bound_file())
-    assert B.default_params["stn_C1_F"] == 90.85
-    assert _z(B) == _z(builder_from_text("plain.ssn", _bound_file(c1_f="90.85p")))
+    assert B.default_params["stn_C1_F"] == 68.2
+    assert _z(B) == _z(builder_from_text("plain.ssn", _bound_file(c1_f="68.2p")))
 
 
 def test_a_binding_to_nothing_is_still_refused_by_name():
-    with pytest.raises(ValueError, match=r"bad 'F' value '=B\.C1_F'"):
-        builder_from_text("bound.ssn", _bound_file(c1_f="=B.C1_F"))
+    with pytest.raises(ValueError, match=r"bad 'F' value '=B\.Cm_F'"):
+        builder_from_text("bound.ssn", _bound_file(c1_f="=B.Cm_F"))
 
 
 def test_a_station_value_saved_to_full_precision_is_still_a_knob():
-    """1.7827090187647904E-10 shows as 178.270901876 pF (12 digits), 2.7e-12
+    """1.6448725733350855E-10 shows as 164.487257334 pF (12 digits), 3.0e-12
     off: the knob at that default is still the file as saved."""
-    B = builder_from_text("full.ssn", _bound_file(saved="1.7827090187647904E-10"))
-    assert B.default_params["stn_C1_F"] == 178.270901876
-    plain = builder_from_text("plain.ssn", _bound_file(c1_f="1.7827090187647904E-10"))
+    B = builder_from_text("full.ssn", _bound_file(saved="1.6448725733350855E-10"))
+    assert B.default_params["stn_C1_F"] == 164.487257334
+    plain = builder_from_text("plain.ssn", _bound_file(c1_f="1.6448725733350855E-10"))
     assert _z(B) == _z(plain)
 
 
