@@ -70,7 +70,7 @@ import math
 from types import MappingProxyType
 
 from antennaknobs import AntennaBuilder, Wire, WireSpec
-from antennaknobs.network import Driven, Load, Network, PortOnWire
+from antennaknobs.network import Driven, Load, Network, PortOnWire, Shunt
 
 # Reference length for the thick upper whip's segment count. The deck meshes its
 # 15.75" (0.40005 m) top section into 28 segments; dividing that length by the
@@ -113,6 +113,16 @@ _GRID_PROFILE = (
 )
 
 
+def _circle_extent(i, n):
+    """Half-extent, in cells, of column ``|i|`` of a round plane ``n`` cells in
+    radius: the lattice disc, floor(sqrt(n^2 - i^2)). Rows are the profile's
+    transpose (the row at j reaches the outermost column reaching j), and the
+    disc's transpose is itself, max{i : e(i) >= j} = floor(sqrt(n^2 - j^2)),
+    so the grid it gives is four-fold symmetric (the deck's hand-drawn one is
+    not, by a few rim cells)."""
+    return math.isqrt(n * n - min(abs(i), n) ** 2)
+
+
 def _column_extent(i, n):
     """Half-extent, in cells, of column ``|i|`` on a plane ``n`` cells in
     radius: the deck profile resampled to ``n``. Exact for n == 24."""
@@ -150,6 +160,15 @@ class Builder(AntennaBuilder):
             # leaving that post a plain wire.
             "post_l_nh": 90.0,
             "post_c_pf": 3.0,
+            # The symmetric ("sym4") form: a round, self-transpose plane
+            # outline and no posts, the matching network as shunt L and C at
+            # the feed port instead (the posts ARE shunts across the feed:
+            # each runs from the plane to the cage's first ring, which the
+            # spokes tie to the whip at the top of the feed segment). The
+            # structure is then exactly four-fold (C4v) about the whip.
+            "symmetric": False,
+            "feed_l_nh": 90.0,
+            "feed_c_pf": 3.0,
             # Ground-plane grid (deck: 48" radius, 2" mesh, 1" fine mesh) — the
             # default reproduces the deck verbatim. The fine centre mesh is always
             # half the grid pitch (fixed 2× subdivision), so fine_pitch is derived
@@ -177,6 +196,8 @@ class Builder(AntennaBuilder):
                     "num_spokes": {"min": 0, "max": 12, "step": 1},
                     "post_l_nh": {"min": 0.0, "max": 200.0, "step": 1.0},
                     "post_c_pf": {"min": 0.0, "max": 20.0, "step": 0.1},
+                    "feed_l_nh": {"min": 0.0, "max": 200.0, "step": 1.0},
+                    "feed_c_pf": {"min": 0.0, "max": 20.0, "step": 0.1},
                 }
             ),
         }
@@ -192,6 +213,12 @@ class Builder(AntennaBuilder):
     # bare radiator is unchanged (≈ 1.6 + 33j). Only the passive ground plane is
     # coarsened; the active feed/cage sleeve keeps its full resolution.
     coarse_params = MappingProxyType({"grid_pitch": 1.2192 / 17})
+
+    # Exactly four-fold (C4v) about the whip, for symmetry studies: a round
+    # outline and the matching as shunt elements at the feed, no posts (see
+    # `symmetric`). The deck's shunt values to start; tune feed_l_nh /
+    # feed_c_pf for the match, as the posts' own wire inductance is gone.
+    sym4_params = MappingProxyType({"symmetric": True, "num_posts": 0})
 
     def build_wires(self):
         h = self.height
@@ -273,7 +300,8 @@ class Builder(AntennaBuilder):
         # --- coarse ground grid, as unit cell edges so every crossing is a
         # wire-endpoint junction; the centre row/column and their +/-1
         # neighbours carry the deck's finer segmentation ---
-        ecol = [_column_extent(i, n) for i in range(n + 1)]
+        extent = _circle_extent if self.symmetric else _column_extent
+        ecol = [extent(i, n) for i in range(n + 1)]
 
         def row_extent(j):
             # transpose of the column profile: the row at |j| reaches the
@@ -349,6 +377,12 @@ class Builder(AntennaBuilder):
         feed is the whip's bottom segment, as the deck's EX card."""
         ports = {"feed": PortOnWire("feed")}
         branches = []
+        if self.symmetric:
+            # The posts' shunts, at the feed itself (see `symmetric`).
+            if self.feed_l_nh:
+                branches.append(Shunt(port="feed", l=self.feed_l_nh * 1e-9))
+            if self.feed_c_pf:
+                branches.append(Shunt(port="feed", c=self.feed_c_pf * 1e-12))
         n_posts = max(0, round(self.num_posts))
         elems = [
             ("post0", self.post_l_nh * 1e-9, None),
