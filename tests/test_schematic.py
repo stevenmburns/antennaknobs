@@ -788,7 +788,8 @@ def test_a_johnson_lines_loss_is_the_lines_own_not_the_formula(f_mhz):
     """A SimNEC K0K1K2 line solves as the Johnson line, whose DC and
     skin-effect resistances add in quadrature, so its matched loss is below
     k0 + k1·√f + k2·f. The figure under the line is the solved line's, to the
-    label's two decimals, and the hover says so; the formula's figure would be
+    label's two decimals, and the hover names the model, not the formula; the
+    formula's figure would be
     16 % high at 3.6 MHz for these (invented) coefficients."""
     z0, length, vf, k0, k1, k2 = 50.0, 30.48, 0.66, 0.25, 1.2, 0.012
     (el,) = default_elements(
@@ -800,8 +801,9 @@ def test_a_johnson_lines_loss_is_the_lines_own_not_the_formula(f_mhz):
     formula = k0 + k1 * math.sqrt(f_mhz) + k2 * f_mhz
     assert want < formula - 0.2  # the two are told apart at two decimals
     assert el.sublabel.endswith(f" · {want:.2f} dB"), (el.sublabel, want, formula)
-    assert "as the Johnson line solves it" in el.hint
-    assert "K0 0.25, K1 1.2, K2 0.012" in el.hint
+    assert "K0 0.25, K1 1.2, K2 0.012 (AC6LA's Johnson line)" in el.hint
+    # The formula is not what this line loses, so the hover does not show it.
+    assert "K0 + K1·√f + K2·f" not in el.hint
 
 
 def test_a_line_without_skin_keeps_the_formula():
@@ -814,6 +816,7 @@ def test_a_line_without_skin_keeps_the_formula():
     )
     assert el.sublabel.endswith(f" · {0.25 + 1.2 * 3.6**0.5 + 0.012 * 3.6:.2f} dB")
     assert "Johnson" not in el.hint
+    assert "K0 + K1·√f + K2·f" in el.hint
 
 
 def test_a_hand_written_transposed_line_shows_both():
