@@ -69,8 +69,41 @@ from each namespace's classes and compares the two reductions by bytes:
 - refusals.
 
 It covers every branch, port and source class, at four frequencies and both
-c values. When the copy is meant to move a number (a fix, AK#2241's sparse
-path), the case that moves is updated there on purpose.
+c values. When the copy is meant to move a number (a fix, a new model), the
+case that moves is updated there on purpose.
+
+### Sparse MNA (AK#2241, stage 2)
+
+The copy now differs from momwire by one path. At and above
+`_reduce.SPARSE_MIN_UNKNOWNS` = 200 MNA unknowns (n node voltages + m Group-2
+branch currents: the matrix dimension, which is what both solves' costs scale
+with), the system is assembled sparse and solved by SuperLU; below it, it is
+momwire's dense `zgesvx` path, bit for bit.
+- Assembly: the node block is recorded (`_GStamps`) instead of written into a
+  dense `G`, then either replayed onto zeros with the old in-place operations
+  (dense), or emitted as COO triples (sparse). The antenna's `Y_real` and its
+  floating-port congruence are dense only over the real ports and the
+  floating ports' "-" nodes. Every Group-2 element, termination and coupling
+  becomes triples (`_group2_triples`), summed into CSC.
+- Solve: `zgesvx`'s steps, on CSC. Equilibration as `zgeequ` computes and
+  `zlaqge` applies it (rows or columns only when they spread by more than
+  10x; always scaling both reported rcond up to 7x off on the ladder).
+  `splu`, then `zgerfs`-style iterative refinement. rcond as `zgecon`
+  estimates it, with LAPACK's deterministic Hager iteration (`zlacn2`), not
+  `onenormest`'s random starts. Same thresholds, message and `diagnose`.
+- Nothing outside `solve` reads `system.A`, so every readout (`driven_impedance`,
+  `reflection`, `excited_state` and its budget, probes, the engines' per-k
+  `_reduce_at`) works unchanged on either path.
+- Measured crossover: about 80 unknowns, on an RLCG ladder and on a chain of
+  station networks. 200 is 2.5x that and 6x the catalog's largest network
+  (34), so every shipped design stays dense. The A/B's cases are all below it,
+  which is why that gate is still bit for bit.
+- At N = 4000 ladder sections (16002 unknowns): ~0.1 s per frequency and
+  ~30 MB, where a dense A alone is 3.8 GB. No symbolic reuse across a sweep:
+  SuperLU's ordering and factor is under 10% of that, and the Python stamp
+  loop most of it.
+- Gate: `tests/test_sparse_mna_2241.py`, which forces both paths on the A/B
+  cases, station chains, ladders and every catalog network.
 
 Stage 3 trims core's reducer to the NEC-card subset; a cross-check then holds
 this copy equal to it on card-only networks.
