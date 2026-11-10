@@ -407,3 +407,25 @@ def test_a_knob_that_moves_a_load_to_another_wire_is_still_refused():
     B = builder_from_text("t.nec", deck)
     with pytest.raises(ValueError, match="an LD load would land on a different wire"):
         B({**B.default_params, "sy_t": 2}).build_wires()
+
+
+@pytest.mark.parametrize(
+    "place",
+    [
+        "41.23",  # between sites
+        repr(50.5 / 122 * 100),  # segment 51's centre: an LD card
+        repr(50 / 122 * 100),  # knot 50
+    ],
+)
+def test_necsource_loads_keep_script_order_whatever_their_place(place):
+    """The deck's loads list the NECSource loads in script order, whether a
+    load reads as an LD card (a centre), a knot or a place between sites,
+    so moving one never renumbers the others' ports."""
+    text = _ssn(
+        _two_wire(
+            "$r = NECSource(R(10), $GW_2, 47.62);",  # wire 2, knot 10 of 21
+            f"$cap = NECSource(C(47p), $GW_1, {place});",
+        )
+    )
+    loads = parse_ssn(text, network=True).deck.loads
+    assert [ld.wire for ld in loads] == [1, 0]

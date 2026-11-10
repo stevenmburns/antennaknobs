@@ -3275,6 +3275,11 @@ class _Script:
         # (tag, percent) and (values, tag, percent), placed with the knots.
         self.placed_feeds: list[tuple[int, float]] = []
         self.placed_loads: list[tuple[tuple, int, float]] = []
+        # Every NECSource load's kind, in script order: "card" (a segment
+        # centre, an LD card read with the deck), "knot" or "placed". The
+        # deck's loads are put back in this order (`_place_at_knots`), so a
+        # knob that moves a load between kinds never renumbers the loads.
+        self.load_kinds: list[str] = []
         # Input parameters (sliders, AK#1716) a NECSource load or source
         # reads, for its value or its place: knobs, as the cards' are.
         self.load_params: set[str] = set()
@@ -3753,14 +3758,17 @@ class _Script:
                 # Between sites: no NEC-2 card spells it; placed on the deck
                 # after it is read, at the percentage (`_place_at_knots`).
                 self.placed_loads.append((values, tag, pct))
+                self.load_kinds.append("placed")
                 return
             if end:
                 # A knot has no NEC-2 card spelling: placed on the deck after
                 # it is read (`_place_at_knots`).
                 self.knot_loads.append((values, tag, seg, end))
+                self.load_kinds.append("knot")
                 return
             ldtyp, f1, f2, f3 = values
             self.cards.append(f"LD {ldtyp} {tag} {seg} {seg} {f1!r} {f2!r} {f3!r}")
+            self.load_kinds.append("card")
 
         has_ex = any(c.split()[:1] == ["EX"] for c in self.cards)
         used: set[tuple[str, str]] = set()
@@ -4079,12 +4087,26 @@ def _place_at_knots(deck: NecDeck, script, where: str) -> NecDeck:
     for tag, pct in script.placed_feeds:
         wi = wire(tag)
         feeds.append(NecFeed(wi, nearest(wi, pct), 1 + 0j, at=pct / 100.0))
-    loads = list(deck.loads)
-    for values, tag, seg, end in script.knot_loads:
-        loads.append(load(values, wire(tag), seg, edge=end))
-    for values, tag, pct in script.placed_loads:
-        wi = wire(tag)
-        loads.append(load(values, wi, nearest(wi, pct), at=pct / 100.0))
+    # The deck's own LD cards come first; the NECSource loads follow in
+    # script order whatever their kind. Each NECSource LD card is one load
+    # (one segment), appended after the NEC block's cards, so they are the
+    # deck's last `n_card` loads, already in script order.
+    n_card = script.load_kinds.count("card")
+    block = list(deck.loads[: len(deck.loads) - n_card])
+    cards = iter(deck.loads[len(deck.loads) - n_card :])
+    knots = iter(script.knot_loads)
+    placed = iter(script.placed_loads)
+    loads = block
+    for kind in script.load_kinds:
+        if kind == "card":
+            loads.append(next(cards))
+        elif kind == "knot":
+            values, tag, seg, end = next(knots)
+            loads.append(load(values, wire(tag), seg, edge=end))
+        else:
+            values, tag, pct = next(placed)
+            wi = wire(tag)
+            loads.append(load(values, wi, nearest(wi, pct), at=pct / 100.0))
     return replace(deck, feeds=tuple(feeds), loads=tuple(loads))
 
 
@@ -4760,11 +4782,15 @@ def _chain_with_values(chain, values):
             raise ValueError(f"station value {key!r}: {v!r} is not finite")
         if math.isclose(v, _chain_f(el, param), rel_tol=1e-11, abs_tol=0.0):
             # The value the file already has: left as saved, so a knob at its
-            # default builds the file exactly as imported. A knob's shown
-            # default keeps 12 significant digits (`_station_symbols`), which
-            # is up to 5e-12 off a value saved to full precision (a C SimNEC's
-            # optimizer left at 1.6448725733350855E-10 shows as
-            # 164.487257334 pF, 3.0e-12 away), so 1e-11 is the tolerance.
+            # default builds the file exactly as imported. A file design's
+            # station knob arrives exactly at the saved value at its default
+            # (`SySymbol.symbol_value`), so it needs no tolerance; a Python
+            # design calling `with_values` itself does: its default is
+            # whatever it wrote, often a knob's shown 12 significant digits
+            # (`_station_symbols`), up to 5e-12 off a value saved to full
+            # precision (1.6448725733350855E-10 shows as 164.487257334 pF,
+            # 3.0e-12 away). 1e-11 covers that, and no real knob turn is
+            # that small.
             continue
         edits.setdefault(label, {})[param] = repr(v)
     if not edits:
