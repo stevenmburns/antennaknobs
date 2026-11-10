@@ -8,8 +8,9 @@ antennaknobs' release cycle, and are not ported back. momwire keeps its own
 window, trims it to the NEC-card subset (``PortOnWire``, ``TL``,
 ``Admittance`` as ``NT``, ``Driven`` and lumped port loads; stage 3 of the
 plan in AK#2219). ``tests/test_mw_networks_ab_2219.py`` holds this copy equal
-to momwire's, bit for bit, on every branch type; a change here that is meant
-to move a number updates that test on purpose.
+to momwire's, bit for bit, on every branch type, on the dense path (all of
+its cases sit below the sparse threshold; see the second list below); a
+change here that is meant to move a number updates that test on purpose.
 
 What changed in the copy, and nothing else (diff against the momwire commit
 to check):
@@ -28,6 +29,24 @@ to check):
   that a misaligned network now raises instead of truncating), and the two
   tuple subclasses carrying ``.key`` are marked as not slottable (SLOT001).
 * This docstring.
+
+What the copy has added since (it is antennaknobs' code; these are the
+deliberate divergences from momwire, not drift):
+
+* **Sparse MNA for large networks (AK#2241, stage 2 of AK#2219 phase 3).**
+  At and above `_reduce.SPARSE_MIN_UNKNOWNS` (200, in MNA unknowns n + m),
+  `apply_branches` assembles the system as COO triples summed into a CSC
+  matrix, never allocating n × n or (n+m)², and `MNASystem.solve` factors it
+  with SuperLU after ``zgesvx``'s own equilibration, refines as ``zgesvx``
+  does, and estimates the reciprocal condition as ``zgecon`` does, against
+  the same `RCOND_SINGULAR` / `RCOND_SUSPECT`, with the same refusal and
+  warning. Below the threshold the path is momwire's dense ``zgesvx``,
+  unchanged: the node block is recorded and replayed with the same in-place
+  operations in the same order, so every system there is bit for bit what it
+  was. Every network the catalog ships is 34 unknowns or fewer, and every
+  case of the A/B is under the threshold, which is why that A/B is still bit
+  for bit; ``tests/test_sparse_mna_2241.py`` holds the two paths to each
+  other.
 
 The three modules, as upstream described them:
 
