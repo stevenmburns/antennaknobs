@@ -18,6 +18,8 @@ Every fixture is synthetic.
 
 from __future__ import annotations
 
+import re
+
 import pytest
 from test_simnec_import import _SCRIPT_M, _el, _ssn
 
@@ -429,3 +431,58 @@ def test_necsource_loads_keep_script_order_whatever_their_place(place):
     )
     loads = parse_ssn(text, network=True).deck.loads
     assert [ld.wire for ld in loads] == [1, 0]
+
+
+def test_a_generator_list_sets_the_band_table_to_its_bands():
+    """The SWR charts' band spans (ui_params["bands"]) are the amateur bands
+    the listed frequencies fall in, each tab snapping to its listed
+    frequency, rather than every HF band; a frequency in no amateur band gets
+    a ±1.5 % span of its own."""
+    B = builder_from_text("m.ssn", _with_mhz(_ssn(_SCRIPT_M), "3.6 10.12 18.1 24.9"))
+    assert B.default_params["ui_params"]["bands"] == (
+        ("80m", "80m", 3.6, 3.5, 4.0),
+        ("30m", "30m", 10.12, 10.1, 10.15),
+        ("17m", "17m", 18.1, 18.068, 18.168),
+        ("12m", "12m", 24.9, 24.89, 24.99),
+    )
+    off = builder_from_text("o.ssn", _with_mhz(_ssn(_SCRIPT_M), "5.0 7.1"))
+    assert off.default_params["ui_params"]["bands"] == (
+        ("5 MHz", "5 MHz", 5.0, 0.985 * 5.0, 1.015 * 5.0),
+        ("40m", "40m", 7.1, 7.0, 7.3),
+    )
+
+
+def test_a_single_generator_frequency_keeps_the_default_band_table():
+    B = builder_from_text("s.ssn", _ssn(_SCRIPT_M))
+    assert "bands" not in (B.default_params.get("ui_params") or {})
+
+
+def test_optimizing_a_file_design_lists_its_knobs_not_an_empty_block(tmp_path, capsys):
+    """A file design (@file) has no params block to paste over, so the run
+    says so and lists each optimized knob in its unit."""
+    import antennaknobs as ant
+    from test_ssn_station_knobs import _text
+
+    path = tmp_path / "station.ssn"
+    path.write_text(_text())
+    ant.cli(
+        [
+            "optimize",
+            "--builder",
+            f"@{path}",
+            "--engine",
+            "momwire:razor-2p",
+            "--bands",
+            "7.0,7.2",
+            "--params",
+            "stn_C1_F",
+            "stn_L1_H",
+            "--max-evals",
+            "6",
+        ]
+    )
+    out = capsys.readouterr().out
+    assert "paste over the design's params block" not in out
+    assert "# A file design has no params block to paste into" in out
+    assert re.search(r"#   stn_C1_F = [0-9.e+-]+ pF", out)
+    assert re.search(r"#   stn_L1_H = [0-9.e+-]+ µH", out)

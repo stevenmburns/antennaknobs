@@ -2318,6 +2318,28 @@ def cli(arguments=None):
             raise SystemExit(f"optimize --keep: {e}") from None
         print(f"# kept as the study {saved['name']!r} in {saved['path']}")
 
+    def print_optimized(spec, b, names):
+        """The run's knobs, for the user to keep. A Python design gets the
+        params block to paste over its own; a file design (``@file``) has no
+        params block, so it gets each optimized knob's value, in its unit,
+        to set in the file."""
+        from . import band_opt
+
+        units = {nm: u for nm in names if (u := band_opt.ui_unit(b, nm))}
+        if str(spec).startswith("@"):
+            print(
+                "# A file design has no params block to paste into. Set these "
+                "in the file:"
+            )
+            for nm in names:
+                u = f" {units[nm]}" if nm in units else ""
+                print(f"#   {nm} = {float(band_opt._get_path(b, nm)):.6g}{u}")
+            return
+        print("# Optimized knobs — paste over the design's params block:")
+        print(
+            builder_params_source(b, name=emit_params_name(spec), default_precision=6)
+        )
+
     def run_bands(args, builder, engine, fresh):
         from . import band_opt
         from .web.optimize import DegenerateObjective
@@ -2385,12 +2407,7 @@ def cli(arguments=None):
             keep_bands(args, start, free, bands, res)
         band_opt.apply(b, res["params"])
         print()
-        print("# Optimized knobs — paste over the design's params block:")
-        print(
-            builder_params_source(
-                b, name=emit_params_name(args.builder), default_precision=6
-            )
-        )
+        print_optimized(args.builder, b, [f["name"] for f in free])
 
     def f(args):
         if args.keep is not None and args.bands is None:
@@ -2414,14 +2431,7 @@ def cli(arguments=None):
             engine=engine,
         )
         print()
-        print("# Optimized knobs — paste over the design's params block:")
-        print(
-            builder_params_source(
-                opt_builder,
-                name=emit_params_name(args.builder),
-                default_precision=6,
-            )
-        )
+        print_optimized(args.builder, opt_builder, list(args.params or ()))
         compare_patterns([engine(builder()), engine(opt_builder)], fn=args.fn)
 
     p.set_defaults(func=f)
