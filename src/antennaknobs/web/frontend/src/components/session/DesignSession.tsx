@@ -5034,6 +5034,24 @@ function DesignSessionBody({
       range,
       defaultSweepPoints({ backend, groundEnabled, groundModel, refineEnabled }),
     ).freqs.length;
+    // "Sweep this span" on the SWR / S11 zoom chip: the chart's own from / to
+    // edit (what the chart sweeps, and what its ↺ restores), not the
+    // measurement dial's session range — an analysis's or a chart's own
+    // range outranks that one, and the dial's travel is not the chart's to
+    // move. Its spacing and point count are kept: a lin step chosen for the
+    // whole span would leave a narrow one a handful of points, the opposite
+    // of asking for a closer look.
+    const onSweepSpan = (lo: number, hi: number) => {
+      const next = editRange(range, lo, hi);
+      if (!next) return;
+      ctl.armFreq();
+      setFrequency({
+        rangeEdit:
+          next.spacing === "lin" && next.step !== undefined && freqGridN >= 2
+            ? { ...next, step: (hi - lo) / (freqGridN - 1) }
+            : next,
+      });
+    };
     const patternRunning = runners.some((r) => r.pattern.running);
     // A family's cut on screen (AK#1950), which its angle box edits.
     const familyCut = chartFamily(m.state) ? chartPatternView(m.state) : null;
@@ -5448,6 +5466,7 @@ function DesignSessionBody({
         onThresholdChange,
         onRxAxisChange,
         onRxXLogChange,
+        onSweepSpan,
       },
       chartPattern,
       chartMap: chartMap && {

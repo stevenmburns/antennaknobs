@@ -185,6 +185,9 @@ export type ChartFrequencyRender = {
   threshold: number;
   onAxisChange?: (mode: SweepMode, c: SweepAxisChoice) => void;
   onThresholdChange?: (t: number) => void;
+  /** The SWR / S11 charts' "Sweep this span" (stage only): the chart's own
+   *  range edit, to the zoomed window. */
+  onSweepSpan?: (lo: number, hi: number) => void;
   /** The R/X view's ranges and x axis (step 5 unit 5), and their edits
    *  (stage only). Omitted: Auto, linear x. */
   rx?: { r: RxAxisChoice; x: RxAxisChoice; xLog: boolean };

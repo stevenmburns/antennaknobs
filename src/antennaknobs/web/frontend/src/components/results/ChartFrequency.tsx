@@ -216,6 +216,9 @@ export function ChartFrequency({ p, f }: { p: ViewRenderProps; f: ChartFrequency
         swrThreshold={f.threshold}
         stale={f.stale}
         {...(p.hamBands && p.chartZoom ? { hamBands: p.hamBands } : {})}
+        interactive={p.chartZoom ?? false}
+        designKey={p.result?.geometry ?? ""}
+        {...(f.onSweepSpan && p.chartZoom ? { onSweepSpan: f.onSweepSpan } : {})}
         {...(p.chartCurves ? { curves: p.chartCurves } : {})}
         {...(p.chartPins ? { pins: p.chartPins } : {})}
         {...(onAxis ? { onAxisChange: (c: SweepAxisChoice) => onAxis(mode, c) } : {})}
