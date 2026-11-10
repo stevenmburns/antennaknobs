@@ -10,13 +10,15 @@ until it passes momwire#1810).
 
 from __future__ import annotations
 
+import itertools
+
 import numpy as np
 import pytest
 
 from antennaknobs import Wire
 from antennaknobs.cli import make_engine_factory
 from antennaknobs.engines.momwire import _takes_kwarg, _takes_pair_reuse
-from antennaknobs.structure import edges_from_wires, pair_reuse_hint
+from antennaknobs.structure import ReuseHint, edges_from_wires, pair_reuse_hint
 
 from test_structure_2165 import design, yagi
 
@@ -156,3 +158,140 @@ def test_the_switch_also_fills_a_straight_wire_by_offset(monkeypatch):
     free = getattr(momwire_bspline_module(), "FREE_OFFSET_EDGES", 0)
     assert K.REG_TOEPLITZ_EDGES + free > c0 + f0
     assert np.max(np.abs(z1 - z0) / np.abs(z0)) <= 1e-12
+
+
+# --- momwire#1854: the vectorised hint, the decline floor, the digest key ----
+
+
+def reversed_director_yagi(D):
+    """`fed_yagi` with its first director wired the other way round."""
+    ws = list(fed_yagi(D).build_wires())
+    w = ws[2]
+    ws[2] = Wire(w.p1, w.p0, n_seg=w.n_seg)
+    return design(ws)
+
+
+def _end_order_key(e, f):
+    pts = [np.asarray(p, float) for p in (e.p0, e.p1, f.p0, f.p1)]
+    d = [
+        np.linalg.norm(pts[i] - pts[j]) for i, j in itertools.combinations(range(4), 2)
+    ]
+    return (e is f, e.n, f.n, e.material, f.material, *np.round(np.array(d) / 1e-9))
+
+
+def test_every_pair_that_repeats_in_end_order_is_in_one_class():
+    """A brute-force oracle over every unordered pair of a small grid with a
+    reversed director beside it: two pairs go together exactly when one of
+    the second's two orders reads the first's six distances in end order,
+    which is the copy momwire makes. The pairwise search kept only members
+    whose lowest reading needed no reversal, losing those a pair-order swap
+    matches."""
+    ws = list(wire_grid(cells=3).build_wires()) + list(
+        reversed_director_yagi(3).build_wires()
+    )
+    edges = edges_from_wires(design(ws))
+    by_key: dict = {}
+    for i, j in itertools.combinations_with_replacement(range(len(edges)), 2):
+        e, f = edges[i], edges[j]
+        keys = {_end_order_key(e, f), _end_order_key(f, e)}
+        by_key.setdefault(min(keys), set()).add(frozenset((i, j)))
+    ref = {(e.wire, e.sub): k for k, e in enumerate(edges)}
+    classes = [
+        {frozenset((ref[a], ref[b])) for a, b in c} for c in pair_reuse_hint(edges)
+    ]
+    want = [g for g in by_key.values() if len(g) > 1]
+    assert sorted(
+        map(sorted, map(lambda g: [tuple(sorted(x)) for x in g], classes))
+    ) == sorted(map(sorted, map(lambda g: [tuple(sorted(x)) for x in g], want)))
+
+
+@takes_hint
+def test_momwire_takes_every_member_of_the_reordered_hint(monkeypatch):
+    e = engine(reversed_director_yagi(6), pair_reuse=True)
+    solvers = []
+    spy(monkeypatch, e, solvers)
+    e.impedance()
+    assert solvers
+    for s in solvers:
+        s._pair_reuse_plan(s._build_geometry())
+        assert s.pair_reuse_dropped == ()
+
+
+def copied_pairs_mean(edges, hint):
+    """momwire's per-member count (`_pair_reuse_worth`), over every member
+    but the representatives, at one thread, computed from the hint as given."""
+    n = {(e.wire, e.sub): e.n for e in edges}
+    pairs = [n[a] * n[b] * (2 if a != b else 1) for c in hint for a, b in c[1:]]
+    return sum(pairs) / len(pairs)
+
+
+def test_the_decline_floor_is_the_mean_momwire_takes():
+    edges = edges_from_wires(fed_yagi(5))
+    full = pair_reuse_hint(edges)
+    mean = copied_pairs_mean(edges, full)
+    assert pair_reuse_hint(edges, mean * (1 - 1e-9)) == full
+    assert pair_reuse_hint(edges, mean * (1 + 1e-9)) == []
+    assert pair_reuse_hint(edges, None) == full
+
+
+def wire_grid(cells=12, side=0.5, h=0.3):
+    """A ground screen of one-segment edges, momwire#1854's shape: the hint's
+    blocks are 1-2 segment pairs, under momwire's floor of 8."""
+    ws = []
+    for i in range(cells + 1):
+        for j in range(cells):
+            ws.append(
+                Wire((i * side, j * side, h), (i * side, (j + 1) * side, h), n_seg=1)
+            )
+            ws.append(
+                Wire((j * side, i * side, h), ((j + 1) * side, i * side, h), n_seg=1)
+            )
+    w = ws[0]
+    ws[0] = Wire(w.p0, w.p1, n_seg=1, ex=1 + 0j)
+    return design(ws)
+
+
+def test_a_wire_grid_gets_no_hint_when_momwire_would_decline_it(monkeypatch):
+    import antennaknobs.mw._private as private
+
+    monkeypatch.setattr(private, "pair_reuse_min_pairs_per_member", lambda: 8.0)
+    e = engine(wire_grid(cells=6), pair_reuse=True)
+    assert pair_reuse_hint(edges_from_wires(wire_grid(cells=6)))  # it does repeat
+    assert e._pair_reuse_hint() is None
+    seen = spy(monkeypatch, e)
+    e.impedance()
+    assert seen and all("pair_reuse" not in kw for kw in seen)
+
+
+def test_a_momwire_without_a_floor_keeps_the_hint(monkeypatch):
+    import antennaknobs.mw._private as private
+
+    monkeypatch.setattr(private, "pair_reuse_min_pairs_per_member", lambda: None)
+    assert engine(wire_grid(cells=6), pair_reuse=True)._pair_reuse_hint()
+
+
+def test_the_hint_carries_a_digest_of_its_content():
+    a = pair_reuse_hint(edges_from_wires(fed_yagi(5)))
+    b = pair_reuse_hint(edges_from_wires(fed_yagi(5)))
+    c = pair_reuse_hint(edges_from_wires(fed_yagi(6)))
+    assert isinstance(a, ReuseHint) and len(a.digest) == 32
+    assert a.digest == b.digest != c.digest
+
+
+def test_the_fill_key_names_the_hint_by_its_digest_not_its_members():
+    """Two hints with one digest key alike whatever their members hold, which
+    is what lets the key skip pickling them; a plain list is still keyed by
+    its content."""
+    from antennaknobs.engines.momwire import MomwireEngine, _z_fill_key
+
+    def kw(h):
+        return {"feeds": [(0, 0, 1.0)], "pair_reuse": h}
+
+    x, y, z = ReuseHint([[1, 2]]), ReuseHint([["other"]]), ReuseHint([[1, 2]])
+    x.digest = y.digest = b"d" * 32
+    z.digest = b"e" * 32
+    assert _z_fill_key(MomwireEngine, kw(x)) == _z_fill_key(MomwireEngine, kw(y))
+    assert _z_fill_key(MomwireEngine, kw(x)) != _z_fill_key(MomwireEngine, kw(z))
+    assert _z_fill_key(MomwireEngine, kw([[1, 2]])) != _z_fill_key(
+        MomwireEngine, kw([[3, 4]])
+    )

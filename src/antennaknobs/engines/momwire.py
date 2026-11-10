@@ -931,6 +931,11 @@ def _z_fill_key(solver_cls, kwargs):
     where tuple equality would not), and anything that will not pickle
     returns None -- no sharing -- rather than a key that could collide."""
     stripped = {k: v for k, v in kwargs.items() if k != "cancel"}
+    hint = kwargs.get("pair_reuse")
+    if getattr(hint, "digest", b""):
+        # The hint by its content digest (`structure.ReuseHint`): pickling its
+        # members cost more than the rest of the key a hundred times over.
+        stripped["pair_reuse"] = ("digest", hint.digest)
     stripped["feeds"] = [tuple(f[:-1]) for f in kwargs["feeds"]]
     if kwargs.get("junction_ports"):
         stripped["junction_ports"] = [j for j, _v in kwargs["junction_ports"]]
@@ -2300,7 +2305,8 @@ class MomwireEngine(SimulationEngine):
 
     def _pair_reuse_hint(self):
         """The congruent edge pairs of this engine's mesh, found once per mesh,
-        or None when reuse is off."""
+        or None when reuse is off or the installed momwire would decline the
+        mesh's hint as too small to pay."""
         if not self._pair_reuse:
             return None
         key = pickle.dumps(
@@ -2311,12 +2317,15 @@ class MomwireEngine(SimulationEngine):
         )
         cached = self._pair_reuse_hint_cache
         if cached is None or cached[0] != key:
+            from ..mw._private import pair_reuse_min_pairs_per_member
             from ..structure import edges_of_engine, pair_reuse_hint
 
-            cached = self._pair_reuse_hint_cache = (
-                key,
-                pair_reuse_hint(edges_of_engine(self)),
+            # A hint momwire would decline unread comes back empty, and the
+            # solver is then built without one (momwire#1854).
+            hint = pair_reuse_hint(
+                edges_of_engine(self), pair_reuse_min_pairs_per_member()
             )
+            cached = self._pair_reuse_hint_cache = (key, hint or None)
         return cached[1]
 
     def _share_z_fill(self, solver, key):

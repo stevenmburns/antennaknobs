@@ -27,6 +27,7 @@ and reports what it could save. It is read-only: nothing here changes a solve.
 
 from __future__ import annotations
 
+import hashlib
 import itertools
 from dataclasses import dataclass, field
 
@@ -223,24 +224,146 @@ def edges_of_engine(e) -> list[Edge]:
     return out
 
 
-def pair_reuse_hint(edges) -> list:
-    """momwire's ``pair_reuse`` hint (momwire#1809): per pose class of two or
-    more members, ``[((wire, edge), (wire, edge)), ...]`` with the
-    representative first. Free-space classes, so a pair repeated at another
-    height is still offered; momwire checks every member against its own
-    geometry and copies only what that geometry repeats (the Sommerfeld
-    remainder only where heights are kept). A member running against its
-    representative's direction is left out: the copy maps segment k to
-    segment k."""
-    hint = []
-    for c in edge_pair_classes(edges, over_ground=False, isometries=False):
-        members = [
-            ((edges[i].wire, edges[i].sub), (edges[j].wire, edges[j].sub))
-            for i, j, _iso, fi, fj in c.members
-            if not fi and not fj
+#: The hint groups edge pairs by their six end-point distances rounded to this
+#: grid (metres). momwire accepts a member only when its distances reproduce
+#: its representative's to 1e-12 of the structure's size, so a coarser grid
+#: would only offer members it refuses; a repeat straddling a grid line is
+#: split into two classes, which costs copies, never correctness.
+_HINT_GRID = 1e-9
+
+#: Edge pairs hashed per block of the hint's search: the block's temporaries,
+#: not the mesh, set its memory.
+_HINT_BLOCK_PAIRS = 1 << 20
+
+_FNV = np.uint64(1469598103934665603)
+_MIX = np.uint64(0x9E3779B97F4A7C15)
+
+
+def _row_hash(cols) -> np.ndarray:
+    """One 64-bit hash per row of integer columns. Two different rows can
+    share a hash (about 1e-7 odds over a few million pairs); momwire checks
+    every member against its representative's geometry, so a collision costs
+    a refused copy, never a wrong one."""
+    h = np.full(cols[0].shape, _FNV)
+    with np.errstate(over="ignore"):
+        for c in cols:
+            h = (h ^ np.asarray(c, dtype=np.int64).view(np.uint64)) * _MIX
+            h ^= h >> np.uint64(29)
+    return h
+
+
+class ReuseHint(list):
+    """A ``pair_reuse`` hint (a plain list to momwire) carrying ``digest``: a
+    hash of its whole content, taken once from the arrays that built it, so
+    a cache key over the solver's kwargs (`engines.momwire._z_fill_key`) can
+    name the hint without pickling its members (0.5-0.8 s per solve on a
+    2,223-edge grid, momwire#1854)."""
+
+    digest: bytes = b""
+
+
+def pair_reuse_hint(edges, min_pairs_per_member=None) -> ReuseHint:
+    """momwire's ``pair_reuse`` hint (momwire#1809): per class of two or more
+    members, ``[((wire, edge), (wire, edge)), ...]`` with the representative
+    first.
+
+    A class is what momwire's plan accepts: the same segment counts and wire
+    specs, and the same six end-point distances read in END ORDER (a0 a1 b0
+    b1), so any isometry carries the representative onto the member with
+    segment k onto segment k. Each two-edge pair is offered in whichever of
+    its two orders matches its class. The pairwise search this replaced read
+    every pair with either edge reversed too, then left out any member whose
+    lowest reading needed a reversal, which also lost members a pair-order
+    swap matches; none is lost here (2.21M copies offered on a 2,223-edge
+    wire grid, against 732k). A pair with one
+    edge running against its representative's still has no k-to-k copy and
+    is in no class with it. Free-space classes: a pair repeated at another height is still
+    offered, and momwire copies the Sommerfeld remainder only where its own
+    check finds the heights kept.
+
+    ``min_pairs_per_member`` is momwire's floor (momwire#1854): it declines a
+    hint unread when the copied segment pairs per member (twice for two
+    edges), per fill thread, average under it. That average is taken here over
+    every member, at one thread, the most any fill credits, so a hint it
+    rejects momwire would decline too; the hint is then empty and its Python
+    lists, a third of this search's time, are never built. None (a momwire
+    that declines nothing) keeps every hint.
+
+    Vectorised over blocks of pairs (momwire#1854: the pairwise Python search
+    this replaced took 23-45 s on a 2,223-edge wire grid)."""
+    E = len(edges)
+    if E == 0:
+        return ReuseHint()
+    P0 = np.array([e.p0 for e in edges], dtype=float).reshape(E, 3)
+    P1 = np.array([e.p1 for e in edges], dtype=float).reshape(E, 3)
+    n = np.array([e.n for e in edges], dtype=np.int64)
+    mat = np.unique([e.material for e in edges], return_inverse=True)[1].astype(
+        np.int64
+    )
+
+    def q(x):
+        return np.rint(x / _HINT_GRID).astype(np.int64)
+
+    def dist(u, v):
+        return q(np.sqrt(np.sum((u - v) ** 2, axis=1)))
+
+    keys, firsts, seconds = [], [], []
+    rows = max(1, _HINT_BLOCK_PAIRS // E)
+    for s0 in range(0, E, rows):
+        ii, jj = np.meshgrid(
+            np.arange(s0, min(E, s0 + rows)), np.arange(E), indexing="ij"
+        )
+        keep = jj >= ii
+        i, j = ii[keep], jj[keep]
+        a0, a1, b0, b1 = P0[i], P1[i], P0[j], P1[j]
+        same = (i == j).astype(np.int64)
+        d_ab = [
+            dist(a0, a1),
+            dist(a0, b0),
+            dist(a0, b1),
+            dist(a1, b0),
+            dist(a1, b1),
+            dist(b0, b1),
         ]
-        if len(members) > 1:
-            hint.append(members)
+        # The same pair read as (b, a): the six distances re-indexed.
+        d_ba = [d_ab[5], d_ab[1], d_ab[3], d_ab[2], d_ab[4], d_ab[0]]
+        h_ab = _row_hash([same, n[i], n[j], mat[i], mat[j], *d_ab])
+        h_ba = _row_hash([same, n[j], n[i], mat[j], mat[i], *d_ba])
+        swap = h_ba < h_ab
+        keys.append(np.where(swap, h_ba, h_ab))
+        firsts.append(np.where(swap, j, i).astype(np.int32))
+        seconds.append(np.where(swap, i, j).astype(np.int32))
+    k = np.concatenate(keys)
+    A = np.concatenate(firsts)
+    B = np.concatenate(seconds)
+    order = np.argsort(k, kind="stable")
+    k, A, B = k[order], A[order], B[order]
+    cut = np.flatnonzero(k[1:] != k[:-1]) + 1
+    starts = np.r_[0, cut]
+    ends = np.r_[cut, len(k)]
+    big = (ends - starts) > 1
+    starts, ends = starts[big], ends[big]
+    if min_pairs_per_member is not None and len(starts):
+        # Every member but its class's representative: the ones copied.
+        mark = np.zeros(len(k) + 1, dtype=np.int64)
+        np.add.at(mark, starts + 1, 1)
+        np.add.at(mark, ends, -1)
+        copied = np.cumsum(mark[:-1]) > 0
+        a, b = A[copied], B[copied]
+        pairs = n[a] * n[b] * np.where(a != b, 2, 1)
+        if float(pairs.mean()) < min_pairs_per_member:
+            return ReuseHint()
+    refs = np.array([(e.wire, e.sub) for e in edges], dtype=np.int64).reshape(E, 2)
+    ref = [(e.wire, e.sub) for e in edges]
+    digest = hashlib.sha256()
+    for arr in (refs, starts, ends, A, B):
+        digest.update(np.ascontiguousarray(arr).tobytes())
+    A, B = A.tolist(), B.tolist()
+    hint = ReuseHint(
+        [(ref[A[t]], ref[B[t]]) for t in range(s, e)]
+        for s, e in zip(starts.tolist(), ends.tolist(), strict=True)
+    )
+    hint.digest = digest.digest()
     return hint
 
 
