@@ -540,6 +540,291 @@ def _series_group2(a, b, r, l, c, omega, emf=0j, ql=None, qc=None):
     return _Group2Element(a, b, c_v=1.0 + 0j, c_j=z, e=emf)
 
 
+# ---------------------------------------------------------------------------
+# Sparse MNA (AK#2241): the path a large circuit-only network takes.
+# ---------------------------------------------------------------------------
+
+# The MNA dimension n + m (node voltages plus Group-2 branch currents) at and
+# above which `apply_branches` assembles the system sparse and `solve` factors
+# it with SuperLU instead of dense `zgesvx` (AK#2241).
+#
+# The unit is the matrix dimension, not the node count, because that is what
+# both costs scale with: dense is O((n+m)³) time and O((n+m)²) storage, sparse
+# about linear in the stamp count on a ladder-like network. A line is two
+# Group-2 currents and a series part one, so n alone understates a network
+# made mostly of them by up to 3x. It is known exactly once every branch has
+# stamped, and it depends on topology only, so a design is on one path at
+# every frequency of a sweep.
+#
+# Measured per frequency (`scratch/2241-sparse-mna/crossover.py`, apply_branches
+# + solve, best of 5, laptop): the two paths cost the same at about 80
+# unknowns, on the RLCG ladder (n+m 82: dense 0.97 ms, sparse 1.07 ms) and on
+# a chain of station networks (n+m 79: 0.96 / 1.11 ms). Below that sparse
+# carries a fixed ~0.6 ms of scipy overhead; above it dense grows as n³ (n+m
+# 402: 15 / 2.2 ms; 1202: 125 / 5.4 ms). 200 sits 2.5x above the crossover,
+# where dense still costs under 5 ms, and 6x above the largest network the
+# catalog ships (n+m 34, `catalog_census.py`), so every existing design stays
+# on the dense path and keeps its numbers bit for bit.
+#
+# Read at call time, so a test forces either path by monkeypatching it:
+# 0 forces sparse everywhere, a huge value forces dense.
+SPARSE_MIN_UNKNOWNS = 200
+
+
+def use_sparse(n_unknowns):
+    """Whether an MNA system of ``n_unknowns`` (= n + m) is assembled sparse."""
+    return n_unknowns >= SPARSE_MIN_UNKNOWNS
+
+
+class _GStamps:
+    """The Group-1 (node-admittance) stamps of one `apply_branches` call,
+    recorded in stamp order rather than written into a dense ``G``.
+
+    The size decision needs the Group-2 count, which is only known once every
+    branch has stamped, so the node block is held as a list until then.
+    `dense` replays it onto ``np.zeros((n, n))`` with exactly the in-place
+    operations `apply_branches` used to perform, in the same order, so the
+    dense path is bit for bit what it was. `coo` emits the same stamps as
+    COO triples without ever allocating ``n × n``: the antenna's ``Y_real``
+    (and its floating-port congruence) is dense but only over the real ports
+    and the floating ports' "-" nodes, and every branch stamp is a small block.
+    """
+
+    def __init__(self, n, y_real, floating):
+        self.n = n
+        self.y_real = y_real
+        # ((p_idx, n_idx), ...) for each floating gap port.
+        self.floating = tuple(floating)
+        self.ops = []
+
+    def add_block(self, idxs, yb):
+        """``G[np.ix_(idxs, idxs)] += yb``."""
+        self.ops.append((idxs, yb))
+
+    def add_diag(self, k, y):
+        """``G[k, k] += y``."""
+        self.ops.append((k, y))
+
+    def dense(self):
+        n = self.n
+        G = np.zeros((n, n), dtype=np.complex128)
+        Y_real = self.y_real
+        n_real = Y_real.shape[0]
+        if self.floating:
+            # Port incidence: gap row i drives node i positively, and a
+            # floating port also drives its "-" node negatively. The stamp is
+            # the congruence AᵀYA — the same [[1,-1],[-1,1]] structure
+            # BalancedLine uses, generalized over the whole multiport. With no
+            # floating ports A is the identity block and this reduces exactly
+            # to the historical G[:n_real, :n_real] = Y_real.
+            A = np.zeros((n_real, n), dtype=np.complex128)
+            A[np.arange(n_real), np.arange(n_real)] = 1.0
+            for p_idx, n_idx in self.floating:
+                A[p_idx, n_idx] = -1.0
+            G += A.T @ Y_real @ A
+        else:
+            G[:n_real, :n_real] = Y_real
+        for where, y in self.ops:
+            if isinstance(where, (int, np.integer)):
+                G[where, where] += y
+            else:
+                G[np.ix_(where, where)] += y
+        return G
+
+    def coo(self):
+        """``(rows, cols, vals)`` of the same stamps; duplicates sum."""
+        Y_real = self.y_real
+        n_real = Y_real.shape[0]
+        rows, cols, vals = [], [], []
+        if n_real:
+            if self.floating:
+                # The congruence over the nodes it can reach: the real ports
+                # and the floating ports' "-" nodes, a block of that size only.
+                nodes = list(range(n_real)) + [n_idx for _p, n_idx in self.floating]
+                inc = np.zeros((n_real, len(nodes)), dtype=np.complex128)
+                inc[np.arange(n_real), np.arange(n_real)] = 1.0
+                for x, (p_idx, _n) in enumerate(self.floating):
+                    inc[p_idx, n_real + x] = -1.0
+                block = inc.T @ Y_real @ inc
+            else:
+                nodes = list(range(n_real))
+                block = Y_real
+            nd = np.asarray(nodes, dtype=np.int64)
+            rows.append(np.repeat(nd, len(nd)))
+            cols.append(np.tile(nd, len(nd)))
+            vals.append(np.asarray(block, dtype=np.complex128).ravel())
+        for where, y in self.ops:
+            if isinstance(where, (int, np.integer)):
+                rows.append(np.array([where], dtype=np.int64))
+                cols.append(np.array([where], dtype=np.int64))
+                vals.append(np.array([y], dtype=np.complex128))
+            else:
+                nd = np.asarray(where, dtype=np.int64)
+                rows.append(np.repeat(nd, len(nd)))
+                cols.append(np.tile(nd, len(nd)))
+                vals.append(np.asarray(y, dtype=np.complex128).ravel())
+        if not rows:
+            empty = np.zeros(0, dtype=np.int64)
+            return empty, empty, np.zeros(0, dtype=np.complex128)
+        return np.concatenate(rows), np.concatenate(cols), np.concatenate(vals)
+
+
+def _group2_triples(n, elements, couplings):
+    """The Group-2 half of the MNA matrix as COO triples, plus its rhs.
+
+    Term for term what `MNASystem`'s dense loop writes: each element's KCL
+    column and constitutive row (in the arbitrary-arity ``terms`` form or the
+    a/b/c form), its diagonal ``c_j``, and every coupling. The dense loop's
+    ``A[col, col] = c_j`` is an assignment, but nothing else ever lands on a
+    Group-2 diagonal (a coupling is always off-diagonal, a node stamp always
+    in the node block), so an added triple is the same entry.
+    """
+    rows, cols, vals = [], [], []
+    rhs = np.zeros(len(elements), dtype=np.complex128)
+    for x, el in enumerate(elements):
+        col = n + x
+        if el.terms is not None:
+            for node, k, c_v in el.terms:
+                rows += (node, col)
+                cols += (col, node)
+                vals += (k, c_v)
+        else:
+            if el.a is not None:
+                rows += (el.a, col)
+                cols += (col, el.a)
+                vals += (el.ka, -el.c_v if el.c_va is None else el.c_va)
+            if el.b is not None:
+                rows += (el.b, col)
+                cols += (col, el.b)
+                vals += (-el.kb, el.c_v if el.c_vb is None else el.c_vb)
+            if el.c is not None:
+                rows += (el.c, col)
+                cols += (col, el.c)
+                vals += (el.kc, el.c_vc)
+        rows.append(col)
+        cols.append(col)
+        vals.append(el.c_j)
+        rhs[x] = el.e
+    for i, k, z in couplings:
+        rows.append(n + i)
+        cols.append(n + k)
+        vals.append(z)
+    return (
+        np.asarray(rows, dtype=np.int64),
+        np.asarray(cols, dtype=np.int64),
+        np.asarray(vals, dtype=np.complex128),
+        rhs,
+    )
+
+
+def _refine(A, b, x, correct, itmax=5):
+    """``zgerfs``'s iterative refinement of ``A x = b``: residual, correction
+    through the existing factor, repeated while the componentwise backward
+    error ``max_i |b − A x|_i / (|A| |x| + |b|)_i`` is above ε and still at
+    least halving, at most ``itmax`` times (LAPACK's ITMAX). ``correct`` maps
+    a residual to the correction, i.e. one solve with the factor."""
+    eps = np.finfo(float).eps
+    absA = abs(A)
+    last = 3.0
+    for _ in range(itmax):
+        res = b - A @ x
+        denom = absA @ np.abs(x) + np.abs(b)
+        nz = denom > 0.0
+        berr = float(np.max(np.abs(res[nz]) / denom[nz])) if np.any(nz) else 0.0
+        if not (berr > eps and 2.0 * berr <= last):
+            break
+        x = x + correct(res)
+        last = berr
+    return x
+
+
+# LAPACK's ``zlaqge`` thresholds: scale only when the factors spread by more
+# than 10x, or the largest entry is near under- or overflow.
+_EQU_THRESH = 0.1
+_EQU_SMALL = np.finfo(float).tiny / np.finfo(float).eps
+_EQU_LARGE = 1.0 / _EQU_SMALL
+
+
+def _equilibrate(A):
+    """Row and column scale factors of a CSC matrix, as ``zgesvx``'s
+    ``fact="E"`` computes and applies them (``zgeequ`` then ``zlaqge``).
+
+    ``zgeequ``: ``r_i = 1/max_j |a_ij|``, then ``c_j = 1/max_i r_i·|a_ij|``,
+    with |·| the ``cabs1`` norm |Re| + |Im| LAPACK uses there. ``zlaqge``
+    then applies the rows only if ``min r / max r`` (rowcnd) is below 0.1 or
+    the largest entry is near under/overflow, and the columns only if colcnd
+    is below 0.1; a factor not applied is returned as ones. That decision
+    matters beyond speed: the reciprocal condition ``zgesvx`` reports is that
+    of the system as scaled, so a path that always scaled both would report a
+    different number (measured: up to 7x higher on the RLCG ladder, whose
+    columns ``zlaqge`` leaves alone). ``None`` when a row or column is
+    entirely zero, which is exact rank deficiency (``zgeequ``'s info > 0).
+    """
+    N = A.shape[0]
+    mag = np.abs(A.data.real) + np.abs(A.data.imag)
+    col_of = np.repeat(np.arange(N), np.diff(A.indptr))
+    rmax = np.zeros(N)
+    np.maximum.at(rmax, A.indices, mag)
+    if N == 0 or not np.all(rmax > 0.0):
+        return None
+    rmax_c = np.minimum(np.maximum(rmax, _EQU_SMALL), _EQU_LARGE)
+    r = 1.0 / rmax_c
+    rowcnd = max(rmax.min(), _EQU_SMALL) / min(rmax.max(), _EQU_LARGE)
+    amax = rmax.max()
+    cmax = np.zeros(N)
+    np.maximum.at(cmax, col_of, r[A.indices] * mag)
+    if not np.all(cmax > 0.0):
+        return None
+    c = 1.0 / np.minimum(np.maximum(cmax, _EQU_SMALL), _EQU_LARGE)
+    colcnd = max(cmax.min(), _EQU_SMALL) / min(cmax.max(), _EQU_LARGE)
+    if rowcnd >= _EQU_THRESH and _EQU_SMALL <= amax <= _EQU_LARGE:
+        r = np.ones(N)
+    if colcnd >= _EQU_THRESH:
+        c = np.ones(N)
+    return r, c
+
+
+def _inv_norm1_estimate(solve, solve_h, n):
+    """Hager's estimate of ``‖A⁻¹‖₁`` as LAPACK's ``zlacn2`` computes it for
+    ``zgecon`` (Higham's 1988 refinement, complex sign vectors, at most five
+    iterations, then the alternating test vector), so a sparse solve reports
+    the same quantity a dense ``zgesvx`` does. Deterministic, unlike
+    ``scipy.sparse.linalg.onenormest``'s random starts: a threshold compared
+    against it must give the same answer every run."""
+    x = np.full(n, 1.0 / n, dtype=np.complex128)
+    y = solve(x)
+    if n == 1:
+        return float(abs(y[0]))
+    est = float(np.sum(np.abs(y)))
+
+    def sign(v):
+        a = np.abs(v)
+        out = np.ones(n, dtype=np.complex128)
+        nz = a > 0.0
+        out[nz] = v[nz] / a[nz]
+        return out
+
+    z = solve_h(sign(y))
+    j = int(np.argmax(np.abs(z)))
+    for _it in range(2, 6):
+        x = np.zeros(n, dtype=np.complex128)
+        x[j] = 1.0
+        y = solve(x)
+        # LAPACK keeps the new (lower) value when it stops on cycling; so does
+        # this, to report the number zgesvx would.
+        est_old, est = est, float(np.sum(np.abs(y)))
+        if est <= est_old:
+            break
+        z = solve_h(sign(y))
+        j_last, j = j, int(np.argmax(np.abs(z)))
+        if abs(z[j_last]) == abs(z[j]):
+            break
+    i = np.arange(n)
+    x = ((-1.0) ** i * (1.0 + i / (n - 1))).astype(np.complex128)
+    temp = 2.0 * float(np.sum(np.abs(solve(x)))) / (3.0 * n)
+    return max(est, temp)
+
+
 class MNASystem:
     """Assembled MNA system ``[[G, B], [Cᵀ, D]] · [v; j] = [i_ext; e]``.
 
@@ -554,6 +839,12 @@ class MNASystem:
     the EMF and the driven impedance is ``emf / j[column] − z_ref_at[k]``;
     kind "i" (forced current, issue #442): value is the forced amps and the
     impedance is ``v_k / j[column] + z_chain``.
+
+    ``A`` is a dense ndarray below `SPARSE_MIN_UNKNOWNS` and a
+    ``scipy.sparse`` CSC matrix at and above it (AK#2241; ``sparse`` says
+    which). Nothing in this package reads ``A`` but `solve`: the readouts,
+    `branch_power` included, read the solution, ``terminations``,
+    ``elements`` and ``probes``, all the same objects on either path.
     """
 
     def __init__(
@@ -567,6 +858,12 @@ class MNASystem:
         z_ref=0j,
         z_ref_at=None,
     ):
+        self._init_common(elements, terminations, probes, diagnose, z_ref, z_ref_at)
+        if isinstance(G, _GStamps):
+            self._assemble_sparse(G, elements, couplings)
+            return
+        # The dense path (below `SPARSE_MIN_UNKNOWNS`), exactly as it was.
+        self.sparse = False
         n = G.shape[0]
         m = len(elements)
         A = np.zeros((n + m, n + m), dtype=np.complex128)
@@ -602,6 +899,35 @@ class MNASystem:
         self.n_nodes = n
         self.A = A
         self.rhs = rhs
+
+    def _assemble_sparse(self, g_stamps, elements, couplings):
+        """The sparse path (AK#2241): the same matrix, built as COO triples
+        and summed into CSC, with no ``(n+m)²`` (or ``n²``) array anywhere.
+        ``self.A`` is then a ``scipy.sparse`` CSC matrix; every reader in this
+        package goes through `solve`, which is the one place that cares."""
+        import scipy.sparse as sp
+
+        n = g_stamps.n
+        N = n + len(elements)
+        gr, gc, gv = g_stamps.coo()
+        er, ec, ev, erhs = _group2_triples(n, elements, couplings)
+        A = sp.coo_matrix(
+            (
+                np.concatenate([gv, ev]),
+                (np.concatenate([gr, er]), np.concatenate([gc, ec])),
+            ),
+            shape=(N, N),
+        ).tocsc()
+        A.sum_duplicates()
+        A.eliminate_zeros()
+        rhs = np.zeros(N, dtype=np.complex128)
+        rhs[n:] = erhs
+        self.sparse = True
+        self.n_nodes = n
+        self.A = A
+        self.rhs = rhs
+
+    def _init_common(self, elements, terminations, probes, diagnose, z_ref, z_ref_at):
         self.terminations = terminations
         # The source impedance the DRIVEN terminations were stamped behind
         # (issue #746); 0 is the ideal generator. Readouts subtract it back
@@ -631,6 +957,9 @@ class MNASystem:
         # costs nothing on the happy path, which is every path but one.
         self.diagnose = diagnose
         self._solution = None
+        # The equilibrated system's reciprocal condition, once solved (either
+        # path); read-only bookkeeping, nothing downstream depends on it.
+        self.rcond = None
 
     def branch_power(self, label_kind_payload):
         """Time-average power in watts dissipated in one probed branch of
@@ -737,18 +1066,27 @@ class MNASystem:
         rather than badly-scaled: across every catalog design with a network,
         the worst healthy value measured is 2.4e-7, five orders above the
         threshold below.
+
+        At and above `SPARSE_MIN_UNKNOWNS` the system is sparse and
+        `_solve_sparse` does the same three things with SuperLU, to the same
+        thresholds, the same message and the same `diagnose` (AK#2241).
         """
         if self._solution is None:
-            from scipy.linalg.lapack import zgesvx
+            if self.sparse:
+                x, rcond, singular = self._solve_sparse()
+            else:
+                from scipy.linalg.lapack import zgesvx
 
-            with warnings.catch_warnings():
-                # An exactly-singular factorization warns; we are about to
-                # raise a message that actually explains it.
-                warnings.simplefilter("ignore")
-                out = zgesvx(self.A, self.rhs.reshape(-1, 1))
-            x, rcond, info = out[7], float(out[8]), int(out[11])
-            n = self.A.shape[0]
-            if (0 < info <= n) or not np.isfinite(rcond) or rcond < RCOND_SINGULAR:
+                with warnings.catch_warnings():
+                    # An exactly-singular factorization warns; we are about to
+                    # raise a message that actually explains it.
+                    warnings.simplefilter("ignore")
+                    out = zgesvx(self.A, self.rhs.reshape(-1, 1))
+                x, rcond, info = out[7], float(out[8]), int(out[11])
+                n = self.A.shape[0]
+                singular = 0 < info <= n
+            self.rcond = rcond
+            if singular or not np.isfinite(rcond) or rcond < RCOND_SINGULAR:
                 detail = self.diagnose() if self.diagnose is not None else ""
                 raise SingularNetworkError(
                     "the network has no finite solution at this frequency "
@@ -767,6 +1105,68 @@ class MNASystem:
             x = np.asarray(x).reshape(-1)
             self._solution = (x[: self.n_nodes], x[self.n_nodes :])
         return self._solution
+
+    def _solve_sparse(self):
+        """``(x, rcond, singular)`` by SuperLU, keeping `solve`'s guarantees.
+
+        The three steps ``zgesvx`` performs, on a CSC matrix:
+
+        1. equilibrate as ``zgeequ`` computes the factors and ``zlaqge``
+           decides which to apply (`_equilibrate`), so the condition below is
+           that of the system ``zgesvx`` would have scaled;
+        2. factor and solve the scaled system with ``splu`` (COLAMD column
+           order, partial pivoting), and unscale: x = c · (As⁻¹ (r · rhs));
+        3. estimate the scaled system's reciprocal condition as ``zgecon``
+           does, 1/(‖As‖₁ · est ‖As⁻¹‖₁), with the same Hager iteration
+           (`_inv_norm1_estimate`) over the factor's solves.
+
+        Then ``zgerfs``'s iterative refinement (`_refine`), as ``zgesvx``
+        follows its solve with, so the answer carries the same guarantee: a
+        componentwise backward error at ε. It cannot make the two paths agree
+        beyond the problem's own conditioning. On ``arrays.bowtie1x2_bl``
+        (rcond 8e-7; its floating gaps' common mode is pinned only through
+        1e8 Ω shunts) both answers have backward error 1.3-1.5e-16, and its
+        excited node voltages still differ by 5.7e-11 of the largest: the
+        dense answer happens to sit on a 40-digit solve, the sparse one κ·ε
+        from it, before refinement and after. Its Z, Γ, p_in and budget meet
+        the 1e-12 every other catalog row does (worst 1.2e-14 across them).
+
+        An all-zero row or column, or a factor SuperLU calls exactly
+        singular, is ``zgesvx``'s info > 0, reported with rcond 0.
+        """
+        import scipy.sparse as sp
+        import scipy.sparse.linalg as spla
+
+        A = self.A
+        N = A.shape[0]
+        nothing = np.zeros(N, dtype=np.complex128)
+        scale = _equilibrate(A)
+        if scale is None:
+            return nothing, 0.0, True
+        r, c = scale
+        As = sp.csc_matrix(
+            (
+                A.data * r[A.indices] * np.repeat(c, np.diff(A.indptr)),
+                A.indices,
+                A.indptr,
+            ),
+            shape=A.shape,
+        )
+        try:
+            with warnings.catch_warnings():
+                warnings.simplefilter("ignore")
+                lu = spla.splu(As)
+        except RuntimeError:
+            # "Factor is exactly singular".
+            return nothing, 0.0, True
+        with warnings.catch_warnings(), np.errstate(all="ignore"):
+            warnings.simplefilter("ignore")
+            x = c * lu.solve(r * self.rhs)
+            x = _refine(A, self.rhs, x, lambda res: c * lu.solve(r * res))
+            anorm = float(np.max(np.asarray(abs(As).sum(axis=0)).ravel()))
+            ainv = _inv_norm1_estimate(lu.solve, lambda v: lu.solve(v, trans="H"), N)
+            rcond = 0.0 if ainv == 0.0 or anorm == 0.0 else (1.0 / ainv) / anorm
+        return x, float(rcond), False
 
 
 def poison_singular_sample(fn, *args, where="", **kwargs):

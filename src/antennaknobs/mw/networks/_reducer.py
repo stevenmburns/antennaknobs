@@ -42,11 +42,13 @@ import math
 
 import numpy as np
 
+from . import _reduce
 from ._reduce import (
     C_LIGHT,
     Z_REF_DEFAULT,
     MNASystem,
     _Group2Element,
+    _GStamps,
     _series_group2,
     _stamp_abcd,
     frequency_mhz,
@@ -409,23 +411,13 @@ class NetworkReducer:
             omega = 2.0 * np.pi * f_hz
         line = dict(c_light_mhz_m=self.c_light_mhz_m)
         couplings: list[tuple[int, int, complex]] = []
-        n = self.n_nodes
-        G = np.zeros((n, n), dtype=np.complex128)
-        n_real = Y_real.shape[0]
-        if self._floating:
-            # Port incidence: gap row i drives node i positively, and a
-            # floating port also drives its "-" node negatively. The stamp is
-            # the congruence AᵀYA — the same [[1,-1],[-1,1]] structure
-            # BalancedLine uses, generalized over the whole multiport. With no
-            # floating ports A is the identity block and this reduces exactly
-            # to the historical G[:n_real, :n_real] = Y_real.
-            A = np.zeros((n_real, n), dtype=np.complex128)
-            A[np.arange(n_real), np.arange(n_real)] = 1.0
-            for p_idx, n_idx in self._floating.values():
-                A[p_idx, n_idx] = -1.0
-            G += A.T @ Y_real @ A
-        else:
-            G[:n_real, :n_real] = Y_real
+        # The node-admittance block, recorded rather than written into a dense
+        # G (AK#2241): the size decision below needs the Group-2 count, and a
+        # large network must never allocate n × n. `_GStamps.dense` replays
+        # these stamps (the antenna Y, its floating-port congruence AᵀYA, and
+        # every `add_*` below) onto zeros with the in-place operations that
+        # used to be written here, in the same order.
+        G = _GStamps(self.n_nodes, Y_real, self._floating.values())
 
         elements = []
         loads_by_node = {}
@@ -528,7 +520,7 @@ class NetworkReducer:
                 # like TL's 2×2 and the parallel Shunt's 1×1.
                 idxs = [self.port_to_idx[p] for p in br.ports]
                 yb = np.array(br.y, dtype=np.complex128)
-                G[np.ix_(idxs, idxs)] += yb
+                G.add_block(idxs, yb)
                 probes.append(
                     probe(
                         lab(f"Admittance {'→'.join(map(_short, br.ports))}"),
@@ -542,7 +534,7 @@ class NetworkReducer:
                 # verbatim like a 1-port Admittance / parallel Shunt.
                 k = self.port_to_idx[br.port]
                 yb = br.data.y_at(f_hz)
-                G[k, k] += yb[0, 0]
+                G.add_diag(k, yb[0, 0])
                 probes.append(
                     probe(
                         lab(f"Touchstone {_short(br.port)}"),
@@ -556,7 +548,7 @@ class NetworkReducer:
                 # like TL's 2×2 — a characterized balun / coax / filter black box.
                 a, b = self.port_to_idx[br.a], self.port_to_idx[br.b]
                 yb = br.data.y_at(f_hz)
-                G[np.ix_([a, b], [a, b])] += yb
+                G.add_block([a, b], yb)
                 probes.append(
                     probe(
                         lab(f"Touchstone {_short(br.a)}→{_short(br.b)}"),
@@ -582,7 +574,7 @@ class NetworkReducer:
                     y_sh = _parallel_rlc_admittance(
                         br.r, br.l, br.c, omega, br.ql, br.qc
                     )
-                    G[k, k] += y_sh
+                    G.add_diag(k, y_sh)
                     probes.append(
                         probe(
                             lab(f"Shunt {_short(br.port)}"),
@@ -635,7 +627,7 @@ class NetworkReducer:
                 zl = magnetizing_impedance(br, omega)
                 if zl is not None:
                     y_mag = 1.0 / zl
-                    G[a, a] += y_mag
+                    G.add_diag(a, y_mag)
                     probes.append(
                         probe(
                             lab(f"Transformer {_short(br.a)}→{_short(br.b)} (mag)"),
@@ -732,7 +724,7 @@ class NetworkReducer:
                 zl = magnetizing_impedance(br, omega)
                 if zl is not None:
                     y_mag = 1.0 / zl
-                    G[p, p] += y_mag
+                    G.add_diag(p, y_mag)
                     probes.append(
                         probe(
                             lab(
@@ -862,6 +854,10 @@ class NetworkReducer:
             terminations[k] = (len(elements), e, "v", 0j)
             elements.append(el)
 
+        # Dense below the threshold (bit for bit the historical system), sparse
+        # at and above it; the unit is the MNA dimension n + m.
+        if not _reduce.use_sparse(self.n_nodes + len(elements)):
+            G = G.dense()
         return MNASystem(
             G,
             elements,
