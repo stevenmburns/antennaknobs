@@ -216,7 +216,12 @@ class Builder(AntennaBuilder):
     # Exactly four-fold (C4v) about the whip, for symmetry studies: a round
     # outline and four identical posts, each with the same series L and C
     # (see `symmetric`); tune post_l_nh / post_c_pf for the match.
-    sym4_params = MappingProxyType({"symmetric": True, "num_posts": 4})
+    # Tuned for the best worst SWR over 400-412 MHz (momwire sinusoidal, free
+    # space): 1.38 / 1.24 / 1.18 against the deck's 1.23 / 1.27 / 1.52 -- the
+    # coil goes (the optimum sat on the 1 nH bound) and each post is 0.9 pF.
+    sym4_params = MappingProxyType(
+        {"symmetric": True, "num_posts": 4, "post_l_nh": 0.0, "post_c_pf": 0.9}
+    )
 
     def build_wires(self):
         h = self.height
