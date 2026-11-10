@@ -29,30 +29,28 @@ import { Card, CardGrid, LinkCard } from "@astrojs/starlight/components";
 {/* What's-new box: refresh as part of the release ritual (bump the version,
     swap the highlights) — a stale "new" box is worse than none. */}
 
-<Card title="New in v0.115.1" icon="star">
-  **A slider that places a SimNEC load turns everywhere.** In 0.115.0 a knob
-  that put a `NECSource` load exactly on a segment centre was refused as a
-  topology change; now every value builds.
+<Card title="New in v0.116.0" icon="star">
+  **Big lumped networks solve in milliseconds.** A network with hundreds or
+  thousands of circuit-only nodes, such as a transmission line modelled as many
+  RLC sections or a large matching or distribution network, now solves sparse:
+  a 1,000-section line in front of a dipole went from 3.6 s and 777 MB to
+  0.03 s and 118 MB per frequency. Smaller networks, every design in the
+  catalog among them, solve as before.
 
-  Still new from v0.115.0:
+  **A network element tied to one node twice now reads correctly.** A two-port
+  with both of its ports on the same node, such as an imported NEC deck's `NT`
+  card with both ends on one segment, now adds all four of its admittances
+  there, as NEC-5 and NEC-4.2 do; before, some were dropped. If you have
+  imported a deck with such a card, its numbers change.
 
-  **A station knob turns instantly.** Turning a value in a station's chain (a
-  coax length, a matching C) reuses the antenna's solve, for the live point
-  and for the sweep after it: on a full SimNEC station file, a sweep went from
-  about 13 s to under 0.1 s. Antenna knobs solve as before.
+  **SimNEC files.** A Generator that lists several frequencies sets the SWR
+  charts' bands to the amateur bands those frequencies fall in, instead of
+  shading every HF band. `antennaknobs optimize` on an opened file lists the
+  optimized knobs, with units, to set in the file, where it used to print an
+  empty block. See [importing a .ssn](/reference/simnec/#importing-ssn--design).
 
-  **More SimNEC files open.** A Generator listing several frequencies opens at
-  the last, with each as a band; a `NECSource` whose value or place is a
-  slider or a constant reads it, as a knob in pF, µH or %; a load between two
-  segment grid points is placed exactly where the file puts it. See
-  [importing a .ssn](/reference/simnec/#importing-ssn--design).
-
-  **Faster EFHW solves, opt-in,** from momwire 0.89.0: four switches for a
-  counterpoise near the ground and a rod crossing it, on the B-spline and
-  razor-2p tabs. See [the switches](/reference/cli/#faster-wires-near-and-through-the-ground-opt-in).
-
-  Also: a sweep chart's **clear** button, Stop that works through a sweep's
-  refinement passes, and K0 in a coax line's loss on the schematic.
+  Also: a slider that moves a SimNEC load no longer renumbers the loads in the
+  power budget.
 </Card>
 
 ## The whole pitch, in one line
