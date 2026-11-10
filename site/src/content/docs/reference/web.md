@@ -971,6 +971,27 @@ when the sweep covers only part of the band). So the chart answers "is the
 band covered?" at a glance: the threshold is horizontal, the bands vertical,
 and the two never look alike. Thumbnails leave the bands off.
 
+**Zooming the frequency axis.** On the SWR and S11 views:
+
+- **click a ham band** to zoom to it, with a little room either side;
+- **drag across the plot** to zoom to the span you drag (a touch drag is
+  the page's swipe until the chart is zoomed, then it pans the axis);
+- **Ctrl+scroll** (⌘+scroll on a Mac), a **trackpad or touch pinch**, or
+  **+** and **−** with the chart focused, zoom about the pointer, or the middle
+  for the keys. A plain scroll is never taken: over the chart it scrolls the
+  page, as it does over the knobs;
+- **double-click**, **Esc**, or **Reset zoom** go back to the whole sweep.
+
+Zooming is only a view, and nothing re-solves. The range Auto fits is the
+part on screen, and the bands, the threshold line, pins and the other curves
+all follow it. The zoom lasts through knob turns and re-solves of the
+design, and goes when you switch design. While zoomed, a chip in the corner
+reads the span in MHz. Its **Sweep this span** makes that span the chart's
+**from / to** and sweeps just it at the same number of points, so the curve
+is solved more finely there and not just magnified. The chart's **↺** puts
+the range back. Zooming in stops at a thousandth of the sweep, a little
+finer than the densest grid the hosted app will solve.
+
 **The Files view** shows the text behind a solve, each tab with Copy and
 Download. **Source** is the file the design is built from: a catalog or user
 `.py`, or a bare `.nec`/`.ssn` as written. **SimNEC** is the design as a
