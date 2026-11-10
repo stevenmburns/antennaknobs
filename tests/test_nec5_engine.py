@@ -419,8 +419,26 @@ def test_deck_rp_line(monkeypatch):
     lines = NEC5Engine(_dipole_builder()).deck([28.5], rp=(90, 360, 1, 1)).splitlines()
     assert not any(ln.startswith("XQ") for ln in lines)
     rp = [ln for ln in lines if ln.startswith("RP")][0].split()
-    # NTH=90, NPH=361 (phi seam duplicated), XNDA=0, dth/dph as floats.
-    assert rp[1:5] == ["0", "90", "361", "0"]
+    # NTH=90, NPH=361 (phi seam duplicated), XNDA=1000 (vertical/
+    # horizontal: momwire's NEC-5 launchers refuse X = 0, AK#2259).
+    assert rp[1:5] == ["0", "90", "361", "1000"]
+
+
+def test_deck_rp_grid_and_average_gain_cards_use_x1(monkeypatch):
+    """AK#2259: every RP card the engine writes asks for the X = 1
+    (vertical/horizontal) columns, the only polarisation momwire's NEC-5
+    launchers print; the X = 0 form is refused there."""
+    monkeypatch.setenv("NEC5_EXE", sys.executable)
+    eng = NEC5Engine(_dipole_builder())
+    lines = eng.deck([28.5], rp_grid=(1, 90.0, 0.0, 361, 0.0, 1.0)).splitlines()
+    rp = [ln for ln in lines if ln.startswith("RP")][0].split()
+    assert rp[4] == "1000"
+    seen = []
+    monkeypatch.setattr(eng, "_run", lambda text: seen.append(text) or "")
+    with pytest.raises(NEC5Error):
+        eng.average_power_gain()
+    rp = [ln for ln in seen[0].splitlines() if ln.startswith("RP")][0].split()
+    assert rp[4] == "1002"
 
 
 def test_parse_pattern_fixture():
