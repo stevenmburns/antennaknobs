@@ -577,18 +577,19 @@ def test_the_parity_check_catches_dropped_column_scaling(monkeypatch):
 
 
 def test_the_parity_check_catches_a_mis_stamped_group2_term(monkeypatch):
-    """Negate the first coupling triple, the B (Zc·sinh γl) term of the first
-    line's chain-matrix row, on the sparse path only."""
-    real = _reduce._group2_triples
+    """Negate the first coupling triple, the B (Zc·sinh γl) term of the
+    line's chain-matrix row, on the sparse path only. Both paths read one
+    emitter (`_MNAStamps.triples`), so the mutation goes into `_csc`, the one
+    step only the sparse path takes; the couplings are the last triples, and
+    this case's one line contributes two."""
+    real = _reduce._csc
 
-    def mis_stamped(n, elements, couplings):
-        rows, cols, vals, rhs = real(n, elements, couplings)
-        if couplings:
-            vals = vals.copy()
-            vals[len(vals) - len(couplings)] *= -1.0
-        return rows, cols, vals, rhs
+    def mis_stamped(rows, cols, vals, N):
+        vals = vals.copy()
+        vals[-2] *= -1.0
+        return real(rows, cols, vals, N)
 
-    monkeypatch.setattr(_reduce, "_group2_triples", mis_stamped)
+    monkeypatch.setattr(_reduce, "_csc", mis_stamped)
     red, y = _ab_reducer(ab.case_tl_lossy_vf)
     with pytest.raises(AssertionError, match="sparse vs dense"):
         check_parity(*both_paths(red, y, ab._wl(14.2)))

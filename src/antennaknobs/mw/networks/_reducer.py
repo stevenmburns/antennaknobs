@@ -42,13 +42,12 @@ import math
 
 import numpy as np
 
-from . import _reduce
 from ._reduce import (
     C_LIGHT,
     Z_REF_DEFAULT,
     MNASystem,
     _Group2Element,
-    _GStamps,
+    _MNAStamps,
     _series_group2,
     _stamp_abcd,
     frequency_mhz,
@@ -411,13 +410,11 @@ class NetworkReducer:
             omega = 2.0 * np.pi * f_hz
         line = dict(c_light_mhz_m=self.c_light_mhz_m)
         couplings: list[tuple[int, int, complex]] = []
-        # The node-admittance block, recorded rather than written into a dense
-        # G (AK#2241): the size decision below needs the Group-2 count, and a
-        # large network must never allocate n × n. `_GStamps.dense` replays
-        # these stamps (the antenna Y, its floating-port congruence AᵀYA, and
-        # every `add_*` below) onto zeros with the in-place operations that
-        # used to be written here, in the same order.
-        G = _GStamps(self.n_nodes, Y_real, self._floating.values())
+        # The node-admittance block as COO triples in stamp order (AK#2241):
+        # the antenna Y with its floating-port congruence AᵀYA, then every
+        # `add_*` below. `MNASystem` appends the Group-2 half and either
+        # densifies the lot or sums it into CSC, by size; duplicates sum.
+        G = _MNAStamps(self.n_nodes, Y_real, self._floating.values())
 
         elements = []
         loads_by_node = {}
@@ -854,10 +851,6 @@ class NetworkReducer:
             terminations[k] = (len(elements), e, "v", 0j)
             elements.append(el)
 
-        # Dense below the threshold (bit for bit the historical system), sparse
-        # at and above it; the unit is the MNA dimension n + m.
-        if not _reduce.use_sparse(self.n_nodes + len(elements)):
-            G = G.dense()
         return MNASystem(
             G,
             elements,

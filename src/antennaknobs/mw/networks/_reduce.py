@@ -576,18 +576,27 @@ def use_sparse(n_unknowns):
     return n_unknowns >= SPARSE_MIN_UNKNOWNS
 
 
-class _GStamps:
-    """The Group-1 (node-admittance) stamps of one `apply_branches` call,
-    recorded in stamp order rather than written into a dense ``G``.
+class _MNAStamps:
+    """The Group-1 (node-admittance) stamps of one `apply_branches` call, as
+    COO triples in stamp order: the one assembly both solve paths read.
 
     The size decision needs the Group-2 count, which is only known once every
-    branch has stamped, so the node block is held as a list until then.
-    `dense` replays it onto ``np.zeros((n, n))`` with exactly the in-place
-    operations `apply_branches` used to perform, in the same order, so the
-    dense path is bit for bit what it was. `coo` emits the same stamps as
-    COO triples without ever allocating ``n × n``: the antenna's ``Y_real``
-    (and its floating-port congruence) is dense but only over the real ports
-    and the floating ports' "-" nodes, and every branch stamp is a small block.
+    branch has stamped, so nothing is laid out until `triples` runs. That
+    emits the whole MNA matrix — the antenna block first, then every branch
+    stamp below in call order, then the Group-2 columns, rows and couplings —
+    and `MNASystem` either densifies it (`_densify`, accumulating in exactly
+    that order, small) or sums it into CSC (`_csc`, large). A large network
+    never allocates ``n × n``: the antenna's ``Y_real`` (and its floating-
+    port congruence) is dense only over the real ports and the floating
+    ports' "-" nodes, and every branch stamp is a small block.
+
+    Duplicates SUM, on both paths. A multiport whose ports repeat a node (an
+    `Admittance` on ``(a, a)``, a `TouchstoneTwoPort` with ``a == b``)
+    therefore injects I1 + I2 = (y11 + y12 + y21 + y22)·V at that node, which
+    is the physics and is what NEC-5 and NEC-4.2 do with an ``NT`` card whose
+    two ends are one segment (momwire#1887). The dense stamp this replaced,
+    ``G[np.ix_(idxs, idxs)] += yb``, is a buffered fancy-index add that kept
+    ONE of the four entries instead.
     """
 
     def __init__(self, n, y_real, floating):
@@ -595,99 +604,101 @@ class _GStamps:
         self.y_real = y_real
         # ((p_idx, n_idx), ...) for each floating gap port.
         self.floating = tuple(floating)
-        self.ops = []
+        self.rows: list[int] = []
+        self.cols: list[int] = []
+        self.vals: list[complex] = []
 
     def add_block(self, idxs, yb):
-        """``G[np.ix_(idxs, idxs)] += yb``."""
-        self.ops.append((idxs, yb))
+        """``G[idxs[i], idxs[j]] += yb[i, j]`` for every i, j, row by row."""
+        k = len(idxs)
+        for i in idxs:
+            self.rows += [i] * k
+            self.cols += idxs
+        self.vals += np.asarray(yb, dtype=np.complex128).ravel().tolist()
 
     def add_diag(self, k, y):
         """``G[k, k] += y``."""
-        self.ops.append((k, y))
+        self.rows.append(k)
+        self.cols.append(k)
+        self.vals.append(y)
 
-    def dense(self):
-        n = self.n
-        G = np.zeros((n, n), dtype=np.complex128)
+    def _antenna_block(self, full_width):
+        """``(nodes, block)``: the antenna's stamp over the nodes it reaches.
+
+        Port incidence: gap row i drives node i positively, and a floating
+        port also drives its "-" node negatively. The stamp is the congruence
+        AᵀYA — the same [[1,-1],[-1,1]] structure BalancedLine uses,
+        generalized over the whole multiport; with no floating ports it is
+        ``Y_real`` itself. ``full_width`` computes the product with A at the
+        full node width n, the dense path's historical arithmetic, and keeps
+        only the reachable rows and columns (every other entry of that
+        product is a signed zero, and 0 + ±0 is the +0 an unstamped entry
+        already holds); otherwise A is only as wide as the reachable nodes, so
+        a large network never forms n × n.
+        """
         Y_real = self.y_real
         n_real = Y_real.shape[0]
-        if self.floating:
-            # Port incidence: gap row i drives node i positively, and a
-            # floating port also drives its "-" node negatively. The stamp is
-            # the congruence AᵀYA — the same [[1,-1],[-1,1]] structure
-            # BalancedLine uses, generalized over the whole multiport. With no
-            # floating ports A is the identity block and this reduces exactly
-            # to the historical G[:n_real, :n_real] = Y_real.
-            A = np.zeros((n_real, n), dtype=np.complex128)
+        if not self.floating:
+            return np.arange(n_real), Y_real
+        minus = [n_idx for _p, n_idx in self.floating]
+        if full_width:
+            A = np.zeros((n_real, self.n), dtype=np.complex128)
             A[np.arange(n_real), np.arange(n_real)] = 1.0
             for p_idx, n_idx in self.floating:
                 A[p_idx, n_idx] = -1.0
-            G += A.T @ Y_real @ A
-        else:
-            G[:n_real, :n_real] = Y_real
-        for where, y in self.ops:
-            if isinstance(where, (int, np.integer)):
-                G[where, where] += y
-            else:
-                G[np.ix_(where, where)] += y
-        return G
+            nodes = np.unique(np.concatenate([np.arange(n_real), minus]))
+            return nodes, (A.T @ Y_real @ A)[np.ix_(nodes, nodes)]
+        nodes = np.concatenate([np.arange(n_real), minus]).astype(np.int64)
+        inc = np.zeros((n_real, len(nodes)), dtype=np.complex128)
+        inc[np.arange(n_real), np.arange(n_real)] = 1.0
+        for x, (p_idx, _n) in enumerate(self.floating):
+            inc[p_idx, n_real + x] = -1.0
+        return nodes, inc.T @ Y_real @ inc
 
-    def coo(self):
-        """``(rows, cols, vals)`` of the same stamps; duplicates sum."""
-        Y_real = self.y_real
-        n_real = Y_real.shape[0]
-        rows, cols, vals = [], [], []
-        if n_real:
-            if self.floating:
-                # The congruence over the nodes it can reach: the real ports
-                # and the floating ports' "-" nodes, a block of that size only.
-                nodes = list(range(n_real)) + [n_idx for _p, n_idx in self.floating]
-                inc = np.zeros((n_real, len(nodes)), dtype=np.complex128)
-                inc[np.arange(n_real), np.arange(n_real)] = 1.0
-                for x, (p_idx, _n) in enumerate(self.floating):
-                    inc[p_idx, n_real + x] = -1.0
-                block = inc.T @ Y_real @ inc
-            else:
-                nodes = list(range(n_real))
-                block = Y_real
-            nd = np.asarray(nodes, dtype=np.int64)
-            rows.append(np.repeat(nd, len(nd)))
-            cols.append(np.tile(nd, len(nd)))
-            vals.append(np.asarray(block, dtype=np.complex128).ravel())
-        for where, y in self.ops:
-            if isinstance(where, (int, np.integer)):
-                rows.append(np.array([where], dtype=np.int64))
-                cols.append(np.array([where], dtype=np.int64))
-                vals.append(np.array([y], dtype=np.complex128))
-            else:
-                nd = np.asarray(where, dtype=np.int64)
-                rows.append(np.repeat(nd, len(nd)))
-                cols.append(np.tile(nd, len(nd)))
-                vals.append(np.asarray(y, dtype=np.complex128).ravel())
-        if not rows:
-            empty = np.zeros(0, dtype=np.int64)
-            return empty, empty, np.zeros(0, dtype=np.complex128)
-        return np.concatenate(rows), np.concatenate(cols), np.concatenate(vals)
+    def triples(self, elements, couplings, *, full_width):
+        """``(rows, cols, vals, rhs)`` of the whole MNA matrix, in stamp
+        order: the antenna block, the branch stamps, then `_group2_triples`.
+        ``rhs`` is the Group-2 half of the right-hand side (the node half is
+        zero)."""
+        nodes, block = self._antenna_block(full_width)
+        nd = np.asarray(nodes, dtype=np.int64)
+        er, ec, ev, rhs = _group2_triples(self.n, elements, couplings)
+        rows = np.concatenate(
+            [np.repeat(nd, len(nd)), np.asarray(self.rows, dtype=np.int64), er]
+        )
+        cols = np.concatenate(
+            [np.tile(nd, len(nd)), np.asarray(self.cols, dtype=np.int64), ec]
+        )
+        vals = np.concatenate(
+            [
+                np.asarray(block, dtype=np.complex128).ravel(),
+                np.asarray(self.vals, dtype=np.complex128),
+                ev,
+            ]
+        )
+        return rows, cols, vals, rhs
 
 
 def _group2_triples(n, elements, couplings):
     """The Group-2 half of the MNA matrix as COO triples, plus its rhs.
 
-    Term for term what `MNASystem`'s dense loop writes: each element's KCL
-    column and constitutive row (in the arbitrary-arity ``terms`` form or the
-    a/b/c form), its diagonal ``c_j``, and every coupling. The dense loop's
-    ``A[col, col] = c_j`` is an assignment, but nothing else ever lands on a
-    Group-2 diagonal (a coupling is always off-diagonal, a node stamp always
-    in the node block), so an added triple is the same entry.
+    Each element's KCL column and constitutive row (in the arbitrary-arity
+    ``terms`` form or the a/b/c form), its diagonal ``c_j``, then every
+    coupling, in the order the dense loop this replaced performed them. That
+    loop subtracted ``kb`` where this emits ``-kb``; IEEE defines x − y as
+    x + (−y), so the sums are the same bits.
     """
     rows, cols, vals = [], [], []
     rhs = np.zeros(len(elements), dtype=np.complex128)
     for x, el in enumerate(elements):
         col = n + x
         if el.terms is not None:
+            # Arbitrary-arity form (issue #746): the a/b/c fields are not
+            # consulted at all.
             for node, k, c_v in el.terms:
                 rows += (node, col)
                 cols += (col, node)
-                vals += (k, c_v)
+                vals += (k, c_v)  # k·j leaves this node
         else:
             if el.a is not None:
                 rows += (el.a, col)
@@ -705,6 +716,10 @@ def _group2_triples(n, elements, couplings):
         cols.append(col)
         vals.append(el.c_j)
         rhs[x] = el.e
+    # Mutual coupling between two Group-2 rows (issue #594): an
+    # autotransformer's two winding sections share flux, so one branch
+    # current appears in the OTHER's constitutive row; a chain-matrix line's
+    # j₂ terms ride the same channel (issue #746).
     for i, k, z in couplings:
         rows.append(n + i)
         cols.append(n + k)
@@ -715,6 +730,43 @@ def _group2_triples(n, elements, couplings):
         np.asarray(vals, dtype=np.complex128),
         rhs,
     )
+
+
+def _densify(rows, cols, vals, N, written):
+    """The ``N × N`` ndarray of COO triples, summed in triple order.
+
+    `np.add.at` is unbuffered and visits its indices in order, so each entry
+    is ((0 + v₁) + v₂) + …, the sequence of in-place adds the dense assembly
+    used to perform (``tests/test_mna_unified_assembly.py`` holds that order:
+    1e16, 1, −1e16 on one entry sums to 0, not 1).
+
+    ``written`` lists the ``(rows, cols)`` slices the old dense code ASSIGNED
+    rather than added to: the antenna block ``G[:n_real, :n_real] = Y_real``
+    and each Group-2 diagonal ``A[col, col] = c_j``. Each assignment was the
+    first write to its entry, and 0 + v is v except that 0 + (−0) is +0, so
+    those entries start from −0 instead, IEEE's exact additive identity
+    (−0 + v is v for every v, signed zeros included). Measured to matter:
+    without it 77 of the 257 byte-for-byte A/B cases against momwire move
+    (a Transformer or FloatingBalun with no winding R, for one, has
+    ``c_j = −0j``).
+    """
+    D = np.zeros((N, N), dtype=np.complex128)
+    for sl in written:
+        D[sl] = complex(-0.0, -0.0)
+    np.add.at(D.reshape(-1), rows * N + cols, vals)
+    return D
+
+
+def _csc(rows, cols, vals, N):
+    """The ``N × N`` CSC matrix of COO triples, duplicates summed (AK#2241).
+    The summation order here is SciPy's, not the triples'; nothing holds the
+    sparse path to the dense one's bits, only to its answers."""
+    import scipy.sparse as sp
+
+    A = sp.coo_matrix((vals, (rows, cols)), shape=(N, N)).tocsc()
+    A.sum_duplicates()
+    A.eliminate_zeros()
+    return A
 
 
 def _refine(A, b, x, correct, itmax=5):
@@ -849,7 +901,7 @@ class MNASystem:
 
     def __init__(
         self,
-        G,
+        stamps,
         elements,
         terminations,
         probes=None,
@@ -858,73 +910,33 @@ class MNASystem:
         z_ref=0j,
         z_ref_at=None,
     ):
+        """``stamps`` is the `_MNAStamps` of the node block; the Group-2 half
+        comes from ``elements`` and ``couplings``. Both paths assemble the
+        same triples; only how they are summed differs."""
         self._init_common(elements, terminations, probes, diagnose, z_ref, z_ref_at)
-        if isinstance(G, _GStamps):
-            self._assemble_sparse(G, elements, couplings)
-            return
-        # The dense path (below `SPARSE_MIN_UNKNOWNS`), exactly as it was.
-        self.sparse = False
-        n = G.shape[0]
-        m = len(elements)
-        A = np.zeros((n + m, n + m), dtype=np.complex128)
-        A[:n, :n] = G
-        rhs = np.zeros(n + m, dtype=np.complex128)
-        for x, el in enumerate(elements):
-            col = n + x
-            if el.terms is not None:
-                # Arbitrary-arity form (issue #746): the a/b/c fields are not
-                # consulted at all.
-                for node, k, c_v in el.terms:
-                    A[node, col] += k  # k·j leaves this node
-                    A[col, node] += c_v
-            else:
-                if el.a is not None:
-                    A[el.a, col] += el.ka  # ka·j leaves node a
-                    A[col, el.a] += -el.c_v if el.c_va is None else el.c_va
-                if el.b is not None:
-                    A[el.b, col] -= el.kb  # kb·j enters node b
-                    A[col, el.b] += el.c_v if el.c_vb is None else el.c_vb
-                if el.c is not None:
-                    A[el.c, col] += el.kc  # kc·j leaves node c (third terminal)
-                    A[col, el.c] += el.c_vc
-            A[col, col] = el.c_j
-            rhs[col] = el.e
-        # Mutual coupling between two Group-2 rows (issue #594): an
-        # autotransformer's two winding sections share flux, so one branch
-        # current appears in the OTHER's constitutive row. Every other element
-        # here is diagonal in the branch-current block; this is the only term
-        # that is not.
-        for i, k, z in couplings:
-            A[n + i, n + k] += z
-        self.n_nodes = n
-        self.A = A
-        self.rhs = rhs
-
-    def _assemble_sparse(self, g_stamps, elements, couplings):
-        """The sparse path (AK#2241): the same matrix, built as COO triples
-        and summed into CSC, with no ``(n+m)²`` (or ``n²``) array anywhere.
-        ``self.A`` is then a ``scipy.sparse`` CSC matrix; every reader in this
-        package goes through `solve`, which is the one place that cares."""
-        import scipy.sparse as sp
-
-        n = g_stamps.n
+        n = stamps.n
         N = n + len(elements)
-        gr, gc, gv = g_stamps.coo()
-        er, ec, ev, erhs = _group2_triples(n, elements, couplings)
-        A = sp.coo_matrix(
-            (
-                np.concatenate([gv, ev]),
-                (np.concatenate([gr, er]), np.concatenate([gc, ec])),
-            ),
-            shape=(N, N),
-        ).tocsc()
-        A.sum_duplicates()
-        A.eliminate_zeros()
+        # Dense below the threshold, sparse at and above it; the unit is the
+        # MNA dimension n + m.
+        self.sparse = use_sparse(N)
+        rows, cols, vals, erhs = stamps.triples(
+            elements, couplings, full_width=not self.sparse
+        )
+        if self.sparse:
+            self.A = _csc(rows, cols, vals, N)
+        else:
+            n_real = 0 if stamps.floating else stamps.y_real.shape[0]
+            g2 = np.arange(n, N)
+            self.A = _densify(
+                rows,
+                cols,
+                vals,
+                N,
+                [(slice(0, n_real), slice(0, n_real)), (g2, g2)],
+            )
         rhs = np.zeros(N, dtype=np.complex128)
         rhs[n:] = erhs
-        self.sparse = True
         self.n_nodes = n
-        self.A = A
         self.rhs = rhs
 
     def _init_common(self, elements, terminations, probes, diagnose, z_ref, z_ref_at):
