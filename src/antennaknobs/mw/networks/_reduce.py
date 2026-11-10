@@ -639,7 +639,7 @@ class _MNAStamps:
         Y_real = self.y_real
         n_real = Y_real.shape[0]
         if not self.floating:
-            return np.arange(n_real), Y_real
+            return range(n_real), Y_real
         minus = [n_idx for _p, n_idx in self.floating]
         if full_width:
             A = np.zeros((n_real, self.n), dtype=np.complex128)
@@ -656,104 +656,107 @@ class _MNAStamps:
         return nodes, inc.T @ Y_real @ inc
 
     def triples(self, elements, couplings, *, full_width):
-        """``(rows, cols, vals, rhs)`` of the whole MNA matrix, in stamp
-        order: the antenna block, the branch stamps, then `_group2_triples`.
-        ``rhs`` is the Group-2 half of the right-hand side (the node half is
-        zero)."""
-        nodes, block = self._antenna_block(full_width)
-        nd = np.asarray(nodes, dtype=np.int64)
-        er, ec, ev, rhs = _group2_triples(self.n, elements, couplings)
-        rows = np.concatenate(
-            [np.repeat(nd, len(nd)), np.asarray(self.rows, dtype=np.int64), er]
+        """The whole MNA matrix in stamp order, as ``(antenna, keys, vals,
+        rhs)``.
+
+        ``antenna`` is ``(nodes, block)``, the antenna's stamp: a dense block
+        of triples, first in the order, over distinct nodes on the full-width
+        (dense) path. ``keys`` / ``vals`` are every other triple — the branch
+        stamps, then `_group2_triples` — with each (row, col) carried as the
+        flat index ``row·N + col`` of the ``N × N`` matrix (N = n + m), which
+        is what both `_densify` and the CSC build need and saves the dense
+        path an index conversion. ``rhs`` is the whole right-hand side.
+
+        A network of a few dozen unknowns is all fixed cost, so the Python-
+        level triples stay in one list per field and convert to arrays once.
+        """
+        N = self.n + len(elements)
+        keys = [r * N + c for r, c in zip(self.rows, self.cols, strict=True)]
+        vals = list(self.vals)
+        rhs = _group2_triples(self.n, N, elements, couplings, keys, vals)
+        return (
+            self._antenna_block(full_width),
+            np.array(keys, dtype=np.int64),
+            np.array(vals, dtype=np.complex128),
+            rhs,
         )
-        cols = np.concatenate(
-            [np.tile(nd, len(nd)), np.asarray(self.cols, dtype=np.int64), ec]
-        )
-        vals = np.concatenate(
-            [
-                np.asarray(block, dtype=np.complex128).ravel(),
-                np.asarray(self.vals, dtype=np.complex128),
-                ev,
-            ]
-        )
-        return rows, cols, vals, rhs
 
 
-def _group2_triples(n, elements, couplings):
-    """The Group-2 half of the MNA matrix as COO triples, plus its rhs.
+def _group2_triples(n, N, elements, couplings, keys, vals):
+    """Append the Group-2 half of the MNA matrix to ``keys`` / ``vals`` as
+    COO triples (flat index ``row·N + col``); return the right-hand side.
 
     Each element's KCL column and constitutive row (in the arbitrary-arity
     ``terms`` form or the a/b/c form), its diagonal ``c_j``, then every
-    coupling, in the order the dense loop this replaced performed them. That
+    coupling, in the order the dense loop this replaced performed them; the
+    right-hand side is zero at every node and ``e`` at each element. That
     loop subtracted ``kb`` where this emits ``-kb``; IEEE defines x − y as
     x + (−y), so the sums are the same bits.
     """
-    rows, cols, vals = [], [], []
-    rhs = np.zeros(len(elements), dtype=np.complex128)
+    rhs = np.zeros(N, dtype=np.complex128)
     for x, el in enumerate(elements):
         col = n + x
+        row = col * N
+        rhs[col] = el.e
         if el.terms is not None:
             # Arbitrary-arity form (issue #746): the a/b/c fields are not
             # consulted at all.
             for node, k, c_v in el.terms:
-                rows += (node, col)
-                cols += (col, node)
+                keys += (node * N + col, row + node)
                 vals += (k, c_v)  # k·j leaves this node
         else:
             if el.a is not None:
-                rows += (el.a, col)
-                cols += (col, el.a)
+                keys += (el.a * N + col, row + el.a)
                 vals += (el.ka, -el.c_v if el.c_va is None else el.c_va)
             if el.b is not None:
-                rows += (el.b, col)
-                cols += (col, el.b)
+                keys += (el.b * N + col, row + el.b)
                 vals += (-el.kb, el.c_v if el.c_vb is None else el.c_vb)
             if el.c is not None:
-                rows += (el.c, col)
-                cols += (col, el.c)
+                keys += (el.c * N + col, row + el.c)
                 vals += (el.kc, el.c_vc)
-        rows.append(col)
-        cols.append(col)
+        keys.append(row + col)
         vals.append(el.c_j)
-        rhs[x] = el.e
     # Mutual coupling between two Group-2 rows (issue #594): an
     # autotransformer's two winding sections share flux, so one branch
     # current appears in the OTHER's constitutive row; a chain-matrix line's
     # j₂ terms ride the same channel (issue #746).
     for i, k, z in couplings:
-        rows.append(n + i)
-        cols.append(n + k)
+        keys.append((n + i) * N + n + k)
         vals.append(z)
-    return (
-        np.asarray(rows, dtype=np.int64),
-        np.asarray(cols, dtype=np.int64),
-        np.asarray(vals, dtype=np.complex128),
-        rhs,
-    )
+    return rhs
 
 
-def _densify(rows, cols, vals, N, written):
-    """The ``N × N`` ndarray of COO triples, summed in triple order.
+def _densify(N, n, antenna, assign_antenna, keys, vals):
+    """The ``N × N`` ndarray of the triples, summed in triple order.
 
-    `np.add.at` is unbuffered and visits its indices in order, so each entry
-    is ((0 + v₁) + v₂) + …, the sequence of in-place adds the dense assembly
-    used to perform (``tests/test_mna_unified_assembly.py`` holds that order:
-    1e16, 1, −1e16 on one entry sums to 0, not 1).
+    The antenna block goes first, as the first contribution to every entry it
+    covers, over distinct nodes, so writing it as one block is its triples
+    summed onto zero — except where the old dense code ASSIGNED it
+    (``G[:n_real, :n_real] = Y_real``, no floating ports; ``assign_antenna``),
+    which this repeats, because 0 + (−0) is +0 and an assignment keeps the −0.
+    The same holds for each Group-2 diagonal, which the old code assigned
+    (``A[col, col] = c_j``) as the first write to its entry: those start from
+    −0, IEEE's exact additive identity (−0 + v is v for every v, signed zeros
+    included). Measured to matter: without it 77 of the 257 byte-for-byte A/B
+    cases against momwire move (a Transformer or FloatingBalun with no
+    winding R, for one, has ``c_j = −0j``).
 
-    ``written`` lists the ``(rows, cols)`` slices the old dense code ASSIGNED
-    rather than added to: the antenna block ``G[:n_real, :n_real] = Y_real``
-    and each Group-2 diagonal ``A[col, col] = c_j``. Each assignment was the
-    first write to its entry, and 0 + v is v except that 0 + (−0) is +0, so
-    those entries start from −0 instead, IEEE's exact additive identity
-    (−0 + v is v for every v, signed zeros included). Measured to matter:
-    without it 77 of the 257 byte-for-byte A/B cases against momwire move
-    (a Transformer or FloatingBalun with no winding R, for one, has
-    ``c_j = −0j``).
+    Then every other triple: `np.add.at` is unbuffered and visits its indices
+    in order, so each entry is ((s + v₁) + v₂) + …, the sequence of in-place
+    adds the dense assembly used to perform (``tests/
+    test_mna_unified_assembly.py`` holds that order: 1e16, 1, −1e16 on one
+    entry sums to 0, not 1).
     """
     D = np.zeros((N, N), dtype=np.complex128)
-    for sl in written:
-        D[sl] = complex(-0.0, -0.0)
-    np.add.at(D.reshape(-1), rows * N + cols, vals)
+    nodes, block = antenna
+    if assign_antenna:
+        k = len(nodes)
+        D[:k, :k] = block
+    elif len(nodes):
+        D[np.ix_(nodes, nodes)] += block
+    flat = D.reshape(-1)
+    flat[n * N + n :: N + 1] = complex(-0.0, -0.0)
+    np.add.at(flat, keys, vals)
     return D
 
 
@@ -919,23 +922,17 @@ class MNASystem:
         # Dense below the threshold, sparse at and above it; the unit is the
         # MNA dimension n + m.
         self.sparse = use_sparse(N)
-        rows, cols, vals, erhs = stamps.triples(
+        antenna, keys, vals, rhs = stamps.triples(
             elements, couplings, full_width=not self.sparse
         )
         if self.sparse:
-            self.A = _csc(rows, cols, vals, N)
+            nd = np.asarray(antenna[0], dtype=np.int64)
+            rows = np.concatenate([np.repeat(nd, len(nd)), keys // N])
+            cols = np.concatenate([np.tile(nd, len(nd)), keys % N])
+            avals = np.asarray(antenna[1], dtype=np.complex128).ravel()
+            self.A = _csc(rows, cols, np.concatenate([avals, vals]), N)
         else:
-            n_real = 0 if stamps.floating else stamps.y_real.shape[0]
-            g2 = np.arange(n, N)
-            self.A = _densify(
-                rows,
-                cols,
-                vals,
-                N,
-                [(slice(0, n_real), slice(0, n_real)), (g2, g2)],
-            )
-        rhs = np.zeros(N, dtype=np.complex128)
-        rhs[n:] = erhs
+            self.A = _densify(N, n, antenna, not stamps.floating, keys, vals)
         self.n_nodes = n
         self.rhs = rhs
 

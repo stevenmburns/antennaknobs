@@ -174,26 +174,35 @@ def test_momwire_still_drops_them():
 # --- the densify step accumulates in triple order --------------------------------
 
 
+_NO_ANTENNA = (np.arange(0), np.zeros((0, 0), dtype=np.complex128))
+_MZ = complex(-0.0, -0.0)
+
+
+def _signs(z):
+    return (math.copysign(1.0, z.real), math.copysign(1.0, z.imag))
+
+
 def test_densify_accumulates_in_triple_order():
     """1e16 + 1 rounds back to 1e16, so the three orders of one entry's
     triples give different sums; `_densify` must give the in-order one."""
-    rows = np.zeros(3, dtype=np.int64)
+    keys = np.zeros(3, dtype=np.int64)
     for order, want in (((0, 1, 2), 0.0), ((0, 2, 1), 1.0), ((2, 1, 0), 0.0)):
         vals = np.array([1e16, 1.0, -1e16], dtype=np.complex128)[list(order)]
-        D = _reduce._densify(rows, rows, vals, 1, [])
+        D = _reduce._densify(1, 1, _NO_ANTENNA, False, keys, vals)
         assert D[0, 0] == want, (order, D[0, 0])
 
 
 def test_densify_keeps_a_negative_zero_the_old_code_assigned():
-    """An assigned entry starts from −0, so a lone −0j triple lands as −0j
-    (the old ``A[col, col] = c_j``), while an added one lands as +0."""
-    rows = np.array([0, 1], dtype=np.int64)
-    vals = np.array([complex(-0.0, -0.0)] * 2)
-    D = _reduce._densify(rows, rows, vals, 2, [(slice(0, 1), slice(0, 1))])
-    assert math.copysign(1.0, D[0, 0].real) == -1.0
-    assert math.copysign(1.0, D[0, 0].imag) == -1.0
-    assert math.copysign(1.0, D[1, 1].real) == 1.0
-    assert math.copysign(1.0, D[1, 1].imag) == 1.0
+    """N = 3 with n = 2 nodes: entry (0, 0) is the assigned antenna block,
+    (2, 2) the Group-2 diagonal the old code assigned ``c_j`` to, and (1, 1)
+    a node entry it only ever added to. A −0j lands as −0j on the first two
+    and as +0 (0 + −0) on the third, as it did."""
+    antenna = (np.arange(1), np.array([[_MZ]]))
+    keys = np.array([1 * 3 + 1, 2 * 3 + 2], dtype=np.int64)
+    D = _reduce._densify(3, 2, antenna, True, keys, np.array([_MZ, _MZ]))
+    assert _signs(D[0, 0]) == (-1.0, -1.0)
+    assert _signs(D[2, 2]) == (-1.0, -1.0)
+    assert _signs(D[1, 1]) == (1.0, 1.0)
 
 
 # --- NEC: an NT card with both ends on one segment --------------------------------
