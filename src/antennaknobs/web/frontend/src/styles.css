@@ -4776,6 +4776,29 @@ div.opt-bands-readout {
   white-space: nowrap;
 }
 
+/* The frequency zoom's chip (SweepChart): inside the plot's bottom-right
+   corner, above the canvas's own range label, as the Smith chart's sits.
+   Over the plot rather than the tick strip or title row, which carry the
+   y range control and the bandwidth readout. After .schematic-zoom, whose
+   left/bottom it overrides. */
+.sweep-zoom {
+  left: auto;
+  bottom: calc(24px * var(--chart-scale));
+  right: calc(10px * var(--chart-scale));
+  align-items: center;
+}
+
+/* The span a drag is selecting: a tint between two edges, never a hit
+   target (the canvas under it owns the drag). */
+.sweep-zoom-select {
+  position: absolute;
+  pointer-events: none;
+  background: var(--accent-soft);
+  opacity: 0.5;
+  border-left: 1px solid var(--accent);
+  border-right: 1px solid var(--accent);
+}
+
 /* ---- The Z-vs-parameter view (docs/design/z-vs-param-view.md) ---- */
 /* The header: parameter, range, points, spacing. Top-right of the stage like
    the Smith chart's overlay; on a phone it sits in the page flow above the
