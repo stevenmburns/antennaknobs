@@ -16,6 +16,7 @@ __all__ = [
     "feature_registry",
     "k_medium",
     "lambda_medium",
+    "pair_reuse_min_pairs_per_member",
 ]
 
 
@@ -67,3 +68,14 @@ def feature_certified(name) -> bool:
     from momwire import _features  # noqa: PLC0415 — on use
 
     return _features.certified(name)
+
+
+def pair_reuse_min_pairs_per_member():
+    """The copied segment pairs per hint member, per fill thread, below which
+    momwire declines a ``pair_reuse`` hint unread (momwire#1854), or None when
+    the installed momwire declines none."""
+    try:
+        from momwire import bspline  # noqa: PLC0415 — on use
+    except ImportError:
+        return None
+    return getattr(bspline, "_PAIR_REUSE_MIN_PAIRS_PER_MEMBER", None)
