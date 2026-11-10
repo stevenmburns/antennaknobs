@@ -460,7 +460,13 @@ def _tl_element(branch, freq_mhz: float | None) -> Element:
 
     Matched loss is the cable-table convention momwire's `TL` documents:
     dB per 100 ft = k0 + k1·√f + k2·f, f in MHz. k0 (the conductors' DC
-    loss) is zero in the catalog and carried by SimNEC's K0K1K2 lines."""
+    loss) is zero in the catalog and carried by SimNEC's K0K1K2 lines.
+
+    A Johnson line (``skin``, SimNEC's and AutoEZ's K0K1K2 cables) does not
+    lose that: its DC and skin-effect resistances add in quadrature, so its
+    matched loss sits below the formula, by 16 % at 3.6 MHz for a cable with
+    a K0 of a fifth of its K1. The figure is then the line's own, Re(γ)·length
+    of the line the reducer solves, and the hover says which it is."""
     vf = float(getattr(branch, "vf", 1.0) or 1.0)
     k0 = float(getattr(branch, "k0", 0.0) or 0.0)
     k1 = float(getattr(branch, "k1", 0.0) or 0.0)
@@ -471,13 +477,30 @@ def _tl_element(branch, freq_mhz: float | None) -> Element:
     sub = _fmt_len(branch.length)
     hint = f"K0 {k0:g}, K1 {k1:g}, K2 {k2:g} (dB/100 ft = K0 + K1·√f + K2·f, f in MHz)"
     if (k0 or k1 or k2) and freq_mhz:
-        per_100ft = k0 + k1 * math.sqrt(freq_mhz) + k2 * freq_mhz
-        loss_db = per_100ft * float(branch.length) / _M_PER_100_FT
+        if getattr(branch, "skin", False):
+            from .mw.networks._reduce import C_LIGHT, _tl_line
+
+            gl, _zc = _tl_line(
+                float(branch.z0),
+                float(branch.length),
+                C_LIGHT / (float(freq_mhz) * 1e6),
+                vf,
+                k1,
+                k2,
+                skin=True,
+                k0=k0,
+            )
+            loss_db = 20.0 * math.log10(math.e) * float(gl.real)
+        else:
+            per_100ft = k0 + k1 * math.sqrt(freq_mhz) + k2 * freq_mhz
+            loss_db = per_100ft * float(branch.length) / _M_PER_100_FT
         # The frequency is the drawing's own; it goes in the hover, so the
         # second line stays as narrow as the symbol (a 5 m line's
         # "@ 14.1 MHz" ran into the next part's label).
         sub += f" · {_val(loss_db)} dB"
         hint += f"; matched loss at {_val(freq_mhz)} MHz"
+        if getattr(branch, "skin", False):
+            hint += ", as the Johnson line solves it (below the formula)"
     return series("coax", label, sub, hint=hint)
 
 

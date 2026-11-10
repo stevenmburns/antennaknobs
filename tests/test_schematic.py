@@ -6,7 +6,9 @@ that is where the tests are. Rendering is checked for "it produced an SVG";
 schemdraw owns the pixels.
 """
 
+import cmath
 import importlib
+import math
 
 import pytest
 
@@ -763,6 +765,55 @@ def test_a_lines_k0_is_in_its_loss_and_its_hover():
     assert "K0 + K1·√f + K2·f" in el.hint
     (only,) = default_elements(TL("a", "b", z0=50.0, length=30.48, k0=0.25), None, 4.0)
     assert only.sublabel.endswith(" · 0.25 dB")
+
+
+def _johnson_matched_loss_db(z0, length, vf, k0, k1, k2, f_mhz):
+    """AC6LA's Johnson line from its per-metre R, L, G, C (`network.TL`'s
+    docstring), written out here rather than read from the reducer:
+    R_dc = 2·z0·α0, R_hf = 2·z0·α1, G = 2·α2/z0 from the table's α's,
+    Z_int = sqrt(R_dc² + [R_hf·(1 + j)]²), γ = sqrt((Z_int + jωL)(G + jωC))."""
+    c = 299_792_458.0
+    per_m = (math.log(10.0) / 20.0) / 0.3048 / 100.0  # dB/100 ft -> Np/m
+    a0, a1, a2 = k0 * per_m, k1 * math.sqrt(f_mhz) * per_m, k2 * f_mhz * per_m
+    r_dc, r_hf, g = 2 * z0 * a0, 2 * z0 * a1, 2 * a2 / z0
+    w = 2 * math.pi * f_mhz * 1e6
+    big_l, big_c = z0 / (vf * c), 1.0 / (z0 * vf * c)
+    z_int = cmath.sqrt(r_dc**2 + (r_hf * (1 + 1j)) ** 2)
+    gamma = cmath.sqrt((z_int + 1j * w * big_l) * (g + 1j * w * big_c))
+    return 20.0 * math.log10(math.e) * gamma.real * length
+
+
+@pytest.mark.parametrize("f_mhz", [1.8, 3.6, 14.2, 28.4])
+def test_a_johnson_lines_loss_is_the_lines_own_not_the_formula(f_mhz):
+    """A SimNEC K0K1K2 line solves as the Johnson line, whose DC and
+    skin-effect resistances add in quadrature, so its matched loss is below
+    k0 + k1·√f + k2·f. The figure under the line is the solved line's, to the
+    label's two decimals, and the hover says so; the formula's figure would be
+    16 % high at 3.6 MHz for these (invented) coefficients."""
+    z0, length, vf, k0, k1, k2 = 50.0, 30.48, 0.66, 0.25, 1.2, 0.012
+    (el,) = default_elements(
+        TL("a", "b", z0=z0, length=length, vf=vf, k0=k0, k1=k1, k2=k2, skin=True),
+        None,
+        f_mhz,
+    )
+    want = _johnson_matched_loss_db(z0, length, vf, k0, k1, k2, f_mhz)
+    formula = k0 + k1 * math.sqrt(f_mhz) + k2 * f_mhz
+    assert want < formula - 0.2  # the two are told apart at two decimals
+    assert el.sublabel.endswith(f" · {want:.2f} dB"), (el.sublabel, want, formula)
+    assert "as the Johnson line solves it" in el.hint
+    assert "K0 0.25, K1 1.2, K2 0.012" in el.hint
+
+
+def test_a_line_without_skin_keeps_the_formula():
+    """EZNEC's lossy line (no ``skin``) loses the table's figure exactly, so
+    its label stays k0 + k1·√f + k2·f and its hover says nothing of Johnson."""
+    (el,) = default_elements(
+        TL("a", "b", z0=50.0, length=30.48, vf=0.66, k0=0.25, k1=1.2, k2=0.012),
+        None,
+        3.6,
+    )
+    assert el.sublabel.endswith(f" · {0.25 + 1.2 * 3.6**0.5 + 0.012 * 3.6:.2f} dB")
+    assert "Johnson" not in el.hint
 
 
 def test_a_hand_written_transposed_line_shows_both():
