@@ -466,7 +466,8 @@ def _tl_element(branch, freq_mhz: float | None) -> Element:
     lose that: its DC and skin-effect resistances add in quadrature, so its
     matched loss sits below the formula, by 16 % at 3.6 MHz for a cable with
     a K0 of a fifth of its K1. The figure is then the line's own, Re(γ)·length
-    of the line the reducer solves, and the hover says which it is."""
+    of the line the reducer solves, and the hover names the model rather than
+    a formula the line does not follow."""
     vf = float(getattr(branch, "vf", 1.0) or 1.0)
     k0 = float(getattr(branch, "k0", 0.0) or 0.0)
     k1 = float(getattr(branch, "k1", 0.0) or 0.0)
@@ -475,9 +476,18 @@ def _tl_element(branch, freq_mhz: float | None) -> Element:
     if getattr(branch, "transposed", False):
         label += " · transposed"
     sub = _fmt_len(branch.length)
-    hint = f"K0 {k0:g}, K1 {k1:g}, K2 {k2:g} (dB/100 ft = K0 + K1·√f + K2·f, f in MHz)"
+    johnson = bool(getattr(branch, "skin", False))
+    # The hover names the loss the solve computes: the table's formula for a
+    # line that loses exactly it, and only the model for a Johnson line, whose
+    # loss is not that formula (its K0 and K1 add in quadrature).
+    if johnson:
+        hint = f"K0 {k0:g}, K1 {k1:g}, K2 {k2:g} (AC6LA's Johnson line)"
+    else:
+        hint = (
+            f"K0 {k0:g}, K1 {k1:g}, K2 {k2:g} (dB/100 ft = K0 + K1·√f + K2·f, f in MHz)"
+        )
     if (k0 or k1 or k2) and freq_mhz:
-        if getattr(branch, "skin", False):
+        if johnson:
             from .mw.networks._reduce import C_LIGHT, _tl_line
 
             gl, _zc = _tl_line(
@@ -499,8 +509,6 @@ def _tl_element(branch, freq_mhz: float | None) -> Element:
         # "@ 14.1 MHz" ran into the next part's label).
         sub += f" · {_val(loss_db)} dB"
         hint += f"; matched loss at {_val(freq_mhz)} MHz"
-        if getattr(branch, "skin", False):
-            hint += ", as the Johnson line solves it (below the formula)"
     return series("coax", label, sub, hint=hint)
 
 
