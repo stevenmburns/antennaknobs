@@ -61,6 +61,7 @@ from types import MappingProxyType
 
 from .builder import C_LIGHT_MHZ_M, AntennaBuilder
 from .ez_import import accept_guesses_from_env, read_ez
+from .frequency_range import DEFAULT_AMATEUR_BANDS
 from .maa_import import decode_maa, read_maa
 from .nec_import import _NEC_SMIN, NEC_C_LIGHT_MHZ_M, SySymbol, classify_sy, parse_nec
 from .simnec_import import classify_dcl, parse_ssn
@@ -108,6 +109,27 @@ def sweep_range_ui(lo, hi, grid=None, *, source="file") -> dict:
             float(value) if spacing == "lin" else int(value)
         )
     return out
+
+
+def _band_table(freqs) -> tuple[tuple, ...]:
+    """A design's band table (`ui_params["bands"]`, `BandSpec` fields) from
+    the frequencies a file names: each amateur band one of them falls in,
+    its tab snapping to that frequency, in frequency order. A frequency in
+    no amateur band gets a ±1.5 % span of its own, as the workbench gives an
+    off-band design frequency."""
+    out: dict[str, tuple] = {}
+    for f in sorted(float(f) for f in freqs):
+        band = next(
+            (b for b in DEFAULT_AMATEUR_BANDS if b.min_mhz <= f <= b.max_mhz), None
+        )
+        if band is None:
+            label = f"{f:g} MHz"
+            out.setdefault(label, (label, label, f, 0.985 * f, 1.015 * f))
+        else:
+            out.setdefault(
+                band.key, (band.key, band.label, f, band.min_mhz, band.max_mhz)
+            )
+    return tuple(out.values())
 
 
 def _make_builder(
@@ -181,6 +203,11 @@ def _make_builder(
     if knobs is not None:
         params.update(knobs.default_params())
         ui.update(knobs.ui_params())
+    if bands:
+        # The file's own frequencies as the band table (`_band_table`), so
+        # the SWR charts shade the amateur bands they fall in rather than
+        # every HF band.
+        ui["bands"] = _band_table(f for _label, f in bands)
     if ui:
         params["ui_params"] = MappingProxyType(ui)
 
