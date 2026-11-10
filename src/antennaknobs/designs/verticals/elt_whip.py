@@ -70,7 +70,7 @@ import math
 from types import MappingProxyType
 
 from antennaknobs import AntennaBuilder, Wire, WireSpec
-from antennaknobs.network import Driven, Load, Network, PortOnWire, Shunt
+from antennaknobs.network import Driven, Load, Network, PortOnWire
 
 # Reference length for the thick upper whip's segment count. The deck meshes its
 # 15.75" (0.40005 m) top section into 28 segments; dividing that length by the
@@ -161,14 +161,15 @@ class Builder(AntennaBuilder):
             "post_l_nh": 90.0,
             "post_c_pf": 3.0,
             # The symmetric ("sym4") form: a round, self-transpose plane
-            # outline and no posts, the matching network as shunt L and C at
-            # the feed port instead (the posts ARE shunts across the feed:
-            # each runs from the plane to the cage's first ring, which the
-            # spokes tie to the whip at the top of the feed segment). The
-            # structure is then exactly four-fold (C4v) about the whip.
+            # outline, and every post the same: each carries post_l_nh AND
+            # post_c_pf in series (the deck puts the coil on one post and the
+            # capacitor on the other). With four posts the structure is then
+            # exactly four-fold (C4v) about the whip. The posts are a tapped
+            # match, not just shunts across the feed: they hang off the cage
+            # ring 0.25" out, so moving their L and C to the feed port cannot
+            # reach the match (measured: worst SWR 2.06 over 400-412 MHz at
+            # the best shunt L and C, as R stays near 100 ohms).
             "symmetric": False,
-            "feed_l_nh": 90.0,
-            "feed_c_pf": 3.0,
             # Ground-plane grid (deck: 48" radius, 2" mesh, 1" fine mesh) — the
             # default reproduces the deck verbatim. The fine centre mesh is always
             # half the grid pitch (fixed 2× subdivision), so fine_pitch is derived
@@ -196,8 +197,6 @@ class Builder(AntennaBuilder):
                     "num_spokes": {"min": 0, "max": 12, "step": 1},
                     "post_l_nh": {"min": 0.0, "max": 200.0, "step": 1.0},
                     "post_c_pf": {"min": 0.0, "max": 20.0, "step": 0.1},
-                    "feed_l_nh": {"min": 0.0, "max": 200.0, "step": 1.0},
-                    "feed_c_pf": {"min": 0.0, "max": 20.0, "step": 0.1},
                 }
             ),
         }
@@ -215,10 +214,9 @@ class Builder(AntennaBuilder):
     coarse_params = MappingProxyType({"grid_pitch": 1.2192 / 17})
 
     # Exactly four-fold (C4v) about the whip, for symmetry studies: a round
-    # outline and the matching as shunt elements at the feed, no posts (see
-    # `symmetric`). The deck's shunt values to start; tune feed_l_nh /
-    # feed_c_pf for the match, as the posts' own wire inductance is gone.
-    sym4_params = MappingProxyType({"symmetric": True, "num_posts": 0})
+    # outline and four identical posts, each with the same series L and C
+    # (see `symmetric`); tune post_l_nh / post_c_pf for the match.
+    sym4_params = MappingProxyType({"symmetric": True, "num_posts": 4})
 
     def build_wires(self):
         h = self.height
@@ -377,13 +375,20 @@ class Builder(AntennaBuilder):
         feed is the whip's bottom segment, as the deck's EX card."""
         ports = {"feed": PortOnWire("feed")}
         branches = []
-        if self.symmetric:
-            # The posts' shunts, at the feed itself (see `symmetric`).
-            if self.feed_l_nh:
-                branches.append(Shunt(port="feed", l=self.feed_l_nh * 1e-9))
-            if self.feed_c_pf:
-                branches.append(Shunt(port="feed", c=self.feed_c_pf * 1e-12))
         n_posts = max(0, round(self.num_posts))
+        if self.symmetric:
+            # Every post the same, L and C in series (see `symmetric`).
+            l = self.post_l_nh * 1e-9 or None
+            c = self.post_c_pf * 1e-12 or None
+            if l or c:
+                for k in range(n_posts):
+                    ports[f"post{k}"] = PortOnWire(f"post{k}")
+                    branches.append(Load(port=f"post{k}", l=l, c=c))
+            return Network(
+                ports=ports,
+                branches=branches,
+                sources=[Driven(port="feed", voltage=1 + 0j)],
+            )
         elems = [
             ("post0", self.post_l_nh * 1e-9, None),
             ("post1", None, self.post_c_pf * 1e-12),
