@@ -78,13 +78,45 @@ The copy now differs from momwire by one path. At and above
 `_reduce.SPARSE_MIN_UNKNOWNS` = 200 MNA unknowns (n node voltages + m Group-2
 branch currents: the matrix dimension, which is what both solves' costs scale
 with), the system is assembled sparse and solved by SuperLU; below it, it is
-momwire's dense `zgesvx` path, bit for bit.
-- Assembly: the node block is recorded (`_GStamps`) instead of written into a
-  dense `G`, then either replayed onto zeros with the old in-place operations
-  (dense), or emitted as COO triples (sparse). The antenna's `Y_real` and its
-  floating-port congruence are dense only over the real ports and the
-  floating ports' "-" nodes. Every Group-2 element, termination and coupling
-  becomes triples (`_group2_triples`), summed into CSC.
+momwire's dense `zgesvx` path, bit for bit, except where a multiport
+repeats a node (below).
+- Assembly: one emitter for both paths (`_MNAStamps.triples`). Every stamp
+  becomes a COO triple in the order the old dense code performed its
+  additions: the antenna's `Y_real` (with its floating-port congruence AᵀYA),
+  every branch's node-admittance block or diagonal, then each Group-2 KCL
+  column, constitutive row and `c_j` diagonal, then every coupling. Small
+  systems densify it, accumulating in triple order (`np.add.at` is unbuffered
+  and in order). Large ones sum it into CSC. The antenna block is dense only
+  over the real ports and the floating ports' "-" nodes, so a large network
+  never forms n × n.
+- Bit for bit below the threshold, for three reasons. The dense path computes
+  the floating-port congruence at full node width, as before; on the A/B a
+  narrower product gives the same bytes too, but that is not guaranteed in
+  general. Each entry's triples arrive in the old order. And the entries the
+  old code assigned rather than added to start from −0, IEEE's exact additive
+  identity, so an assigned −0 survives: those are the `Y_real` block and each
+  `c_j` diagonal. A Transformer or FloatingBalun with no winding R has
+  `c_j = −0j`, and without the seed 77 of the 257 A/B cases move.
+- Repeated ports sum, on both paths. A multiport whose ports repeat a node, such
+  as an `Admittance` on `(a, a)` or a `TouchstoneTwoPort` with `a == b`, injects
+  (y11 + y12 + y21 + y22)·V at that node. The old dense stamp
+  `G[np.ix_(idxs, idxs)] += yb` was a buffered fancy-index add, so it kept one
+  entry (y22, measured) while the sparse path already summed. Summing is the
+  physics, and it is also NEC's behaviour: licensed NEC-5 and NEC-4.2 both sum
+  the four Y entries of an `NT` card whose two ends are one segment, with no
+  warning (momwire#1887). `NT 1 6 1 6` equals `LD 4` with
+  Z = 1/(y11 + 2·y12 + y22) to every printed digit, and a zero-sum Y leaves
+  the gap open. AK's NEC importer therefore accepts such a card: it imports
+  as an `Admittance` on one port, or, all-real, as a pi whose series leg runs
+  from the node to itself and whose shunts sum. momwire's `momwire.networks`
+  still drops the entries (momwire#1887 is its side), so these cases live in
+  `tests/test_mna_unified_assembly.py`, not in the byte-for-byte A/B. A
+  tripwire there fails when momwire starts summing.
+- Small-network cost of the triple path, per frequency (`apply_branches` +
+  solve, laptop): about +7 µs fixed (67 → 74 µs at 5 unknowns, 159 → 169 at
+  19, 307 → 312 at 39). A 200-frequency `invvee_coax_station` sweep through
+  the momwire engine is unchanged within noise cold. A Y-cached repeat of
+  that sweep, which is all network, goes 15.5 → 17.4 ms.
 - Solve: `zgesvx`'s steps, on CSC. Equilibration as `zgeequ` computes and
   `zlaqge` applies it (rows or columns only when they spread by more than
   10x; always scaling both reported rcond up to 7x off on the ladder).
