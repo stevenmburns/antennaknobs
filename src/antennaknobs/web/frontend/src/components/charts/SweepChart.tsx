@@ -1,4 +1,11 @@
-import { useContext, useEffect, useRef, useState } from "react";
+import {
+  type KeyboardEvent as ReactKeyboardEvent,
+  type PointerEvent as ReactPointerEvent,
+  useContext,
+  useEffect,
+  useRef,
+  useState,
+} from "react";
 import type { FeedEntry, SweepData } from "../../lib/api";
 import { gammaDbFromMag, gammaMagFromZ, vswrFromGammaMag } from "../../lib/math";
 import { type DisplayPoint, kinkBreaks, s11DbTop } from "../../lib/refine";
@@ -27,6 +34,19 @@ import {
 import { ThemeContext } from "../hooks";
 import { CHART_FONT, fitChartCanvas, useChartScale } from "./chartScale";
 import { pinZAt, valueAt } from "../../lib/sweepPins";
+import {
+  bandView,
+  dragView,
+  formatView,
+  FULL_VIEW,
+  isZoomed,
+  panBy,
+  roundView,
+  type SweepView,
+  visibleSpan,
+  visibleValues,
+  zoomAbout,
+} from "../../lib/sweepView";
 import { curvesAttr, type ExtraCurve, NO_CURVES, NO_PINS, type PinCurve, pinsAttr, sweepSpan } from "./curves";
 import { feedColor, feedSweepColor, PIN_DASH, plotColors, STALE_TRACE_ALPHA } from "./palette";
 import { SweepRangePopover } from "./SweepRangePopover";
@@ -58,6 +78,13 @@ export type { SweepMode };
 // (lib/refine.ts) computes the same domain from the same rule.
 const TITLE: Record<SweepMode, string> = { gamma: "S11 dB", vswr: "VSWR" };
 
+// The zoom's gestures, named where a viewer looks for them: the canvas's
+// label and the Reset chip's tooltip.
+const GESTURES =
+  "Click a ham band or drag across the plot to zoom the frequency axis; " +
+  "Ctrl+scroll, pinch, or + and − to zoom about a point; " +
+  "double-click or Esc for the whole sweep";
+
 const AXIS_KIND_LABEL: Record<SweepAxisChoice["kind"], string> = {
   auto: "Auto",
   fixed: "fixed",
@@ -75,22 +102,25 @@ export const AUTO_SETTLE_MS = 500;
 // state derived from changing props) — it converges in one extra render,
 // since widening a domain by itself is the identity. Held per mode: the
 // stage swaps VSWR for S11 on the SAME component instance, and a VSWR range
-// must never be widened into an S11 one.
+// must never be widened into an S11 one. Held per frequency window too: a
+// zoom is not a live input, and the range fitted to the whole sweep must not
+// hold a zoomed-in view's axis open (nor a zoom-out's be cut to the last
+// window's).
 function useHeldDomain(
-  mode: SweepMode,
+  key: string,
   fresh: AxisDomain,
   live: boolean,
   auto: boolean,
 ): AxisDomain {
-  const [held, setHeld] = useState<{ mode: SweepMode; dom: AxisDomain } | null>(null);
+  const [held, setHeld] = useState<{ key: string; dom: AxisDomain } | null>(null);
   if (!auto) {
     if (held !== null) setHeld(null);
     return fresh;
   }
-  const prev = held && held.mode === mode ? held.dom : null;
+  const prev = held && held.key === key ? held.dom : null;
   const next = live ? widenDomain(prev, fresh) : fresh;
   if (prev === null || prev.lo !== next.lo || prev.hi !== next.hi) {
-    setHeld({ mode, dom: next });
+    setHeld({ key, dom: next });
   }
   return next;
 }
@@ -131,6 +161,23 @@ function valueFor(mode: SweepMode, re: number, im: number, z0: number): number {
 
 const NO_HAM_BANDS: readonly HamBandSpan[] = [];
 
+// The plot rectangle's margins, in logical px: the draw lays the plot out
+// with them, and the pointer handlers map through the same numbers.
+const MARGIN_L = 26;
+const MARGIN_R = 8;
+const MARGIN_T = 16;
+const MARGIN_B = 20;
+
+// A press that moves less than this (logical px) before it lifts is a click
+// — a band pick, or nothing — not a drag: a hand cannot click without some
+// travel, and a 3 px span is no view anyone meant to ask for.
+const DRAG_PX = 4;
+
+// Ctrl+wheel and pinch: the Smith chart's and the antenna canvas's law,
+// exponential so a trackpad's small deltas feel smooth. + / − step 1.25×.
+const WHEEL_RATE = 0.002;
+const KEY_STEP = 1.25;
+
 export function SweepChart({
   mode,
   r,
@@ -153,6 +200,9 @@ export function SweepChart({
   curves = NO_CURVES,
   pins = NO_PINS,
   hamBands = NO_HAM_BANDS,
+  interactive = false,
+  designKey = "",
+  onSweepSpan,
 }: {
   mode: SweepMode;
   r: number;
@@ -205,6 +255,18 @@ export function SweepChart({
    *  overlaps is a full-height span labelled with how much of it is under
    *  the threshold. Omitted on a thumbnail. */
   hamBands?: readonly HamBandSpan[];
+  /** The frequency axis zooms (band click, drag, Ctrl+wheel / pinch, keys)
+   *  — the stage's chart. Off, it always shows the whole sweep: a thumbnail
+   *  is a button that selects its view, not a surface to navigate. */
+  interactive?: boolean;
+  /** Which design the chart shows. The zoom is kept across re-solves and
+   *  knob turns of one design and dropped when this changes (SmithChart's
+   *  rule): the old window was aimed at the old design's curve. "" (no
+   *  result yet) never drops it. */
+  designKey?: string;
+  /** "Sweep this span" on the zoom chip: re-run the sweep over the window.
+   *  Omitted, the chip has no such button. */
+  onSweepSpan?: (lo: number, hi: number) => void;
 }) {
   // The choice as drawn: the mode's default when none is passed, and a VSWR
   // Auto read as the 1–∞ scale that replaced it. From here on `axis.kind`
@@ -251,29 +313,61 @@ export function SweepChart({
         : [];
 
   // Every feed's trail, in this mode's units.
-  const trails: number[] = [];
+  const feedYs: number[][] = [];
   if (hasSweep) {
     for (let fi = 0; fi < nFeeds; fi++) {
-      for (let i = 0; i < sweep!.freqs_mhz.length; i++) {
-        const z = zAt(fi, i);
-        trails.push(valueFor(mode, z.re, z.im, z0));
-      }
+      feedYs.push(
+        sweep!.freqs_mhz.map((_, i) => {
+          const z = zAt(fi, i);
+          return valueFor(mode, z.re, z.im, z0);
+        }),
+      );
     }
   }
+  const trails = feedYs.flat();
   // The other curves' values (feed 0), which Auto and the S11 top take in
   // as they do the chart's own.
-  const curveTrails: number[] = [];
+  const curveYs: { xs: readonly number[]; ys: number[] }[] = [];
   for (const c of curves) {
     const s = c.sweep;
     if (!s || s.freqs_mhz.length < 2) continue;
-    for (let i = 0; i < s.freqs_mhz.length; i++) {
-      curveTrails.push(valueFor(mode, s.z_re[i], s.z_im[i], z0));
-    }
+    curveYs.push({ xs: s.freqs_mhz, ys: s.freqs_mhz.map((_, i) => valueFor(mode, s.z_re[i], s.z_im[i], z0)) });
   }
+  const curveTrails = curveYs.flatMap((c) => c.ys);
   // Each pin's values at its own reference (ruling 4): a pin taken at 50 Ω
   // reads its 50 Ω SWR on a 75 Ω chart, as it read when it was pinned.
   const pinYs = pins.map((p) => p.xs.map((_, i) => valueFor(mode, p.zRe[i], p.zIm[i], p.z0)));
   const pinTrails = pinYs.flat();
+
+  // The span every curve drawn covers (the chart's own, else another's
+  // while its own has yet to land), and the pins' (already inside the
+  // chart's range, so they only matter before any curve lands).
+  const curveSpan = sweepSpan([sweep, ...curves.map((c) => c.sweep)]);
+  const pinLo = Math.min(...pins.map((p) => p.xs[0] ?? Infinity));
+  const pinHi = Math.max(...pins.map((p) => p.xs[p.xs.length - 1] ?? -Infinity));
+  const span =
+    curveSpan ?? (pinLo < pinHi ? { lo: pinLo, hi: pinHi } : null);
+  const spanKey = span ? `${span.lo},${span.hi}` : "";
+
+  // The frequency zoom (lib/sweepView.ts): a window in MHz, null for the
+  // whole sweep. View only — nothing re-solves. A design switch drops it,
+  // adjusted during render (the React "state from props" idiom, as
+  // SmithChart does), so the new design's first paint is already whole.
+  const [viewState, setView] = useState<SweepView>(FULL_VIEW);
+  const [viewFor, setViewFor] = useState(designKey);
+  if (designKey !== "" && designKey !== viewFor) {
+    setViewFor(designKey);
+    setView(FULL_VIEW);
+  }
+  const view = interactive ? viewState : FULL_VIEW;
+  const zoomed = span !== null && isZoomed(view, span);
+  // The window drawn: the whole span unless zoomed. Every frequency on the
+  // chart (curves, pins, bands, guide, hover) maps through it.
+  const vis = span ? visibleSpan(view, span) : null;
+  const visKey = zoomed ? `${vis!.lo},${vis!.hi}` : "";
+  // A curve's values inside the window (the whole curve unzoomed), for Auto.
+  const seen = (xs: readonly number[], ys: number[]): number[] =>
+    zoomed ? visibleValues(xs, ys, vis!.lo, vis!.hi) : ys;
   const curvesRunning = curves.length > 0 && !curves.every((c) => c.settled !== false);
   const markerVs = markerPoints.map((m) => m.v);
   // The S11 axis top ADAPTS when any drawn value crosses 0 dB (a driven
@@ -293,18 +387,33 @@ export function SweepChart({
   // finished sweep, which only ever deepens the dip, so they fit as usual.
   // A pin is fitted beside whatever curve is fitted, never alone over the
   // markers: until the chart's own sweep lands, Auto reads the live point.
-  const fitValues =
+  //
+  // Zoomed, Auto fits what the window shows: each curve's samples inside it
+  // and its height at the two edges. The live/quiet signature stays on the
+  // whole sweep's values — a zoom is not an input moving.
+  const pickFit = (own: number[], other: number[], pinned: number[]) =>
     hasSweep && !running
-      ? [...trails, ...curveTrails, ...pinTrails]
+      ? [...own, ...other, ...pinned]
       : curveTrails.length > 0 && !curvesRunning
-        ? [...curveTrails, ...pinTrails]
+        ? [...other, ...pinned]
         : markerVs;
+  const fitAll = pickFit(trails, curveTrails, pinTrails);
+  const fitSeen = zoomed
+    ? pickFit(
+        feedYs.flatMap((ys) => seen(sweep!.freqs_mhz, ys)),
+        curveYs.flatMap((c) => seen(c.xs, c.ys)),
+        pins.flatMap((p, k) => seen(p.xs, pinYs[k])),
+      )
+    : fitAll;
+  // A window the curves do not reach (the live point's frequency past a
+  // pin's end, say) fits the whole sweep rather than nothing.
+  const fitValues = fitSeen.length > 0 ? fitSeen : fitAll;
   const fresh = sweepAxisDomain(mode, axis, fitValues, s11Top, swrThreshold);
   const quiet = useQuiet(
-    `${mode}:${fitValues.length}:${Math.min(...fitValues).toFixed(4)}:` +
+    `${mode}:${fitAll.length}:${Math.min(...fitAll).toFixed(4)}:` +
       markerVs.map((v) => v.toFixed(4)).join(","),
   );
-  const dom = useHeldDomain(mode, fresh, running || !quiet, axis.kind === "auto");
+  const dom = useHeldDomain(`${mode}|${visKey}`, fresh, running || !quiet, axis.kind === "auto");
   // Chart value → axis coordinate: the identity, except on the compressed
   // VSWR scale (1 − 1/SWR), where `dom` is 0…1 in that coordinate. The same
   // function the refinement planner places samples with.
@@ -347,17 +456,9 @@ export function SweepChart({
   // The range popover's anchor, while it is open.
   const [menuAt, setMenuAt] = useState<{ x: number; y: number } | null>(null);
 
-  // The span every curve drawn covers (the chart's own, else another's
-  // while its own has yet to land), and the pins' (already inside the
-  // chart's range, so they only matter before any curve lands).
-  const curveSpan = sweepSpan([sweep, ...curves.map((c) => c.sweep)]);
-  const pinLo = Math.min(...pins.map((p) => p.xs[0] ?? Infinity));
-  const pinHi = Math.max(...pins.map((p) => p.xs[p.xs.length - 1] ?? -Infinity));
-  const span =
-    curveSpan ?? (pinLo < pinHi ? { lo: pinLo, hi: pinHi } : null);
-  const spanKey = span ? `${span.lo},${span.hi}` : "";
   // The ham bands the sweep overlaps, with their share under the threshold
-  // (none known before the chart's own curve has landed).
+  // (none known before the chart's own curve has landed). Over the whole
+  // sweep, zoomed or not: a band's share is the curve's, not the window's.
   const hamMarks = span
     ? hamBandMarks(hamBands, bands, span.lo, span.hi).map((m) =>
         hasSweep ? m : { ...m, covered: null },
@@ -368,7 +469,7 @@ export function SweepChart({
   // Hover (AK#1757 item 1): the frequency under the pointer, and each
   // curve's value there, the live curve's and each pin's (at its Z0).
   const [hoverF, setHoverF] = useState<number | null>(null);
-  const shownHoverF = span && hoverF !== null && hoverF >= span.lo && hoverF <= span.hi ? hoverF : null;
+  const shownHoverF = vis && hoverF !== null && hoverF >= vis.lo && hoverF <= vis.hi ? hoverF : null;
   const ownAt = (f: number): number | null => {
     if (!hasSweep) return null;
     const re = valueAt(sweep!.freqs_mhz, sweep!.z_re, f);
@@ -401,10 +502,10 @@ export function SweepChart({
 
     // Plot rectangle: left margin fits the y-axis tick labels, bottom margin
     // fits the freq-range / status text (same corner SmithChart uses).
-    const marginL = 26;
-    const marginR = 8;
-    const marginT = 16;
-    const marginB = 20;
+    const marginL = MARGIN_L;
+    const marginR = MARGIN_R;
+    const marginT = MARGIN_T;
+    const marginB = MARGIN_B;
     const plotW = sz - marginL - marginR;
     const plotH = sz - marginT - marginB;
 
@@ -481,11 +582,15 @@ export function SweepChart({
     // when there is no band to map against. Shared by the trail, the
     // current-freq guide line, and the current-Z marker's x position so all
     // three agree about where on the axis a given frequency sits.
-    // The span every curve drawn covers (the chart's own, else another's
-    // while its own has yet to land).
-    const hasSpan = span !== null;
-    const fLo = span ? span.lo : null;
-    const fHi = span ? span.hi : null;
+    // The window on the span every curve drawn covers (the chart's own, else
+    // another's while its own has yet to land): the whole span unless
+    // zoomed.
+    const hasSpan = vis !== null;
+    const fLo = vis ? vis.lo : null;
+    const fHi = vis ? vis.hi : null;
+    // A sample drawn without the plot clip (a dot, an off-scale tick) only
+    // inside the window.
+    const inView = (f: number) => f >= fLo! && f <= fHi!;
     const xOf = (f: number) =>
       marginL + plotW * ((f - fLo!) / ((fHi! - fLo!) || 1));
     // A trail vertex in screen pixels, marked off-plot when it lies outside
@@ -516,14 +621,15 @@ export function SweepChart({
     // The ham bands the sweep overlaps: faint full-height spans, labelled at
     // the top with how much of each is under the threshold. Vertical marks
     // are frequency on this chart; the threshold's zone is the horizontal
-    // strip above.
-    if (hasSpan && hamMarks.length > 0) {
+    // strip above. Zoomed, only the bands the window reaches, cut to it.
+    const shownHam = hasSpan ? hamMarks.filter((m) => m.hi > fLo! && m.lo < fHi!) : [];
+    if (hasSpan && shownHam.length > 0) {
       ctx.save();
       ctx.beginPath();
       ctx.rect(marginL, marginT, plotW, plotH);
       ctx.clip();
       ctx.fillStyle = `rgba(${PC.hamBandRgb}, 0.12)`;
-      const xs = hamMarks.map((m) => {
+      const xs = shownHam.map((m) => {
         const x0 = xOf(Math.max(m.lo, fLo!));
         const x1 = xOf(Math.min(m.hi, fHi!));
         return { x0, x1: Math.max(x1, x0 + 1) };
@@ -532,7 +638,7 @@ export function SweepChart({
       ctx.fillStyle = PC.labelBright;
       ctx.font = CHART_FONT.tick;
       let lastRight = -Infinity;
-      hamMarks.forEach((m, i) => {
+      shownHam.forEach((m, i) => {
         const text = hamBandLabel(m);
         const w = ctx.measureText(text).width;
         const cx = (xs[i].x0 + xs[i].x1) / 2;
@@ -609,7 +715,7 @@ export function SweepChart({
           for (let i = 0; i < freqs.length; i++) {
             const z = zAt(fi, i);
             const v = valueFor(mode, z.re, z.im, z0);
-            if (offScale(v)) continue;
+            if (offScale(v) || !inView(freqs[i])) continue;
             const px = xOf(freqs[i]);
             const py = yOf(v);
             ctx.beginPath();
@@ -625,7 +731,7 @@ export function SweepChart({
         for (let i = 0; i < freqs.length; i++) {
           const z = zAt(fi, i);
           const v = valueFor(mode, z.re, z.im, z0);
-          if (!offScale(v)) continue;
+          if (!offScale(v) || !inView(freqs[i])) continue;
           const px = xOf(freqs[i]);
           ctx.beginPath();
           ctx.moveTo(px - 3, marginT + 5);
@@ -735,7 +841,10 @@ export function SweepChart({
     // (or centered if outside the swept band / no sweep at all — the
     // reading is still valid, it just has nowhere better to sit on this
     // axis than the plot's horizontal middle).
-    if (markerPoints.length > 0) {
+    // Zoomed past the measurement frequency, there is no marker: the middle
+    // of the plot would be a frequency the reading is not at.
+    const offWindow = zoomed && span !== null && measFreqMhz >= span.lo && measFreqMhz <= span.hi && !inView(measFreqMhz);
+    if (markerPoints.length > 0 && !offWindow) {
       const inBand = hasSpan && measFreqMhz >= fLo! && measFreqMhz <= fHi!;
       const gx = inBand ? xOf(measFreqMhz) : marginL + plotW / 2;
       for (const m of markerPoints) {
@@ -802,18 +911,155 @@ export function SweepChart({
     //
     // domKey/bandsKey/readout/swrThreshold stand in for the domain, the
     // bands and the threshold line (AK#1738): strings, so an unchanged range
-    // does not redraw.
+    // does not redraw. visKey does the same for the frequency window.
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [mode, r, x, z0, size, k, sweep, measFreqMhz, running, progress, settled, feeds, multiFeed, theme, domKey, bandsKey, readout, swrThreshold, stale, curves, pins, spanKey, hoverKey, hamKey]);
+  }, [mode, r, x, z0, size, k, sweep, measFreqMhz, running, progress, settled, feeds, multiFeed, theme, domKey, bandsKey, readout, swrThreshold, stale, curves, pins, spanKey, hoverKey, hamKey, visKey]);
 
-  // The pointer's frequency, in the canvas's logical px (./chartScale), on
-  // the plot's margins as the draw lays them out.
-  const onPointerMove = (e: React.PointerEvent<HTMLCanvasElement>) => {
-    if (!span) return;
-    const rect = e.currentTarget.getBoundingClientRect();
-    const plotW = size / k - 26 - 8;
-    const at = ((e.clientX - rect.left) / k - 26) / plotW;
-    setHoverF(!Number.isFinite(at) || at < 0 || at > 1 ? null : span.lo + at * (span.hi - span.lo));
+  // The pointer's x in the canvas's logical px (./chartScale), and its
+  // fraction across the plot, on the margins the draw lays out.
+  const plotW = size / k - MARGIN_L - MARGIN_R;
+  const xOfEvent = (e: { clientX: number; currentTarget: HTMLCanvasElement }) =>
+    (e.clientX - e.currentTarget.getBoundingClientRect().left) / k;
+  const fracAt = (x: number) => (x - MARGIN_L) / plotW;
+  // The frequency at fraction t of the window `v` draws, held to the plot.
+  const freqIn = (v: SweepView, t: number, sp: { lo: number; hi: number }) => {
+    const w = visibleSpan(v, sp);
+    return w.lo + Math.min(1, Math.max(0, t)) * (w.hi - w.lo);
+  };
+  const hover = (e: ReactPointerEvent<HTMLCanvasElement>) => {
+    if (!vis) return;
+    const at = fracAt(xOfEvent(e));
+    setHoverF(!Number.isFinite(at) || at < 0 || at > 1 ? null : vis.lo + at * (vis.hi - vis.lo));
+  };
+
+  // Ctrl/⌘+wheel zooms about the cursor's frequency; a trackpad pinch
+  // arrives as Ctrl+wheel. A PLAIN wheel is never taken — no zoom, no
+  // preventDefault — because over this chart it belongs to the page's
+  // scroll, and the knobs beside it turn on the wheel too (params/Knob.tsx).
+  // That is on purpose unlike SmithChart, which takes every wheel (AK#2255).
+  // Native and non-passive: React's onWheel cannot preventDefault the
+  // browser's page zoom.
+  const spanLo = span?.lo ?? null;
+  const spanHi = span?.hi ?? null;
+  useEffect(() => {
+    const canvas = canvasRef.current;
+    if (!canvas || !interactive || spanLo === null || spanHi === null) return;
+    const sp = { lo: spanLo, hi: spanHi };
+    const onWheel = (e: WheelEvent) => {
+      if (!(e.ctrlKey || e.metaKey)) return;
+      e.preventDefault();
+      const rect = canvas.getBoundingClientRect();
+      const dy = e.deltaMode === 1 ? e.deltaY * 33 : e.deltaY; // line-mode → px
+      const factor = Math.exp(-dy * WHEEL_RATE);
+      const t = ((e.clientX - rect.left) / k - MARGIN_L) / (size / k - MARGIN_L - MARGIN_R);
+      setView((v) => zoomAbout(v, factor, freqIn(v, t, sp), sp));
+    };
+    canvas.addEventListener("wheel", onWheel, { passive: false });
+    return () => canvas.removeEventListener("wheel", onWheel);
+  }, [interactive, spanLo, spanHi, size, k]);
+
+  // Pointers. A mouse or pen press that travels DRAG_PX or more selects the
+  // span to zoom to (drawn while it drags); less is a click, which on a ham
+  // band zooms to that band. Touch: one finger never selects — at the whole
+  // sweep a one-finger drag is the page's (the phone carousel's swipe, so
+  // touch-action leaves it to the browser), and once zoomed it pans the
+  // window (touch-action none). A tap on a band zooms to it, and two fingers
+  // pinch the axis about their midpoint. The hover readout follows every
+  // pointer as before.
+  type Press = { x: number; startX: number; touch: boolean; multi: boolean };
+  const pressRef = useRef(new Map<number, Press>());
+  const [sel, setSel] = useState<{ x0: number; x1: number } | null>(null);
+  const onPointerDown = (e: ReactPointerEvent<HTMLCanvasElement>) => {
+    hover(e);
+    if (!interactive || !span) return;
+    if (e.pointerType === "mouse" && e.button !== 0) return;
+    try {
+      e.currentTarget.setPointerCapture(e.pointerId);
+    } catch {
+      // Capture is best-effort: a drag that leaves the canvas just ends.
+    }
+    const presses = pressRef.current;
+    // A mouse is one pointer: an entry left by a press whose release never
+    // arrived (capture refused) must not turn this one into a pinch.
+    if (e.pointerType !== "touch") presses.clear();
+    const x = xOfEvent(e);
+    const multi = presses.size > 0;
+    if (multi) {
+      for (const p of presses.values()) p.multi = true;
+      setSel(null);
+    }
+    presses.set(e.pointerId, { x, startX: x, touch: e.pointerType === "touch", multi });
+  };
+  const onPointerMove = (e: ReactPointerEvent<HTMLCanvasElement>) => {
+    hover(e);
+    const presses = pressRef.current;
+    const prev = presses.get(e.pointerId);
+    if (!prev || !span) return;
+    const x = xOfEvent(e);
+    if (presses.size === 2) {
+      const other = [...presses.entries()].find(([id]) => id !== e.pointerId)![1];
+      // Horizontal spread only: the axis is frequency. Floored, so fingers
+      // stacked one above the other do not read as an enormous ratio.
+      const oldD = Math.max(8, Math.abs(prev.x - other.x));
+      const newD = Math.max(8, Math.abs(x - other.x));
+      const oldMid = (prev.x + other.x) / 2;
+      const newMid = (x + other.x) / 2;
+      setView((v) => {
+        const w = visibleSpan(v, span);
+        const panned = panBy(v, (-(newMid - oldMid) / plotW) * (w.hi - w.lo), span);
+        return zoomAbout(panned, newD / oldD, freqIn(panned, fracAt(newMid), span), span);
+      });
+    } else if (presses.size === 1 && prev.touch) {
+      if (zoomed) {
+        setView((v) => {
+          const w = visibleSpan(v, span);
+          return panBy(v, (-(x - prev.x) / plotW) * (w.hi - w.lo), span);
+        });
+      }
+    } else if (presses.size === 1 && Math.abs(x - prev.startX) >= DRAG_PX) {
+      setSel({ x0: prev.startX, x1: x });
+    }
+    presses.set(e.pointerId, { ...prev, x });
+  };
+  const endPress = (e: ReactPointerEvent<HTMLCanvasElement>): Press | undefined => {
+    const p = pressRef.current.get(e.pointerId);
+    pressRef.current.delete(e.pointerId);
+    try {
+      e.currentTarget.releasePointerCapture(e.pointerId);
+    } catch {
+      // Never captured (see above) — nothing to release.
+    }
+    setSel(null);
+    return p;
+  };
+  const onPointerUp = (e: ReactPointerEvent<HTMLCanvasElement>) => {
+    const p = endPress(e);
+    if (!p || p.multi || !span || !vis) return;
+    const x = xOfEvent(e);
+    const moved = Math.abs(x - p.startX);
+    if (moved >= DRAG_PX) {
+      if (p.touch) return; // a pan, already applied
+      const t0 = fracAt(p.startX);
+      const t1 = fracAt(x);
+      setView((v) => dragView(freqIn(v, t0, span), freqIn(v, t1, span), span));
+      return;
+    }
+    const t = fracAt(x);
+    if (!(t >= 0 && t <= 1)) return;
+    const f = vis.lo + t * (vis.hi - vis.lo);
+    const band = hamMarks.find((m) => f >= m.lo && f <= m.hi);
+    if (band) setView(bandView(band, span));
+  };
+  // + / − about the window's centre, Esc or 0 back to the whole sweep, with
+  // the chart focused. Esc is left to the page when there is no zoom to drop.
+  const onKeyDown = (e: ReactKeyboardEvent<HTMLCanvasElement>) => {
+    if (e.ctrlKey || e.metaKey || e.altKey || !span) return; // leave page zoom alone
+    const centre = (v: SweepView) => freqIn(v, 0.5, span);
+    if (e.key === "+" || e.key === "=") setView((v) => zoomAbout(v, KEY_STEP, centre(v), span));
+    else if (e.key === "-" || e.key === "_") setView((v) => zoomAbout(v, 1 / KEY_STEP, centre(v), span));
+    else if ((e.key === "Escape" || e.key === "0") && zoomed) setView(FULL_VIEW);
+    else return;
+    e.preventDefault();
   };
 
   const title =
@@ -848,10 +1094,73 @@ export function SweepChart({
           .map((h) => `${h.p.id}:${h.v !== null ? h.v.toFixed(4) : ""}`)
           .join(";")}
         data-readout={readout}
+        data-view-lo={vis ? String(vis.lo) : ""}
+        data-view-hi={vis ? String(vis.hi) : ""}
+        data-zoomed={zoomed ? "1" : "0"}
         onPointerMove={onPointerMove}
-        onPointerDown={onPointerMove}
+        onPointerDown={onPointerDown}
         onPointerLeave={() => setHoverF(null)}
+        {...(interactive
+          ? {
+              tabIndex: 0,
+              "aria-label": `${TITLE[mode]} against frequency. ${GESTURES}.`,
+              onPointerUp,
+              onPointerCancel: endPress,
+              onDoubleClick: () => setView(FULL_VIEW),
+              onKeyDown,
+              style: {
+                // At the whole sweep a touch drag is the page's (the mobile
+                // carousel swipe); zoomed, the chart owns it for panning.
+                touchAction: zoomed ? "none" : "pan-x pan-y",
+                cursor: "crosshair",
+              },
+            }
+          : {})}
       />
+      {sel && (
+        // The span a drag is selecting, over the plot's height.
+        <div
+          className="sweep-zoom-select"
+          aria-hidden="true"
+          style={{
+            left: Math.max(MARGIN_L, Math.min(sel.x0, sel.x1)) * k,
+            width:
+              (Math.min(MARGIN_L + plotW, Math.max(sel.x0, sel.x1)) -
+                Math.max(MARGIN_L, Math.min(sel.x0, sel.x1))) *
+              k,
+            top: MARGIN_T * k,
+            height: size - (MARGIN_T + MARGIN_B) * k,
+          }}
+        />
+      )}
+      {interactive && zoomed && vis && (
+        <div className="schematic-zoom sweep-zoom" role="group" aria-label="Frequency zoom">
+          <span className="smith-zoom-level" data-testid="sweep-zoom-span">
+            {formatView(vis)}
+          </span>
+          {onSweepSpan && (
+            <button
+              type="button"
+              title="Re-run the frequency sweep over just this span (the chart's from / to; ↺ restores the range)"
+              onClick={() => {
+                const r = roundView(vis);
+                onSweepSpan(r.lo, r.hi);
+                setView(FULL_VIEW);
+              }}
+            >
+              Sweep this span
+            </button>
+          )}
+          <button
+            type="button"
+            aria-label="Reset zoom"
+            title={`Show the whole sweep (or double-click the chart, or press Esc). ${GESTURES}.`}
+            onClick={() => setView(FULL_VIEW)}
+          >
+            Reset zoom
+          </button>
+        </div>
+      )}
       {/* The y axis is the range control (AK#1738): a transparent button over
           the tick-label strip, the whole plot height. Stage charts only. */}
       {onAxisChange && (
