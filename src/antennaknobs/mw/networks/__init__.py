@@ -40,13 +40,27 @@ deliberate divergences from momwire, not drift):
   with SuperLU after ``zgesvx``'s own equilibration, refines as ``zgesvx``
   does, and estimates the reciprocal condition as ``zgecon`` does, against
   the same `RCOND_SINGULAR` / `RCOND_SUSPECT`, with the same refusal and
-  warning. Below the threshold the path is momwire's dense ``zgesvx``,
-  unchanged: the node block is recorded and replayed with the same in-place
-  operations in the same order, so every system there is bit for bit what it
-  was. Every network the catalog ships is 34 unknowns or fewer, and every
-  case of the A/B is under the threshold, which is why that A/B is still bit
-  for bit; ``tests/test_sparse_mna_2241.py`` holds the two paths to each
+  warning. Below the threshold the path is momwire's dense ``zgesvx``.
+  Every network the catalog ships is 34 unknowns or fewer, and every case of
+  the A/B is under the threshold, which is why that A/B is still bit for
+  bit; ``tests/test_sparse_mna_2241.py`` holds the two paths to each
   other.
+
+* **One assembly, and repeated ports sum.** Both paths read one emitter,
+  `_reduce._MNAStamps.triples`: every stamp as a COO triple, in the order
+  the old dense code performed its additions. Small systems densify it in
+  triple order, large ones sum it into CSC. Below the threshold every system
+  is bit for bit what momwire builds, with one exception. A multiport whose
+  ports repeat a node (an `Admittance` on ``(a, a)``, a `TouchstoneTwoPort`
+  with ``a == b``) now SUMS its entries there: I1 + I2 =
+  (y11 + y12 + y21 + y22)·V. momwire's dense stamp, a buffered fancy-index
+  add, keeps one of them. Summing is the physics, and it is NEC's behaviour:
+  licensed NEC-5 and NEC-4.2 sum the four Y entries of an ``NT`` card whose
+  ends are one segment, with no warning, so ``NT 1 6 1 6`` equals ``LD 4``
+  with Z = 1/(y11 + 2·y12 + y22), and a zero-sum Y leaves the gap open
+  (momwire#1887, which is also momwire's side of the fix). AK's NEC
+  importer accepts such a card and reduces it that way.
+  ``tests/test_mna_unified_assembly.py`` holds it.
 
 The three modules, as upstream described them:
 
