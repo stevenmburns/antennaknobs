@@ -1565,7 +1565,9 @@ edge of its range, or no band near a match, says so under its table.
 
 `--max-evals` caps the distinct points solved (default 60 per knob plus 40,
 at most 400). The run ends with the per-band table before and after, and the usual
-paste-ready params block.
+paste-ready params block. An opened file (`--builder @file.nec`, `@file.ssn`)
+has no params block to paste into, so the run lists the optimized knobs
+instead, each with its unit (`#   sy_cap2 = 47.3 pF`), to set in the file.
 
 ### Keeping a run
 
