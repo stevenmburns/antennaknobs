@@ -47,6 +47,9 @@ Constraints worth knowing:
     four axes: posts bond to the ground mesh only where their feet land on
     the centre mesh lines (the +/-x and +/-y axes). An off-axis post is still
     drawn but its foot floats above the mesh.
+  * With ``hex_grid`` (the ``hex6`` variant) the ground is a triangular
+    lattice instead, and the mesh lines under the posts are the six radials
+    at 0, 60, ..., 300 deg: a post foot bonds only there.
   * ``num_posts``/``num_spokes`` pick evenly spaced cage wires starting at
     +x, so 2 posts land on +/-x (the deck) and 4 spokes on +/-x/+/-y (the
     deck's two crossed diameter bars).
@@ -170,6 +173,10 @@ class Builder(AntennaBuilder):
             # reach the match (measured: worst SWR 2.06 over 400-412 MHz at
             # the best shunt L and C, as R stays near 100 ohms).
             "symmetric": False,
+            # Triangular-lattice ground plane (the "hex6" form): a disc of
+            # equilateral cells at grid_pitch, exactly six-fold (C6v) about
+            # the whip, in place of the square grid. See _add_hex_ground.
+            "hex_grid": False,
             # Ground-plane grid (deck: 48" radius, 2" mesh, 1" fine mesh) — the
             # default reproduces the deck verbatim. The fine centre mesh is always
             # half the grid pitch (fixed 2× subdivision), so fine_pitch is derived
@@ -193,7 +200,7 @@ class Builder(AntennaBuilder):
                     "bands": (("406", "406 MHz", 406.0, 400.0, 412.0),),
                     # integer knobs, not continuous lengths
                     "num_cage_wires": {"min": 4, "max": 24, "step": 1},
-                    "num_posts": {"min": 0, "max": 4, "step": 1},
+                    "num_posts": {"min": 0, "max": 6, "step": 1},
                     "num_spokes": {"min": 0, "max": 12, "step": 1},
                     "post_l_nh": {"min": 0.0, "max": 200.0, "step": 1.0},
                     "post_c_pf": {"min": 0.0, "max": 20.0, "step": 0.1},
@@ -221,6 +228,30 @@ class Builder(AntennaBuilder):
     # coil goes (the optimum sat on the 1 nH bound) and each post is 0.9 pF.
     sym4_params = MappingProxyType(
         {"symmetric": True, "num_posts": 4, "post_l_nh": 0.0, "post_c_pf": 0.9}
+    )
+
+    # Exactly six-fold (C6v) about the whip, for symmetry studies: the ground
+    # is a triangular-lattice disc (`hex_grid`, see _add_hex_ground) with six
+    # posts and six spokes at 0, 60, ..., 300 deg; the 12-wire cage is already
+    # C6v. Lattice pitch 48"/19 = 64.2 mm = lambda/11.5 at 406 MHz, inside the
+    # lambda/10 wire-grid-as-conductor rule and the pitch that puts the ground
+    # nearest sym4's: 4,218 segments in all (3,840 ground) against sym4's
+    # 4,182 (3,808). The six centre triangles carry 2 segments per edge and
+    # each radial under a post is split at its foot (~6.4 mm segments).
+    # Tuned for the best worst SWR over 400-412 MHz (momwire sinusoidal, free
+    # space, L = 0 and a 0.1 pF scan of C): 1.36 / 1.32 / 1.29 at
+    # 400 / 406 / 412, worst 1.36 at 400 (Z 59.6-14.1j); each post is 0.7 pF.
+    # C alone reaches the band, so the coil stays off, as in sym4.
+    hex6_params = MappingProxyType(
+        {
+            "symmetric": True,
+            "hex_grid": True,
+            "num_posts": 6,
+            "num_spokes": 6,
+            "grid_pitch": 1.2192 / 19,
+            "post_l_nh": 0.0,
+            "post_c_pf": 0.7,
+        }
     )
 
     def build_wires(self):
@@ -294,11 +325,17 @@ class Builder(AntennaBuilder):
         # grounded posts: mesh up to the first ring. Named so build_network
         # can insert the deck's LD elements in series (post0 gets the coil,
         # post1 the capacitor — with the deck's 2 posts that is +x and −x).
+        # each post's foot, computed once: the ground mesh below reuses the
+        # same tuple where it splits a line at the foot
+        feet = {m: (r * dirs[m][0], r * dirs[m][1], h) for m in post_idx}
         for k, m in enumerate(post_idx):
-            c, si = dirs[m]
-            add((r * c, r * si, h), cage_pt(m, base), 1, name=f"post{k}")
+            add(feet[m], cage_pt(m, base), 1, name=f"post{k}")
         for m in spoke_idx:  # spokes: whip out to the first ring
             add((0.0, 0.0, base + h), cage_pt(m, base), 1)
+
+        if self.hex_grid:
+            self._add_hex_ground(add, feet, post_idx, m_cage)
+            return wires
 
         # --- coarse ground grid, as unit cell edges so every crossing is a
         # wire-endpoint junction; the centre row/column and their +/-1
@@ -371,6 +408,57 @@ class Builder(AntennaBuilder):
                     add((fine(u), y, h), (fine(u + 1), y, h), 1)
 
         return wires
+
+    def _add_hex_ground(self, add, feet, post_idx, m_cage):
+        """The triangular-lattice ground plane (``hex_grid``): exactly C6v
+        about the whip. Nodes are i*a + j*b with a at 0 deg and b at 60 deg,
+        ``grid_pitch`` apart; a node is kept when its lattice norm
+        i^2 + ij + j^2 (|p|^2 in pitch units) is within the plane radius, and
+        every unit edge between two kept nodes is its own wire, so every
+        crossing is a wire-endpoint junction. The norm is an integer that
+        every lattice symmetry preserves, so the node and edge sets are
+        C6v-invariant by construction. The six centre triangles carry two
+        segments per edge; a radial edge under a post is split at the post
+        foot, at ~``cage_radius``-length segments, as the square grid's feed
+        row. A post whose foot is not on one of the six radials floats."""
+        h = self.height
+        d = self.grid_pitch
+        r = max(1e-6, self.cage_radius)
+        lim = (self.plane_radius / d) ** 2 * (1 + 1e-9)
+        n = math.isqrt(int(lim)) + 1
+        half_root3 = math.sqrt(3.0) / 2.0
+        node = {}
+        for i in range(-2 * n, 2 * n + 1):
+            for j in range(-2 * n, 2 * n + 1):
+                if i * i + i * j + j * j <= lim:
+                    # each node's tuple is computed once and shared by every
+                    # wire ending there: junctions match bitwise
+                    node[i, j] = (d * (2 * i + j) / 2, d * j * half_root3, h)
+        # the six radials, by angle k * 60 deg
+        ring1 = ((1, 0), (0, 1), (-1, 1), (-1, 0), (0, -1), (1, -1))
+        foot_on = {}
+        for m in post_idx:
+            k6 = 6 * m / m_cage
+            if abs(k6 - round(k6)) < 1e-9:
+                foot_on[ring1[round(k6) % 6]] = feet[m]
+        centre = node[0, 0]
+        seg = min(r, d / 2)
+        for ij in ring1:
+            if ij not in node:
+                continue
+            if ij in foot_on:
+                ft = foot_on[ij]
+                add(centre, ft, max(1, round(r / seg)))
+                add(ft, node[ij], max(1, round((d - r) / seg)))
+            else:
+                add(centre, node[ij], 2)
+        ring = set(ring1)
+        for (i, j), p in sorted(node.items()):
+            for di, dj in ((1, 0), (0, 1), (-1, 1)):
+                q = (i + di, j + dj)
+                if q not in node or (0, 0) in ((i, j), q):
+                    continue  # absent, or a radial (emitted above)
+                add(p, node[q], 2 if (i, j) in ring and q in ring else 1)
 
     def build_network(self):
         """The deck's matching network: LD cards put 90 nH in series with
