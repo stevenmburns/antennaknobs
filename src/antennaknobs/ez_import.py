@@ -1297,6 +1297,9 @@ class _YOf:
         Callable[[float], tuple[tuple[complex, complex], tuple[complex, complex]]]
         | None
     ) = None
+    # What the block models, in the source program's own terms, for the
+    # schematic's hover (a lossy line names its loss and how it scales).
+    describe: str = ""
 
     @property
     def nports(self) -> int:
@@ -2167,6 +2170,12 @@ def _line_cards(dk: _Deck) -> None:
             dk.nt_card(t.end1, t.end2, y11, y12, y22)
             continue
         label = f"line {k} ({'lossy, ' if lossy else ''}{t.z0:g} Ω{word})"
+        describe = (
+            f"EZNEC lossy line: {t.loss_db_per_m:g} dB/m at {t.loss_freq_mhz:g} MHz, "
+            "scaling as √(f/F)"
+            if lossy and t.loss_freq_mhz
+            else ""
+        )
         dk.nt_card(
             t.end1,
             t.end2,
@@ -2175,8 +2184,8 @@ def _line_cards(dk: _Deck) -> None:
             1.0,
             _TwoPort(
                 label,
-                lambda a, b, y2=y2: (
-                    [_net.TouchstoneTwoPort(a, b, _YOf(y2=y2))],
+                lambda a, b, y2=y2, describe=describe: (
+                    [_net.TouchstoneTwoPort(a, b, _YOf(y2=y2, describe=describe))],
                     {},
                 ),
             ),

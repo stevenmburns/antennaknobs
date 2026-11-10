@@ -819,6 +819,14 @@ def test_a_line_without_skin_keeps_the_formula():
     assert "K0 + K1·√f + K2·f" in el.hint
 
 
+def test_a_lossless_line_has_no_loss_hover():
+    """Nothing to say about a loss it does not have: the label (Z0, VF,
+    length) is the whole description."""
+    (el,) = default_elements(TL("a", "b", z0=50.0, length=10.0, vf=0.66), None, 14.0)
+    assert el.hint == ""
+    assert el.sublabel == "10.00 m"
+
+
 def test_a_hand_written_transposed_line_shows_both():
     (el,) = default_elements(
         TL("a", "b", z0=75.0, length=3.0, transposed=True, vf=0.66), None, 7.0

@@ -652,3 +652,24 @@ def test_no_settled_reading_is_listed_as_a_guess():
     )
     _no_guess(read_ez(raw, accept_guesses=True))
     assert cmath.isfinite(_z(_open(raw)))
+
+
+def test_a_lossy_lines_schematic_hover_names_eznecs_loss_and_its_law():
+    """The schematic draws the line from its Y (Z0 and matched loss), which
+    cannot say how the loss was given; the hover carries EZNEC's own terms."""
+    from antennaknobs.schematic import default_elements
+
+    imp = read_ez(_dw_model())
+    brs = [
+        b
+        for b in imp.deck.network().branches
+        if isinstance(b, network.TouchstoneTwoPort)
+    ]
+    for br in brs:
+        (el,) = default_elements(br, None, 7.15)
+        assert el.kind == "coax", el
+        assert el.hint.startswith(
+            "EZNEC lossy line: 0.029 dB/m at 50 MHz, scaling as √(f/F)"
+        )
+        assert "matched loss at 7.15 MHz" in el.hint
+        assert "K0 + K1" not in el.hint

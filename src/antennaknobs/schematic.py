@@ -477,10 +477,15 @@ def _tl_element(branch, freq_mhz: float | None) -> Element:
         label += " · transposed"
     sub = _fmt_len(branch.length)
     johnson = bool(getattr(branch, "skin", False))
+    lossy = bool(k0 or k1 or k2)
     # The hover names the loss the solve computes: the table's formula for a
     # line that loses exactly it, and only the model for a Johnson line, whose
     # loss is not that formula (its K0 and K1 add in quadrature).
-    if johnson:
+    # A lossless line has no loss to describe: its label (Z0, VF, length) is
+    # all there is, so it gets no hover.
+    if not lossy:
+        hint = ""
+    elif johnson:
         hint = f"K0 {k0:g}, K1 {k1:g}, K2 {k2:g} (AC6LA's Johnson line)"
     else:
         hint = (
@@ -605,7 +610,15 @@ def _computed_two_port_elements(br, freq_mhz: float | None):
         return None
     y = data.y_at(freq_mhz * 1e6)
     shim = Admittance(ports=(br.a, br.b), y=tuple(tuple(row) for row in y))
-    return _admittance_elements(shim, freq_mhz)
+    els = _admittance_elements(shim, freq_mhz)
+    # A line the importer can name (an EZNEC lossy line's loss per metre and
+    # how it scales) says so in its hover; its Y alone cannot.
+    describe = getattr(data, "describe", "")
+    if els and describe and len(els) == 1 and els[0].kind == "coax":
+        els = (
+            replace(els[0], hint=f"{describe}; matched loss at {_val(freq_mhz)} MHz"),
+        )
+    return els
 
 
 def _rlc_kind(br):

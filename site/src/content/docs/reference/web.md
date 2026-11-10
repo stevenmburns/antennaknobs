@@ -2024,6 +2024,10 @@ to themed SVG on every knob change; no solve is involved, so component labels
   whose DC and skin-effect resistances add in quadrature rather than as that
   sum, so its figure is the Johnson line's own matched loss, below the
   formula's, and its hover names the Johnson line instead of the formula.
+  An EZNEC lossy line is drawn from its two-port as `Z0 Ω line` over its
+  matched loss; its hover gives EZNEC's own terms (the loss per metre at the
+  loss frequency, scaling as √(f/F)). A lossless line has no hover: Z0, VF
+  and length are all there is to say.
 - Roughly two-thirds of the catalog is a bare antenna with no feed circuit at
   all. Those say so — *"No feed circuit — this design is the bare antenna"* —
   instead of showing an empty box.
