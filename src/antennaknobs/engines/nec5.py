@@ -1252,17 +1252,23 @@ class NEC5Engine(SimulationEngine):
         lines.append(f"FR 0 {freqs.size} 0 0 {_num(freqs[0])} {_num(df)}")
         if rp_grid is not None:
             n_th, th0, dth, n_ph, ph0, dph = rp_grid
+            # XNDA 1000: vertical/horizontal columns, the X = 1 form both
+            # NEC-5 and momwire's NEC-5 launchers print. X = 0 (major/minor)
+            # is refused by the launchers (AK#2259); TOTAL sits in the same
+            # column either way, which is all the parsers read.
             lines.append(
-                f"RP 0 {n_th} {n_ph} 0 {_num(th0)} {_num(ph0)} {_num(dth)} {_num(dph)}"
+                f"RP 0 {n_th} {n_ph} 1000 {_num(th0)} {_num(ph0)} {_num(dth)} {_num(dph)}"
             )
         elif rp is None:
             lines.append("XQ 0")
         else:
             n_theta, n_phi, del_theta, del_phi = rp
-            # RP initiates execution itself (manual: RP card). XNDA=0:
-            # major/minor/total columns, no normalized table, power gain.
+            # RP initiates execution itself (manual: RP card). XNDA=1000:
+            # vertical/horizontal/total columns, no normalized table, power
+            # gain (X = 0's major/minor is refused by momwire's launchers,
+            # AK#2259).
             lines.append(
-                f"RP 0 {n_theta} {n_phi + 1} 0 0.0 0.0 "
+                f"RP 0 {n_theta} {n_phi + 1} 1000 0.0 0.0 "
                 f"{_num(del_theta)} {_num(del_phi)}"
             )
         lines.append("EN")
@@ -1582,8 +1588,9 @@ class NEC5Engine(SimulationEngine):
 
     def average_power_gain(self, *, n_theta=18, n_phi=36):
         """(average power gain, solid angle in steradians) from an RP run
-        with the A-digit set to average-and-suppress (XNDA=0002), sampling
-        the upper hemisphere. Over a lossy ground the average gain is the
+        with the A-digit set to average-and-suppress (XNDA=1002; X = 1
+        because momwire's launchers refuse X = 0, AK#2259), sampling the
+        upper hemisphere. Over a lossy ground the average gain is the
         ground-absorption story the plain power budget cannot tell: a
         lossless antenna radiating avg*Omega/(4*pi) of its input."""
         del_theta = 90.0 / n_theta
@@ -1594,7 +1601,7 @@ class NEC5Engine(SimulationEngine):
         lines = self.deck([f], sources=sources).splitlines()
         lines = [ln for ln in lines if not ln.startswith("XQ")]
         rp = (
-            f"RP 0 {n_theta} {n_phi} 0002 {_num(del_theta / 2)} 0.0 "
+            f"RP 0 {n_theta} {n_phi} 1002 {_num(del_theta / 2)} 0.0 "
             f"{_num(del_theta)} {_num(del_phi)}"
         )
         lines.insert(-1, rp)  # before EN
