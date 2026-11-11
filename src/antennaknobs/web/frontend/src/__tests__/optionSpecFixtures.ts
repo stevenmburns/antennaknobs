@@ -246,6 +246,17 @@ export const SERVED_OPTION_SPECS: ModelOptionSpecs =
     "shown_when_value": null,
     "description": "Fill each repeated pair of straight wires once and copy it (a Yagi's directors, mirrored halves), and fill an evenly meshed straight wire's own entries once per segment spacing. The solver checks every repeat against its own geometry first. Results change only in the last digits."
   },
+  "fill_reuse": {
+    "kind": "bool",
+    "label": "reuse repeated geometry (faster fill)",
+    "default": false,
+    "auto_when_null": false,
+    "shown_when": null,
+    "gate_label": null,
+    "gate_on_value": null,
+    "shown_when_value": null,
+    "description": "Evaluate each class of congruent segment pairs once (a Yagi's directors, a mirrored half) instead of every pair. Faster on designs with repeated geometry, slightly slower on small ones without. Results change only in the last digits."
+  },
   "transmitted_anchors": {
     "kind": "bool",
     "label": "share buried tables across a sweep (faster)",
