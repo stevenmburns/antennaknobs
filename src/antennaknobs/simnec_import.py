@@ -2821,7 +2821,11 @@ def _param_constant(script: _Script, name: str, where: str) -> _DclConstant:
     return _DclConstant(name, raw, tree, comment, line, stmt, param=True)
 
 
-def _classify(dcl: _DclCards, where: str) -> tuple[SySymbol, ...]:
+def _classify(
+    dcl: _DclCards,
+    where: str,
+    ranges: Mapping[str, tuple[float, float]] | None = None,
+) -> tuple[SySymbol, ...]:
     """The constants as `SySymbol` records, classified by `classify_sy`'s
     rules for a deck's SY symbols (AK#1705): a knob is a constant whose
     expression names no other constant and that reaches a card the design
@@ -2905,6 +2909,10 @@ def _classify(dcl: _DclCards, where: str) -> tuple[SySymbol, ...]:
                 load_roles.get(c.name), direct.get(c.name), closure(c.name), c, value
             ) or (None, None, default)
         segment_count = kind == "knob" and bool(closure(c.name) & jam_names)
+        declared = (ranges or {}).get(c.name) if kind == "knob" and c.param else None
+        if declared is not None and factor:
+            # The file declares it in SI; the knob reads in its unit.
+            declared = (declared[0] / factor, declared[1] / factor)
         out.append(
             SySymbol(
                 name=c.name,
@@ -2923,6 +2931,7 @@ def _classify(dcl: _DclCards, where: str) -> tuple[SySymbol, ...]:
                 integer=integer,
                 param_name=_param_name(c),
                 segment_count=segment_count,
+                declared_range=declared,
             )
         )
     return tuple(out)
@@ -4197,6 +4206,41 @@ def _numeric_params(el) -> dict[str, str | None]:
     }
 
 
+def parse_declared_range(text: str | None) -> tuple[float, float] | None:
+    """SimNEC's per-field range, ``{lo,hi}`` with SI suffixes (``{-10k,10k}``,
+    ``{1p,500p}``), optionally led by a number (``0 {.005,50k}``, which is
+    read as its braces). None for an empty, unparseable or non-increasing
+    one: a malformed range is no range, never an error."""
+    if not text:
+        return None
+    m = re.search(r"\{([^{},]+),([^{},]+)\}", text)
+    if m is None:
+        return None
+    try:
+        lo, hi = _sweep_number(m.group(1)), _sweep_number(m.group(2))
+    except ValueError:
+        return None
+    if not (math.isfinite(lo) and math.isfinite(hi) and lo < hi):
+        return None
+    return lo, hi
+
+
+def _declared_ranges(el) -> dict[str, tuple[float, float]]:
+    """Each element parameter's declared range (``<format>`` ``range``), by
+    name, for those that declare one (AK#2275)."""
+    out = {}
+    for p in el.findall("p"):
+        name = p.findtext("numericParam")
+        if name is None:
+            continue
+        for q in p.findall("format/p"):
+            if q.findtext("n") == "range":
+                rng = parse_declared_range(q.findtext("v"))
+                if rng is not None:
+                    out[name] = rng
+    return out
+
+
 # The most points a sweep may ask for. SimNEC prunes a sweep that is too
 # dense; a 0.0001 MHz step over 1-30 MHz is an unreadable sweep here, not a
 # reason to allocate hundreds of thousands of floats.
@@ -4494,7 +4538,9 @@ def classify_dcl(text: str, *, name: str = "SimNEC circuit") -> tuple[SySymbol, 
     script = _Script(
         infos[nec_pos][1]["equ"] or "", name, _numeric_params(infos[nec_pos][2])
     )
-    return _classify(_dcl_cards(script, name), name)
+    return _classify(
+        _dcl_cards(script, name), name, _declared_ranges(infos[nec_pos][2])
+    )
 
 
 def parse_ssn(
