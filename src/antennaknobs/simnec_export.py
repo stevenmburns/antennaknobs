@@ -96,9 +96,9 @@ cascade above.
 lumped L/C tuner arms, and ideal transformers. Each reducer branch maps to a
 SimNEC circuit element in cascade order — ``TL`` → ``SERIES_TLINE``,
 ``TwoPort``/``Shunt`` L/C legs → ``SERIES_IND`` / ``SERIES_CAP`` /
-``SHUNT_IND`` / ``SHUNT_CAP``, ideal ``Transformer`` → ``TRANSFORMER2`` —
-and the antenna keeps the NEC-portal NETWORK block, driven at the station's
-``PortOnWire`` feed.
+``SHUNT_IND`` / ``SHUNT_CAP``, ideal ``Transformer`` → ``TRANSFORMER2``,
+``Through`` → nothing (a plain wire) — and the antenna keeps the NEC-portal
+NETWORK block, driven at the station's ``PortOnWire`` feed.
 
 **The fundamental limitation — enforced, not papered over.** SimNEC's
 ``SERIES_TLINE`` is purely differential: there is no common-mode (``zcomm``)
@@ -174,6 +174,7 @@ from .network import (
     PortAtVertex,
     PortOnWire,
     Shunt,
+    Through,
     TouchstoneLoad,
     TouchstoneTwoPort,
     Transformer,
@@ -839,6 +840,11 @@ def _series_elements(br, entered_at: str, freq_mhz: float, mk, name: str):
     A branch may emit several elements (a TwoPort with both L and C legs is a
     series pair — order between them is electrically irrelevant) or none (an
     all-omitted TwoPort is an ideal short: a plain wire-through)."""
+    if isinstance(br, Through):
+        # The SimNEC importer's pass-through between two block nodes
+        # (AK#1679, AK#2270): SimNEC's blocks meet by bare wire, so it emits
+        # nothing and the round trip writes the cascade it read.
+        return []
     if isinstance(br, TL):
         if br.transposed:
             raise SsnUnsupported(
@@ -896,9 +902,8 @@ def _series_elements(br, entered_at: str, freq_mhz: float, mk, name: str):
     if isinstance(br, Transformer):
         if br.n == 1.0 and br.r is None and br.lmag is None and br.core is None:
             # The ideal 1:1 is a through-connection, a plain wire in a
-            # datum-referenced cascade — as the SimNEC importer's pass-through
-            # between two block nodes is (AK#1679). Like the all-omitted
-            # TwoPort, it emits nothing.
+            # datum-referenced cascade, as a `Through` is. Like the
+            # all-omitted TwoPort, it emits nothing.
             return []
         if br.r is not None or br.lmag is not None or br.core is not None:
             raise SsnUnsupported(
@@ -1089,7 +1094,7 @@ def _station_chain(net, freq_mhz: float, spans=()):
             deck_loads.append((br, name))
         elif isinstance(br, Shunt):
             shunts_at.setdefault(br.port, []).append((bi, br, name))
-        elif isinstance(br, (TL, TwoPort, Transformer)):
+        elif isinstance(br, (TL, TwoPort, Transformer, Through)):
             series_at.setdefault(br.a, []).append((bi, br, name))
             series_at.setdefault(br.b, []).append((bi, br, name))
         else:

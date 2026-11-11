@@ -83,6 +83,7 @@ from .network import (
     PortOnWireFloating,
     PortVirtual,
     Shunt,
+    Through,
     TouchstoneLoad,
     TouchstoneTwoPort,
     Transformer,
@@ -290,6 +291,8 @@ def _branch_cards(net, nodes: _Nodes, order, freq_mhz, wl, c_light, cl_reducer):
     for k, br in enumerate(net.branches):
         if isinstance(br, Load):
             continue  # placed once every other card is known (below)
+        if isinstance(br, Through):
+            continue  # merged into one node (`_merge_throughs`)
         if isinstance(br, Shunt):
             if br.parallel:
                 y = _parallel_rlc_admittance(br.r, br.l, br.c, omega, br.ql, br.qc)
@@ -387,16 +390,18 @@ def _branch_cards(net, nodes: _Nodes, order, freq_mhz, wl, c_light, cl_reducer):
 
 
 def _merge_throughs(net, nodes: _Nodes, omega):
-    """Fuse the nodes an ideal through-connection joins: a 1:1 lossless
-    Transformer (SimNEC's bare wire between blocks, `simnec_import._THROUGH`),
-    a zero series impedance and a zero-length lossless line. NEC has no
-    zero-impedance card, and one knot is that connection exactly. A 1:1
-    transformer's magnetizing branch, if it has one, is a shunt on that
-    knot, which is where it sits on either winding."""
+    """Fuse the nodes an ideal through-connection joins: a `Through`
+    (SimNEC's bare wire between blocks, `simnec_import._through`), a 1:1
+    lossless Transformer, a zero series impedance and a zero-length lossless
+    line. NEC has no zero-impedance card, and one knot is that connection
+    exactly. A 1:1 transformer's magnetizing branch, if it has one, is a
+    shunt on that knot, which is where it sits on either winding."""
     from .network import _series_rlc_impedance  # noqa: PLC0415 — on use
 
     for br in net.branches:
-        if isinstance(br, Transformer):
+        if isinstance(br, Through):
+            nodes.union(br.a, br.b)
+        elif isinstance(br, Transformer):
             if complex(br.n) == 1 and not br.r:
                 nodes.union(br.a, br.b)
         elif isinstance(br, TwoPort):
