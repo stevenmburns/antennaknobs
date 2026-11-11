@@ -79,6 +79,8 @@ export type OptimizeResult = {
   time_budget_s?: number | null;
   /** Knobs that ended at a bound of their range (AK#1909). */
   at_bound?: { name: string; bound: "min" | "max"; value: number }[];
+  /** Knobs the run could not move (AK#2275). */
+  stuck?: { name: string; reason: "zero_slope" | "did_not_move" }[];
   /** No band is near a match at the answer (AK#1909). */
   far_from_match?: boolean;
 };
