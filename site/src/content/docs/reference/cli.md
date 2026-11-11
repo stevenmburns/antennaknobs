@@ -1524,7 +1524,10 @@ A spec starting with `[` is JSON instead: a list of
 
 **Knobs.** `--params` names them, a group's leaf spelled `bands.<i>.<leaf>`.
 Each searches its `--bound NAME=LO:HI`, else its slider's `ui_params` range,
-else ±20 % of its value. With no `--params` the bands' `knobs` are the knobs.
+else ±20 % of its value. In an opened `.ssn`, a knob that is only a position
+along a wire (a `%` knob) ranges over the whole wire, 0–100, and a range the
+file declares for a parameter bounds that default rather than replacing it: a
+generic limit such as `{-10k,10k}` leaves it alone, a narrower one clips it. With no `--params` the bands' `knobs` are the knobs.
 `--set NAME=VALUE ...` sets other knobs before the run and holds them (a
 choice the optimizer cannot make, such as an enum); a kept run records them
 in its start.
@@ -1532,7 +1535,10 @@ A bound is in the knob's own unit, which the run prints before it starts
 (`# knob sy_cap1 = 340 pF, range 100..1000 pF`): an opened deck's `SY cap1 =
 340pF` is bounded `100:1000`, not `100e-12:1000e-12`. A bound that excludes the
 knob's current value is refused, and a run whose answer leaves a knob at the
-edge of its range, or no band near a match, says so under its table.
+edge of its range, or no band near a match, says so under its table, and so
+does a knob that never moved: its slope read zero (usually a load that snaps
+from segment to segment, so a small step changes nothing) or it stayed where
+it started while the others moved.
 
 **Forms** (`--mode`):
 
@@ -1546,6 +1552,13 @@ edge of its range, or no band near a match, says so under its table.
   `w = 0.5` gave 1.93 / 1.93 / 1.34: 0.07 worse on the worst band, half an SWR
   unit better on 40 m. The run prints the worst band, the mean and J
   separately, and the worst SWR it reports is the largest SWR any band read.
+  `--objective-form` changes how the bands fold into one number: `balanced`
+  (the blend above, the default), `softmax`, the p-norm
+  (Σ vᵖ)^(1/p) (`--p-norm`, default 8), a smooth worst case, or
+  `clipped_sum`, Σ max(v, T), which needs `--target T`. `--target` also works
+  with the other forms: each band's value becomes max(v, T) first, so a band
+  already under T (e.g. `--target 1.2` for SWR) stops counting. The run names
+  the formula it used beside J.
   It is a local search: it starts from the better of the knobs' values and a
   fit that brings every band's reactance as near zero as the knobs allow, and
   refines from there.
