@@ -1,0 +1,69 @@
+<?xml version="1.0" encoding="utf-8"?>
+   <SimNEC1p0>
+       <SmithChartCircuit>
+           <XMLVersionControl>SimNEC:5.4a4</XMLVersionControl>
+           <PLOTENVIRONMENT/>
+           <FILEARCHIVE/>
+           <CIRCUIT>
+               <element>
+                   <type>LOAD</type>
+                   <sweeperLabel>NotUsed</sweeperLabel>
+                   <showInPath>true</showInPath>
+                   <escapeHatch/>
+                   <p><n>ohms</n><v>0</v></p>
+                   <p><n>johms</n><v>0</v></p>
+                   <p><n>file</n><v>&lt;none&gt;</v></p>
+               </element>
+               <element>
+                   <type>NETWORK</type>
+                   <sweeperLabel>A</sweeperLabel>
+                   <showInPath>true</showInPath>
+                   <escapeHatch/>
+                   <p>
+                       <n>equ</n>
+                       <v>// synthetic: EZNEC's NEC-2 current-source idiom
+P1 w1 gnd;
+P2 w2 gnd;
+
+NECOptions.mhosPerMeter = 0;
+SommerfeldGround(0.005, 13);
+
+NEC2  // ====================
+CM synthetic 7.1 MHz dipole, fed by a current source
+CM wire 2 is the parked source wire; NT 1 is the gyrator (Y12 = j)
+CE
+GW 1,11,0.,-10.2,12.,0.,10.2,12.,.001
+GW 2,1,1800.,1800.,1800.,1800.,1800.02,1800.,.002
+GE 1
+FR 0,1,0,0,7.1
+GN 2,0,0,0,13.,.005
+EX 0,2,1,0,0.,1.
+NT 2,1,1,6,0.,0.,0.,1.,0.,0.
+EN
+NECEND  // ====================</v>
+                   </p>
+               </element>
+               <element>
+                   <type>SERIES_TLINE</type>
+                   <sweeperLabel>T1</sweeperLabel>
+                   <showInPath>true</showInPath>
+                   <escapeHatch/>
+                   <p><n>mtrs</n><v>15</v></p>
+                   <p><n>Mdl</n><v>k0k1k2</v></p>
+                   <p><n>VFnom</n><v>0.66</v></p>
+                   <p><n>Zo</n><v>50</v></p>
+                   <p><n>k0</n><v>0</v></p>
+                   <p><n>k1</n><v>0</v></p>
+                   <p><n>k2</n><v>0</v></p>
+               </element>
+               <element>
+                   <type>GENERATOR</type>
+                   <sweeperLabel>G</sweeperLabel>
+                   <showInPath>true</showInPath>
+                   <escapeHatch/>
+                   <p><n>MHz</n><v>7.1</v></p>
+                   <p><n>Zo</n><v>50</v></p>
+               </element>
+           </CIRCUIT>
+       </SmithChartCircuit>
+   </SimNEC1p0>
