@@ -74,6 +74,7 @@ from .network import (
     PortOnWire,
     PortOnWireFloating,
     Shunt,
+    Through,
     TouchstoneLoad,
     TouchstoneTwoPort,
     Transformer,
@@ -340,6 +341,7 @@ TERMINALS = {
     "Load": ("port",),
     "TwoPort": ("a", "b"),
     "Transformer": ("a", "b"),
+    "Through": ("a", "b"),
     "Autotransformer": ("a", "b"),
     "FloatingBalun": ("primary", "a", "b"),
     "TouchstoneLoad": ("port",),
@@ -411,6 +413,11 @@ def default_elements(
         return (
             series("line", f"{_val(branch.zdiff)} Ω pair", _fmt_len(branch.length)),
         )
+    if isinstance(branch, Through):
+        # An ideal zero-impedance link (AK#2270): plain wire, no symbol, no
+        # label. It exists to give each side a node of its own, so a plane can
+        # stand on either side; the SimNEC importer joins its blocks with it.
+        return (series("short"),)
     if isinstance(branch, Transformer):
         # `n` is a:b with v_a = n·v_b, a the primary, so the turns read
         # primary:secondary are 1:1/n (a 1:7 unun is n = 1/7, AK#2069).

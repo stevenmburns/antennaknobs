@@ -29,6 +29,7 @@ from ..network import (
     PortVirtual,
     Shunt,
     TL,
+    Through,
     TouchstoneLoad,
     TouchstoneTwoPort,
     Transformer,
@@ -838,6 +839,7 @@ class PyNECEngine(SimulationEngine):
         # shunt-to-common primitive); always reduce it. Same for the ideal
         # Transformer (issue #301) and its floating-secondary sibling the
         # FloatingBalun (issue #589): no NEC card expresses the ideal ratio,
+        # nor the zero-impedance Through link (AK#2270),
         # and the fixed complex-Y Admittance (issue #416) — a general 1-/2-port
         # Y with no native 1-port card — always takes the reducer stamp too, as
         # does a frequency-dependent admittance (a Touchstone block, or an
@@ -848,6 +850,7 @@ class PyNECEngine(SimulationEngine):
                 (
                     Shunt,
                     Transformer,
+                    Through,
                     Admittance,
                     FloatingBalun,
                     TouchstoneLoad,
@@ -889,11 +892,12 @@ class PyNECEngine(SimulationEngine):
             raise ValueError("native_nt=True requires a build_network() design")
         if not any(isinstance(b, TwoPort) for b in net.branches):
             raise ValueError("native_nt=True but the network has no TwoPort branch")
-        if any(isinstance(b, (Shunt, Transformer)) for b in net.branches):
+        if any(isinstance(b, (Shunt, Transformer, Through)) for b in net.branches):
             raise ValueError(
-                "native_nt=True cannot emit a Shunt or Transformer natively "
-                "(no 1-port shunt-to-common NEC card; no card for an ideal "
-                "transformer ratio); run the default reducer path instead"
+                "native_nt=True cannot emit a Shunt, Transformer or Through "
+                "natively (no 1-port shunt-to-common NEC card; no card for an "
+                "ideal transformer ratio or a zero-impedance link); run the "
+                "default reducer path instead"
             )
         if any(isinstance(b, TL) for b in net.branches):
             raise ValueError(
