@@ -435,14 +435,26 @@ def test_declared_range_parses_suffixes_and_ignores_the_malformed(text, want):
     assert parse_declared_range(text) == want
 
 
-def test_a_declared_range_wins_on_a_place_knob_and_a_value_knob():
-    text = _declare(_coil_file(), "Coil_Pct", "{10,60}")
-    text = _declare(text, "Lx_H", "{1u,8u}")
-    ui = _ui(text)
+def test_a_declared_range_bounds_the_default_window():
+    """The .ssn's declared range is a BOUND on the default window, not the
+    window itself: SimNEC fields carry generic limits like {-10k,10k}."""
+    # A place knob: 0-100 clipped to what the file allows.
+    ui = _ui(_declare(_coil_file(), "Coil_Pct", "{10,60}"))
     assert (ui["par_Coil_Pct"]["min"], ui["par_Coil_Pct"]["max"]) == (10.0, 60.0)
-    # Declared in henries, the knob reads in uH.
-    assert ui["par_Lx_H"]["min"] == pytest.approx(1.0)
-    assert ui["par_Lx_H"]["max"] == pytest.approx(8.0)
+    # A generic wide limit changes nothing.
+    ui = _ui(_declare(_coil_file(), "Coil_Pct", "{-10k,10k}"))
+    assert (ui["par_Coil_Pct"]["min"], ui["par_Coil_Pct"]["max"]) == (0.0, 100.0)
+    # A value knob (3.9 uH): a range containing its +/-20 % box leaves it the
+    # default (no min/max published) ...
+    ui = _ui(_declare(_coil_file(), "Lx_H", "{1u,8u}"))
+    assert "min" not in ui["par_Lx_H"]
+    # ... one cutting into it clips the box, read in the knob's unit (uH) ...
+    ui = _ui(_declare(_coil_file(), "Lx_H", "{3u,4u}"))
+    assert ui["par_Lx_H"]["min"] == pytest.approx(3.9 * 0.8)
+    assert ui["par_Lx_H"]["max"] == pytest.approx(4.0)
+    # ... and a value outside the declared range takes the declared range.
+    ui = _ui(_declare(_coil_file(), "Lx_H", "{10u,20u}"))
+    assert (ui["par_Lx_H"]["min"], ui["par_Lx_H"]["max"]) == pytest.approx((10.0, 20.0))
 
 
 def test_an_empty_or_malformed_range_falls_through_to_the_defaults():
