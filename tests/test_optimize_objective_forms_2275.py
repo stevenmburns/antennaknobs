@@ -110,7 +110,9 @@ def test_the_default_run_is_the_balanced_run_point_for_point():
     a, sa = _run()
     b, sb = _run(objective_form="balanced", target=None, p_norm=DEFAULT_P_NORM)
     assert sa.calls == sb.calls
-    assert a == b
+    # elapsed_s is the run's wall time (AK#2272): the one field two identical
+    # runs need not share.
+    assert {**a, "elapsed_s": None} == {**b, "elapsed_s": None}
     assert a["objective_form"] == "balanced"
     assert a["target"] is None
     assert a["mean_weight"] == DEFAULT_MEAN_WEIGHT
