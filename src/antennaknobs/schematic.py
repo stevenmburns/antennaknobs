@@ -231,8 +231,6 @@ class Block:
     path: str = ""
     watts: float | None = None
     nodes: tuple[str, ...] = ()
-    #: An `anonymous` composite's block (AK#2270): drawn bare, no enclosure.
-    anonymous: bool = False
 
 
 @dataclass
@@ -1346,14 +1344,12 @@ def lower(
                 els = chain_elements(group, path, balanced_in)
             else:
                 els = _with_ribs(ci, gi, group, path, balanced_in)
-            comp = (getattr(net, "composites", None) or {}).get(path) if path else None
             out.append(
                 Block(
                     label=path[:-1] if path else type(branches[group[0].idx]).__name__,
                     elements=tuple(els),
                     path=path,
                     watts=burned(path) if path else burned_bare(group[0].idx),
-                    anonymous=bool(getattr(comp, "anonymous", False)),
                 )
             )
         return out
@@ -1975,7 +1971,7 @@ def render_svg(sch: Schematic, path=None, color: str | None = None) -> str:
             # is a bare branch the flattening never grouped — drawing a dashed
             # box round a lone TL and captioning it with its class name is noise,
             # and two such boxes in a row visibly collide.
-            if block.path and not block.anonymous:
+            if block.path:
                 note = block.label
                 if block.watts:
                     note = f"{note}  ({_burn_text(block.watts, sch.p_in)})"
