@@ -72,10 +72,10 @@ RUN pip install --upgrade pip \
 # (GPLv2), and leaving it out keeps the published image MIT/BSD-only. Users
 # who want the NEC2 engine add one layer:
 #   FROM <user>/antennaknobs:latest
-#   RUN pip install "pynec-accel>=1.7.6"
+#   RUN pip install "pynec-accel>=1.7.7"
 ARG INCLUDE_PYNEC=1
 RUN if [ "$INCLUDE_PYNEC" = "1" ]; then \
-      pip install "pynec-accel>=1.7.6"; \
+      pip install "pynec-accel>=1.7.7"; \
     fi
 
 EXPOSE 8000
