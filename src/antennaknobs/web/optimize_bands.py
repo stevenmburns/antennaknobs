@@ -155,6 +155,12 @@ FAR_FROM_MATCH_SWR = 100.0
 #: reported as pinned there: the optimum may lie outside the range.
 _AT_BOUND_U = 1e-3
 
+#: A knob that ends within this fraction of its range of where it started,
+#: while another knob moved by `_MOVED_U` or more, is reported as stuck
+#: (AK#2275): a staircase knob reads a flat or jumpy slope and never moves.
+_STUCK_U = 1e-3
+_MOVED_U = 1e-2
+
 
 class BandsRefused(ValueError):
     """A band list this module cannot serve, refused by name before (or at)
@@ -831,6 +837,13 @@ def optimize_bands(
                 Jc[:, j] = (comps(r1) - c0) / h
                 Jm[j] = (mean_of(r1) - m0) / h
             grads[key] = (Jc, Jm)
+            if not first_slope_read:
+                # The first slope of each knob, exactly zero in every
+                # output: the mark of a step the finite difference sits in.
+                first_slope_read.append(True)
+                zero_slope.update(
+                    names[j] for j in range(n) if not Jc[:, j].any() and Jm[j] == 0.0
+                )
             return grads[key]
 
         def fun(z):
@@ -1093,6 +1106,8 @@ def optimize_bands(
             prev = cur
         return best[1], done, fixed
 
+    zero_slope: set[str] = set()
+    first_slope_read: list[bool] = []
     method = form
     root_reason = None
     root_status = None
@@ -1163,6 +1178,20 @@ def optimize_bands(
         for nm, u, v in zip(names, u_end, x_best, strict=True)
         if u <= _AT_BOUND_U or u >= 1.0 - _AT_BOUND_U
     ]
+    # Knobs the run could not move (AK#2275). Not those already reported at a
+    # bound. A flat first slope is the cause when it was read; otherwise a
+    # knob that stayed put while another moved.
+    u_start = to_u(np.asarray(x0, float))
+    moved = np.abs(u_end - u_start)
+    pinned = {a["name"] for a in at_bound}
+    stuck = []
+    for j, nm in enumerate(names):
+        if nm in pinned or moved[j] >= _STUCK_U:
+            continue
+        if nm in zero_slope:
+            stuck.append({"name": nm, "reason": "zero_slope"})
+        elif any(moved[k] >= _MOVED_U for k in range(n) if k != j):
+            stuck.append({"name": nm, "reason": "did_not_move"})
     worst_after = max(r["swr"] for r in recs_end)
     return json_safe(
         {
@@ -1222,6 +1251,10 @@ def optimize_bands(
             # Knobs that ended at a bound of their range ({name, bound
             # "min"/"max", value}): the optimum may lie past it (AK#1909).
             "at_bound": at_bound,
+            # Knobs that never moved ({name, reason "zero_slope" |
+            # "did_not_move"}): a knob that changes in steps reads a flat
+            # slope and the search leaves it where it started (AK#2275).
+            "stuck": stuck,
             # No band is anywhere near a match at the answer (AK#1909).
             "far_from_match": not worst_after <= FAR_FROM_MATCH_SWR,
         }

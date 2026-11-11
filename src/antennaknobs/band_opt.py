@@ -134,6 +134,21 @@ def builder_sweep_fn(builder, factory: Callable, z0: float) -> Callable:
     return sweep
 
 
+def stuck_sentence(k: Mapping) -> str:
+    """The plain sentence for one knob the run could not move (AK#2275)."""
+    if k.get("reason") == "zero_slope":
+        why = (
+            "its slope read zero, which usually means it changes in steps "
+            "(a load that snaps to segments)"
+        )
+    else:
+        why = "it stayed where it started while other knobs moved"
+    return (
+        f"{k['name']} did not move: {why}. Try sweeping it, or an engine that "
+        "places loads continuously."
+    )
+
+
 def report_lines(res: dict) -> list[str]:
     """The run's per-band before/after table and its verdict."""
     lines = [
@@ -186,6 +201,7 @@ def report_lines(res: dict) -> list[str]:
             f"{b['name']} ended at its {b['bound']} ({b['value']:.6g}): the "
             "optimum may lie outside the range; widen it and run again"
         )
+    lines.extend(stuck_sentence(k) for k in res.get("stuck") or [])
     if res.get("far_from_match"):
         lines.append(
             "no band is near a match at the answer (worst SWR "

@@ -336,6 +336,24 @@ describe("the band readouts", () => {
     ]);
   });
 
+  it("result notes: a knob that never moved says why (#2275)", () => {
+    const res: OptimizeResult = {
+      ...BAND_RESULT,
+      stuck: [
+        { name: "Cap_Pct", reason: "zero_slope" },
+        { name: "L2", reason: "did_not_move" },
+      ],
+    };
+    render(<BandsReadout running={false} progress={null} result={res} error={null} />);
+    const notes = within(screen.getByLabelText("Band run notes"))
+      .getAllByRole("listitem")
+      .map((li) => li.textContent);
+    expect(notes).toEqual([
+      "Cap_Pct did not move: its slope read zero, which usually means it changes in steps (a load that snaps to segments). Try sweeping it, or an engine that places loads continuously.",
+      "L2 did not move: it stayed where it started while other knobs moved. Try sweeping it, or an engine that places loads continuously.",
+    ]);
+  });
+
   it("result: before -> after per band, then worst and mean", () => {
     render(<BandsReadout running={false} progress={null} result={BAND_RESULT} error={null} />);
     const table = screen.getByRole("table", { name: "Band results" });

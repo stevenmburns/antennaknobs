@@ -360,6 +360,15 @@ export function bandResultNotes(result: OptimizeResult): string[] {
       `${b.name} ended at its ${b.bound === "min" ? "minimum" : "maximum"}: the best value may lie outside its range. Widen it and run again.`,
     );
   }
+  for (const k of result.stuck ?? []) {
+    const why =
+      k.reason === "zero_slope"
+        ? "its slope read zero, which usually means it changes in steps (a load that snaps to segments)"
+        : "it stayed where it started while other knobs moved";
+    out.push(
+      `${k.name} did not move: ${why}. Try sweeping it, or an engine that places loads continuously.`,
+    );
+  }
   if (result.far_from_match) {
     out.push("No band is near a match: check the knobs' ranges before trusting this result.");
   }
