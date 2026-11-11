@@ -392,3 +392,67 @@ def test_a_place_knob_ranges_over_the_wires_whole_span():
     }
     assert got["par_Coil_Pct"] == (0.0, 100.0)
     assert got["par_Lx_H"] == pytest.approx((3.9 * 0.8, 3.9 * 1.2))
+
+
+# --- a range the .ssn declares (AK#2275) ------------------------------------------
+
+
+def _declare(text: str, name: str, rng: str) -> str:
+    """``text`` with ``name``'s numericParam carrying a ``<format>`` whose
+    ``range`` field reads ``rng``, as SimNEC saves it."""
+    old = f"<p><numericParam>{name}</numericParam><v>"
+    head, sep, tail = text.partition(old)
+    assert sep
+    value, close, rest = tail.partition("</v></p>")
+    fmt = f"<format><p><n>range</n><v>{rng}</v></p></format>"
+    return head + sep + value + "</v>" + fmt + "</p>" + rest
+
+
+def _ui(text: str) -> dict:
+    return builder_from_text("r.ssn", text).default_params["ui_params"]
+
+
+@pytest.mark.parametrize(
+    "text, want",
+    [
+        ("{-10k,10k}", (-1e4, 1e4)),
+        ("{1p,500p}", (1e-12, 5e-10)),
+        ("0 {.005,50k}", (0.005, 5e4)),
+        ("{ 1 , 2 }", (1.0, 2.0)),
+        ("", None),
+        (None, None),
+        ("{5,1}", None),
+        ("{1,1}", None),
+        ("{a,b}", None),
+        ("{1,2", None),
+        ("10 20", None),
+        ("{1,nan}", None),
+    ],
+)
+def test_declared_range_parses_suffixes_and_ignores_the_malformed(text, want):
+    from antennaknobs.simnec_import import parse_declared_range
+
+    assert parse_declared_range(text) == want
+
+
+def test_a_declared_range_wins_on_a_place_knob_and_a_value_knob():
+    text = _declare(_coil_file(), "Coil_Pct", "{10,60}")
+    text = _declare(text, "Lx_H", "{1u,8u}")
+    ui = _ui(text)
+    assert (ui["par_Coil_Pct"]["min"], ui["par_Coil_Pct"]["max"]) == (10.0, 60.0)
+    # Declared in henries, the knob reads in uH.
+    assert ui["par_Lx_H"]["min"] == pytest.approx(1.0)
+    assert ui["par_Lx_H"]["max"] == pytest.approx(8.0)
+
+
+def test_an_empty_or_malformed_range_falls_through_to_the_defaults():
+    from antennaknobs.band_opt import free_for
+
+    for rng in ("", "{oops", "{9,3}"):
+        text = _declare(_declare(_coil_file(), "Coil_Pct", rng), "Lx_H", rng)
+        b = builder_from_text("e.ssn", text)
+        ui = b.default_params["ui_params"]
+        assert (ui["par_Coil_Pct"]["min"], ui["par_Coil_Pct"]["max"]) == (0.0, 100.0)
+        assert "min" not in ui["par_Lx_H"]
+        got = {f["name"]: (f["min"], f["max"]) for f in free_for(b(), ["par_Lx_H"])}
+        assert got["par_Lx_H"] == pytest.approx((3.9 * 0.8, 3.9 * 1.2))
