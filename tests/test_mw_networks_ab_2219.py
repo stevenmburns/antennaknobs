@@ -812,7 +812,67 @@ def test_every_branch_type_is_covered():
     }
     # PortAtEdge is an abstract base the engines never hand a reducer; Cable
     # is a line spec (covered through TL.from_cable); Network is the container.
-    assert defined - seen <= {"PortAtEdge", "Cable", "Network"}, sorted(defined - seen)
+    # Through is the copy's own (AK#2270), with no momwire class to A/B
+    # against: `test_through_reduces_as_momwires_lossless_1to1_transformer`.
+    assert defined - seen <= {"PortAtEdge", "Cable", "Network", "Through"}, sorted(
+        defined - seen
+    )
+
+
+def _through_chain(ns, link):
+    """rig -> link -> a shunted mid node -> link -> ant: the SimNEC
+    importer's shape (AK#1679), each block on a node of its own."""
+    ports = {
+        "ant": ns.PortOnWire("ant"),
+        "rig": ns.PortVirtual("rig"),
+        "mid": ns.PortVirtual("mid"),
+    }
+    branches = [
+        link(ns, "rig", "mid"),
+        ns.Shunt("mid", c=40e-12, qc=900.0),
+        ns.TwoPort("mid", "out", l=0.7e-6, ql=200.0),
+        link(ns, "out", "ant"),
+    ]
+    ports["out"] = ns.PortVirtual("out")
+    net = ns.Network(ports=ports, branches=branches, sources=[ns.Driven("rig")])
+    idx = {n: i for i, n in enumerate(["ant", "rig", "mid", "out"])}
+    return net, idx
+
+
+@pytest.mark.parametrize("f_mhz", F_MHZ)
+def test_through_reduces_as_momwires_lossless_1to1_transformer(f_mhz):
+    """The copy's `Through` (AK#2270) stamps the very row momwire's lossless
+    1:1 `Transformer` does, which is what the SimNEC importer used for the
+    link before: the assembled system, its solution, the impedance, the
+    reflection and the excited state agree byte for byte. The one difference
+    is on purpose: the Transformer reports a 0 W budget row, the Through has
+    none."""
+    net_a, idx = _through_chain(ak, lambda ns, a, b: ns.Through(a, b))
+    net_b, _ = _through_chain(core, lambda ns, a, b: ns.Transformer(a, b, n=1.0))
+    y = _antenna_y(1, seed=5)
+    wl = _wl(f_mhz)
+    red_a = ak.NetworkReducer(net_a, idx, len(idx))
+    red_b = core.NetworkReducer(net_b, idx, len(idx))
+    for z_ref in (0j, core.Z_REF_DEFAULT):
+        sa = red_a.apply_branches(y, wl, z_ref=z_ref)
+        sb = red_b.apply_branches(y, wl, z_ref=z_ref)
+        _same(sa.A, sb.A, "A")
+        _same(sa.rhs, sb.rhs, "rhs")
+        for xa, xb in zip(sa.solve(), sb.solve(), strict=True):
+            _same(xa, xb, "solution")
+    _same(red_a.driven_impedance(y, wl), red_b.driven_impedance(y, wl), "Z")
+    _same(red_a.driven_reflection(y, wl), red_b.driven_reflection(y, wl), "rho")
+    va, eff_a, pin_a, bud_a = red_a.excited_state(y, wl)
+    vb, eff_b, pin_b, bud_b = red_b.excited_state(y, wl)
+    _same(va, vb, "V_full")
+    _same(eff_a, eff_b, "efficiency")
+    _same(pin_a, pin_b, "p_in")
+    links = [(r[0], r[1]) for r in bud_b if r[0].startswith("Transformer")]
+    assert [w for _l, w in links] == [0.0, 0.0], links
+    rest = [r for r in bud_b if not r[0].startswith("Transformer")]
+    assert [r[0] for r in bud_a] == [r[0] for r in rest]
+    for ra, rb in zip(bud_a, rest, strict=True):
+        _same(ra[1], rb[1], f"budget watts {ra[0]!r}")
 
 
 def test_the_two_namespaces_are_different_classes():
