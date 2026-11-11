@@ -77,6 +77,7 @@ SAMPLE = {
     "sommerfeld": "GN 3",
     "exact_kernel": "off",
     "pair_reuse": False,
+    "fill_reuse": False,
     "transmitted_anchors": False,
     "point_cplx_staged": False,
     "factored_columns": False,

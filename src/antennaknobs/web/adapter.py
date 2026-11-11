@@ -113,10 +113,15 @@ from antennaknobs.network import PortAtEnd, PortAtVertex, PortOnWire, as_wire
 from antennaknobs.wire_catalog import port_at, port_wire
 
 try:
-    from antennaknobs.engines.pynec import DEFAULT_GROUND, PyNECEngine
+    from antennaknobs.engines.pynec import DEFAULT_GROUND, PyNECEngine, takes_fill_reuse
 except ImportError:
     PyNECEngine = None
     DEFAULT_GROUND = ("finite", 13.0, 0.005)
+
+    def takes_fill_reuse() -> bool:
+        return False
+
+
 from antennaknobs.engines.momwire import (
     EXACT_KERNEL_CHOICES,
     FEATURE_INFO,
@@ -672,6 +677,8 @@ def backend_roster(
             + (["exact_kernel"] if _offers_exact_kernel(b) else [])
             # momwire#1809 / AK#2165: and again, for the fill reuse switch.
             + (["pair_reuse"] if _offers_pair_reuse(b) else [])
+            # pynec-accel 1.7.7: PyNEC's own fill reuse, the same live probe.
+            + (["fill_reuse"] if _offers_fill_reuse(b) else [])
             # momwire's pass-through features: the same probe, plus their reach.
             + [n for n in FEATURE_SWITCHES if _offers_feature(b, n)],
             # Axis -> the value this preset pins it to (#1006 G2-7).
@@ -887,6 +894,18 @@ def _offers_pair_reuse(spec) -> bool:
     B-spline class takes it, at every degree; the H-matrix and array
     subclasses do not."""
     return spec.kind == "momwire" and _takes_pair_reuse(spec.solver)
+
+
+def _offers_fill_reuse(spec) -> bool:
+    """Whether `spec` is the PyNEC tab and the installed PyNEC's
+    ``nec_context`` has ``set_fill_reuse`` (pynec-accel 1.7.7): the fill
+    evaluated once per congruence class of segment pairs.
+
+    `_offers_pair_reuse`'s live probe, of PyNEC rather than momwire: a PyNEC
+    predating it (1.7.6, what CI installs today) answers False, so nothing
+    is offered and nothing is sent. The NEC-2 tab shares PyNEC's panel but
+    is a subprocess, so it never offers it."""
+    return spec.kind == "pynec" and takes_fill_reuse()
 
 
 def _offers_feature(spec, name) -> bool:
@@ -1718,6 +1737,23 @@ _OPTION_SPECS: dict[str, _OptionSpec] = {
             "straight wire's own entries once per segment spacing. The "
             "solver checks every repeat against its own geometry first. "
             "Results change only in the last digits."
+        ),
+    ),
+    # PyNEC's fill reuse (pynec-accel 1.7.7, `set_fill_reuse`): offered on
+    # the PyNEC tab only where the installed PyNEC has the method
+    # (`_offers_fill_reuse`). Like `pair_reuse` it only ever removes fill
+    # evaluations, so it is on the hosted allowlist. Off by default: the
+    # server's ANTENNAKNOBS_PYNEC_FILL_REUSE seeds an unset request in the
+    # engine, and an explicit off here wins over it.
+    "fill_reuse": _OptionSpec(
+        "bool",
+        label="reuse repeated geometry (faster fill)",
+        default=False,
+        description=(
+            "Evaluate each class of congruent segment pairs once (a Yagi's "
+            "directors, a mirrored half) instead of every pair. Faster on "
+            "designs with repeated geometry, slightly slower on small ones "
+            "without. Results change only in the last digits."
         ),
     ),
     # momwire's pass-through features (`FEATURE_SWITCHES`): described by
@@ -3283,8 +3319,18 @@ def _make_momwire_engine(req: dict, builder, cancel=None):
 
 
 def _make_pynec_engine(req: dict, builder):
+    # PyNEC's fill reuse (pynec-accel 1.7.7), `pair_reuse`'s shape: passed
+    # named where the installed PyNEC offers it, dropped otherwise. Absent,
+    # the engine reads ANTENNAKNOBS_PYNEC_FILL_REUSE; an explicit off wins.
+    fill_reuse = None
+    opts = sanitize_model_options(req) or {}
+    if "fill_reuse" in opts and _offers_fill_reuse(_BACKENDS_BY_NAME["pynec"]):
+        fill_reuse = bool(opts["fill_reuse"])
     return PyNECEngine(
-        builder, ground=_pynec_ground_spec(req), wire_radius=_slot_wire_radius(req)
+        builder,
+        ground=_pynec_ground_spec(req),
+        wire_radius=_slot_wire_radius(req),
+        fill_reuse=fill_reuse,
     )
 
 
@@ -6241,7 +6287,11 @@ def axis_value_labels() -> dict[str, dict[str, str]]:
 # sends every option it shows, so an unset request never reaches the engine
 # from the app; the seed only takes effect there if the served default
 # carries it. An explicit off in a request still wins.
-_SEED_ENVS = {"pair_reuse": "ANTENNAKNOBS_PAIR_REUSE", **FEATURE_SWITCHES}
+_SEED_ENVS = {
+    "pair_reuse": "ANTENNAKNOBS_PAIR_REUSE",
+    "fill_reuse": "ANTENNAKNOBS_PYNEC_FILL_REUSE",
+    **FEATURE_SWITCHES,
+}
 
 
 def _seeded_default(key: str, default):

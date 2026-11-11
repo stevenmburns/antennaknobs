@@ -65,12 +65,14 @@ def test_the_baseline_is_not_empty_and_covers_every_kwarg():
     # own accept/reject cases are in test_nec42_sommerfeld_choice.py.
     # `exact_kernel` (momwire#1408) likewise; its cases are in
     # test_exact_kernel_option_1408.py. `pair_reuse` (AK#2165) too; its cases
-    # are in test_pair_reuse_option_2165.py. The pass-through features
+    # are in test_pair_reuse_option_2165.py, and PyNEC's `fill_reuse` in
+    # test_pynec_fill_reuse_option.py. The pass-through features
     # (momwire#1847, #1849) too; theirs are in test_feature_switches_1847.py.
     assert set(BASELINE) | {
         "sommerfeld",
         "exact_kernel",
         "pair_reuse",
+        "fill_reuse",
         "transmitted_anchors",
         "point_cplx_staged",
         "factored_columns",
@@ -267,12 +269,16 @@ def test_the_roster_names_only_kwargs_the_catalogue_describes():
     # pin; test_exact_kernel_option_1408.py gates where it is offered.
     # `pair_reuse` (momwire#1809, AK#2165) as well: offered only where the
     # installed momwire's constructor takes it (test_pair_reuse_option_2165.py).
+    # `fill_reuse` the same way on the PyNEC row, where the installed PyNEC
+    # has `set_fill_reuse` (pynec-accel 1.7.7; CI installs 1.7.6), gated in
+    # test_pynec_fill_reuse_option.py.
     # The pass-through features likewise, plus their reach
     # (test_feature_switches_1847.py).
     CAPABILITY_GATED = {
         "rotational_symmetry",
         "exact_kernel",
         "pair_reuse",
+        "fill_reuse",
         "transmitted_anchors",
         "point_cplx_staged",
         "factored_columns",
