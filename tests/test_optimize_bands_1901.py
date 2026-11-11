@@ -680,3 +680,56 @@ def test_band_frames_carry_the_best_full_band_point_so_far():
     json.loads(json.dumps(frames[-1], allow_nan=False))
     assert frames[-1]["objective_start"] == full[0]["objective"]
     assert res["params"]
+
+
+# --- a knob that never moves (AK#2275) -------------------------------------
+
+
+class StaircaseStub:
+    """Band 0's X is smooth in k.0; band 1's X is a staircase in k.1 (a load
+    that snaps to segments): flat between steps, so its finite-difference
+    slope reads exactly 0 and the search cannot move it."""
+
+    def __call__(self, req, freqs):
+        k0, k1 = req["k"]
+        x = {7.1: 3.0 * (k0 - 4.0), 14.2: 20.0 * (math.floor(k1) - 8.0)}
+        rows = [[complex(50.0, x[round(f, 1)])] for f in freqs]
+        return {"zs": np.array(rows), "z0_ohms": 50.0}
+
+
+def test_a_staircase_knob_is_reported_stuck_and_the_smooth_one_is_not_2275():
+    res = optimize_bands(
+        {"k": [1.0, 2.5]},
+        [
+            {"name": "k.0", "min": -10.0, "max": 10.0},
+            {"name": "k.1", "min": 0.0, "max": 10.0},
+        ],
+        parse_bands("7.1:swr,14.2:swr"),
+        sweep_fn=StaircaseStub(),
+        mode="minimax",
+    )
+    assert abs(res["params"]["k.0"] - 1.0) > 0.5  # the smooth knob moved
+    assert res["params"]["k.1"] == pytest.approx(2.5, abs=1e-2)
+    assert res["stuck"] == [{"name": "k.1", "reason": "zero_slope"}]
+
+
+def test_no_stuck_knob_on_a_smooth_run_2275():
+    stub = LinearStub([[1.0]], [3.0], [7.1])
+    res = optimize_bands(
+        {"k": [0.0]}, _free(1), parse_bands("7.1:res"), sweep_fn=stub, mode="root"
+    )
+    assert res["stuck"] == []
+
+
+def test_the_report_says_it_in_plain_words_2275():
+    from antennaknobs.band_opt import stuck_sentence
+
+    line = stuck_sentence({"name": "Cap_Pct", "reason": "zero_slope"})
+    assert line == (
+        "Cap_Pct did not move: its slope read zero, which usually means it "
+        "changes in steps (a load that snaps to segments). Try sweeping it, or "
+        "an engine that places loads continuously."
+    )
+    assert "stayed where it started" in stuck_sentence(
+        {"name": "L", "reason": "did_not_move"}
+    )
