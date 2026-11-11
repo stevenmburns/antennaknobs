@@ -4830,6 +4830,9 @@ async def optimize_endpoint(req: dict, request: Request):
           "mode": "minimax" | "root" | "sequential",            # with bands
           "tol": <ohm, root/sequential verdict, default 0.5>,   # with bands
           "mean_weight": <0..1, minimax's w, default 0.5>,     # with bands
+          "objective_form": "balanced" | "softmax" | "clipped_sum",  # bands
+          "target": <a band value's "good enough" floor, optional>,  # bands
+          "p_norm": <softmax's p, default 8>,                  # with bands
         }
     Returns the best params found + before/after metrics. The objective is
     evaluated at the request's measurement frequency with no far field, so a
@@ -5068,6 +5071,12 @@ async def optimize_endpoint(req: dict, request: Request):
                 mean_weight=mean_weight,
                 on_progress=on_progress,
                 time_budget_s=float(_MAX_OPT_SECONDS) if _HOSTED else None,
+                # AK#2275: refused by name in optimize_bands when malformed.
+                **{
+                    k: opt[k]
+                    for k in ("objective_form", "target", "p_norm")
+                    if opt.get(k) is not None
+                },
             )
         return run_in_threadpool(
             _shed,

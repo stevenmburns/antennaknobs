@@ -2282,6 +2282,32 @@ def cli(arguments=None):
         "hardest one).",
     )
     p.add_argument(
+        "--objective-form",
+        dest="objective_form",
+        default=None,
+        choices=("balanced", "softmax", "clipped_sum"),
+        help="With --bands, minimax form: how the bands' values fold into one "
+        "number (AK#2275). balanced (the default) is J = (1 - w) worst + w "
+        "mean; softmax is the p-norm (sum v^p)^(1/p) (--p-norm, default 8), a "
+        "smooth worst case; clipped_sum is sum max(v, T) and needs --target.",
+    )
+    p.add_argument(
+        "--target",
+        dest="target",
+        default=None,
+        type=float,
+        help="With --bands, minimax form: a 'good enough' floor T. Each band's "
+        "value becomes max(v, T) before the fold, so a band already under T "
+        "stops counting (e.g. --target 1.2 for SWR).",
+    )
+    p.add_argument(
+        "--p-norm",
+        dest="p_norm",
+        default=None,
+        type=float,
+        help="With --objective-form softmax: the norm's p (default 8).",
+    )
+    p.add_argument(
         "--passes",
         default=8,
         type=int,
@@ -2417,6 +2443,11 @@ def cli(arguments=None):
                     if args.mean_weight is None
                     else {"mean_weight": args.mean_weight}
                 ),
+                **{
+                    k: v
+                    for k in ("objective_form", "target", "p_norm")
+                    if (v := getattr(args, k)) is not None
+                },
             )
         except (BandsRefused, DegenerateObjective) as e:
             raise SystemExit(f"optimize --bands: {e}") from None
