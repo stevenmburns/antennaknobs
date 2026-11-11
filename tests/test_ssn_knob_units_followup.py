@@ -372,3 +372,23 @@ def test_what_is_not_applied_is_still_listed():
         "not applied: capW = Abs($cap.p); unsaved"
         in parse_ssn(text, network=True).skipped_note()
     )
+
+
+# --- a place knob's range (AK#2275) ---------------------------------------------
+
+
+def test_a_place_knob_ranges_over_the_wires_whole_span():
+    """Coil_Pct is only a NECSource place: 0 to 100 %, and the CLI's
+    free_for uses it, not +/-20 % of 24.6. A value knob keeps the default."""
+    from antennaknobs.band_opt import free_for
+
+    b = builder_from_text("p.ssn", _coil_file())
+    ui = b.default_params["ui_params"]
+    assert (ui["par_Coil_Pct"]["min"], ui["par_Coil_Pct"]["max"]) == (0.0, 100.0)
+    assert "min" not in ui["par_Lx_H"]
+    got = {
+        f["name"]: (f["min"], f["max"])
+        for f in free_for(b(), ["par_Coil_Pct", "par_Lx_H"])
+    }
+    assert got["par_Coil_Pct"] == (0.0, 100.0)
+    assert got["par_Lx_H"] == pytest.approx((3.9 * 0.8, 3.9 * 1.2))
