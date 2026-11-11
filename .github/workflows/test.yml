@@ -52,6 +52,11 @@ jobs:
           pyproject.toml
           constraints-ci.txt
     - name: Set up ccache
+      # Optional: a speed-up, not a gate. The action installs ccache with apt,
+      # and when the runner pool cannot resolve the Ubuntu mirror (2026-11-11,
+      # hours) every Python job died here before building anything. Without it
+      # the build is the same, only uncached.
+      continue-on-error: true
       # Caches object files for the momwire C++ accelerator (built from source in
       # the "Install momwire" step). The action masquerades gcc/g++ on PATH, so
       # setuptools' default compiler invocation routes through ccache with no
