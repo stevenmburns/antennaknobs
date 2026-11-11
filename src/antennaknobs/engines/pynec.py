@@ -1,4 +1,5 @@
 import logging
+import os
 import re
 import warnings
 
@@ -182,6 +183,23 @@ def _new_context():
     return nec.nec_context() if nec is not None else _DeckOnlyContext()
 
 
+# The server env that seeds an unset `fill_reuse` request, as
+# ANTENNAKNOBS_PAIR_REUSE does for momwire's (AK#2165). Read by the engine, so
+# the CLI and the web app follow it alike; PyNEC's own PYNEC_FILL_REUSE is
+# never consulted, because the engine always tells a context which it wants.
+FILL_REUSE_ENV = "ANTENNAKNOBS_PYNEC_FILL_REUSE"
+
+
+def takes_fill_reuse() -> bool:
+    """Whether the installed PyNEC's ``nec_context`` has ``set_fill_reuse``
+    (pynec-accel 1.7.7): the fill evaluated once per congruence class of
+    segment pairs. A live probe of the class, never a version comparison;
+    False when PyNEC is absent."""
+    return nec is not None and callable(
+        getattr(getattr(nec, "nec_context", None), "set_fill_reuse", None)
+    )
+
+
 # NEC reports a null direction as -999.99 dB; a gain shift must leave it one.
 _NULL_GAIN_DB = -999.99
 
@@ -244,6 +262,7 @@ class PyNECEngine(SimulationEngine):
         extended_thin_wire_kernel=False,
         _export_current_sources=False,
         wire_radius=None,
+        fill_reuse=None,
     ):
         """
         ground:
@@ -313,8 +332,22 @@ class PyNECEngine(SimulationEngine):
           default conductor radius, beating the design's
           ``build_wire_material()`` radius; a wire's own spec beats both.
           Same precedence as MomwireEngine.
+
+        fill_reuse: evaluate the MoM fill once per congruence class of
+          segment pairs (pynec-accel 1.7.7, ``set_fill_reuse``) instead of
+          once per pair. Measured over the catalog, Z moves by <= 3e-9
+          relative; a design with repeated pairs fills faster (the W8IO ELT
+          whip 12.7 -> 9.1 s) and one without runs slightly slower, which is
+          why it is off by default. None reads ``ANTENNAKNOBS_PYNEC_FILL_REUSE``
+          (``1`` or ``on``). Every context this engine makes is told the
+          resolved choice explicitly, off included, so PyNEC's own
+          ``PYNEC_FILL_REUSE`` in the environment cannot turn it on. On a
+          PyNEC without the method it is ignored.
         """
         super().__init__(builder)
+        if fill_reuse is None:
+            fill_reuse = os.environ.get(FILL_REUSE_ENV, "") in ("1", "on")
+        self._fill_reuse = bool(fill_reuse)
         self._check_intersections = check_intersections
         self._extended_thin_wire_kernel = extended_thin_wire_kernel
         self.tups = self._coerce_wire_tuples(builder.build_wires())
@@ -462,6 +495,17 @@ class PyNECEngine(SimulationEngine):
             return
         setter(False)
 
+    def _apply_fill_reuse(self, c):
+        """Tell a fresh context whether to reuse fill pairs: 1 or 0, never
+        -1 (which would defer to ``PYNEC_FILL_REUSE``). Called on EVERY
+        context the engine makes, before any card. A PyNEC without the
+        method, or the deck-only stand-in, is left alone."""
+        if isinstance(c, _DeckOnlyContext):
+            return
+        setter = getattr(c, "set_fill_reuse", None)
+        if setter is not None:
+            setter(1 if self._fill_reuse else 0)
+
     def _apply_extended_kernel(self, c):
         """Emit NEC's EK card (extended thin-wire kernel) when requested.
         Standard PyNEC API; call after geometry_complete like the other
@@ -471,6 +515,7 @@ class PyNECEngine(SimulationEngine):
 
     def _build_geometry(self):
         self.c = _new_context()
+        self._apply_fill_reuse(self.c)
         geo = self.c.get_geometry()
         self._apply_intersection_policy(geo)
 
@@ -942,6 +987,7 @@ class PyNECEngine(SimulationEngine):
         conductivity, and ground — no virtual stubs, no tl_cards. Returns
         (context, {edge_name: (tag, mid_seg)})."""
         c = _new_context()
+        self._apply_fill_reuse(c)
         geo = c.get_geometry()
         self._apply_intersection_policy(geo)
         loc = {}
