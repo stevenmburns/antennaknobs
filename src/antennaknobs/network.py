@@ -69,6 +69,7 @@ from .mw.networks import (  # noqa: F401
     PortVirtual,
     Shunt,
     Source,
+    Through,
     TouchstoneLoad,
     TouchstoneTwoPort,
     Transformer,

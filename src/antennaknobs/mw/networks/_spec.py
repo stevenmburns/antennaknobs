@@ -544,6 +544,27 @@ class Transformer:
 
 
 @dataclass(frozen=True)
+class Through:
+    """An ideal zero-impedance link between two nodes: a wire (AK#2270).
+
+    It holds v_a = v_b with the branch current a real unknown, so the two
+    nodes stay distinct in the MNA system and a measurement plane can sit
+    on either side of the link. That is what an alias cannot do: merging
+    the nodes would put a shunt hung on one side across the other (the
+    AK#1679 defect). It is not a source and burns nothing, so it has no
+    power-budget row.
+
+    The SimNEC importer joins a .ssn's blocks with these. Before AK#2270 it
+    used ``Transformer(a, b, n=1.0)``, which stamps the same row; `Through`
+    is the explicit element, whose meaning does not ride on a balun's
+    defaults. Reducer-only, like `Transformer`: NEC has no zero-impedance
+    card."""
+
+    a: str
+    b: str
+
+
+@dataclass(frozen=True)
 class Autotransformer:
     """Tapped single winding — the auto-transformer (issue #594).
 
@@ -876,6 +897,7 @@ Branch = Union[
     TwoPort,
     Shunt,
     Transformer,
+    Through,
     Autotransformer,
     Admittance,
     BalancedLine,
@@ -891,7 +913,7 @@ def _branch_port_refs(br):
         return (br.a1, br.a2, br.b1, br.b2)
     if isinstance(br, FloatingBalun):  # has .a/.b too — must precede the fallback
         return (br.primary, br.a, br.b)
-    if hasattr(br, "a"):  # TL, TwoPort, Transformer
+    if hasattr(br, "a"):  # TL, TwoPort, Transformer, Through
         return (br.a, br.b)
     return (br.port,)  # Load, Shunt
 
@@ -904,7 +926,7 @@ def _rewrite_branch(br, ren):
         return replace(br, a1=ren(br.a1), a2=ren(br.a2), b1=ren(br.b1), b2=ren(br.b2))
     if isinstance(br, FloatingBalun):  # has .a/.b too — must precede the fallback
         return replace(br, primary=ren(br.primary), a=ren(br.a), b=ren(br.b))
-    if hasattr(br, "a"):  # TL, TwoPort, Transformer
+    if hasattr(br, "a"):  # TL, TwoPort, Transformer, Through
         return replace(br, a=ren(br.a), b=ren(br.b))
     return replace(br, port=ren(br.port))
 

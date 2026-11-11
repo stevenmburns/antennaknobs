@@ -67,6 +67,7 @@ from ._spec import (
     PortOnWire,
     PortOnWireFloating,
     Shunt,
+    Through,
     TouchstoneLoad,
     TouchstoneTwoPort,
     Transformer,
@@ -382,6 +383,8 @@ class NetworkReducer:
         Group 2 (auxiliary branch currents):
           - TwoPort and series-mode Shunt — series elements, exact for the
             ideal short z = 0 and the 0 F open;
+          - Through, the ideal zero-impedance link: v_a − v_b = 0 with its
+            current a real unknown (the lossless 1:1 Transformer's row);
           - TL and BalancedLine as chain-matrix 2-ports, two currents each
             (issue #746): every entry of an ABCD matrix is entire, so the
             k·λ/2 line that has no admittance matrix at all stamps as the
@@ -564,6 +567,22 @@ class NetworkReducer:
                 )
                 elements.append(
                     _series_group2(a, b, br.r, br.l, br.c, omega, ql=br.ql, qc=br.qc)
+                )
+            elif isinstance(br, Through):
+                # The ideal zero-impedance link (AK#2270): v_a − v_b = 0, its
+                # current j a real unknown (out of a, into b) so both nodes
+                # stay their own. Spelled exactly as the lossless 1:1
+                # Transformer's row above, which the SimNEC importer used for
+                # this link before, so every reading it gave is kept to the
+                # bit, signed zeros included; the z = 0 series row
+                # (`_series_group2`) is the same equation negated, which moves
+                # a zero's sign in the solved voltages. No probe: lossless by
+                # construction, so no power-budget row.
+                a, b = self.port_to_idx[br.a], self.port_to_idx[br.b]
+                elements.append(
+                    _Group2Element(
+                        a, b, c_v=0j, c_j=-0j, e=0j, c_va=1.0 + 0j, c_vb=-(1.0 + 0j)
+                    )
                 )
             elif isinstance(br, Shunt):
                 k = self.port_to_idx[br.port]
