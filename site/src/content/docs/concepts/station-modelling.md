@@ -180,6 +180,7 @@ honest model:
 | `TwoPort` | series R/L/C between two ports — a tuner's series capacitor |
 | `Shunt` | R/L/C from a port to the common return — a tuner's shunt coil |
 | `Transformer` | ideal ratio + magnetizing branch with core-loss Q — the balun/unun model. Give it a `core` (`ferrite.FerriteCore`) instead and the branch follows the mix's complex permeability, so inductance *and* loss move with frequency |
+| `Through` | an ideal zero-impedance link between two nodes, the same node by another name: what a SimNEC pass-through block imports as, drawn as bare wire |
 | `Autotransformer` | tapped **single** winding — two mutually coupled sections (`M = k·√(L₁L₂)`) sharing a node, so the common section carries the *difference* of the input and output currents. The ratio falls out of the L/M matrix instead of being asserted, which is what an ideal-ratio model would get wrong |
 
 Reactive elements accept a finite **Q** (`ql`, `qc`, `qlmag`), and that
