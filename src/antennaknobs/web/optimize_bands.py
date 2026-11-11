@@ -439,7 +439,7 @@ def fold_values(
         return sum(v**p_norm for v in vals) ** (1.0 / p_norm)
     if objective_form == "clipped_sum":
         return sum(vals)
-    return (1.0 - mean_weight) * max(vals) + mean_weight * sum(vals) / len(vals)
+    return (1.0 - mean_weight) * max(vals) + mean_weight * (sum(vals) / len(vals))
 
 
 def objective_terms(
