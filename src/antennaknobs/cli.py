@@ -731,6 +731,25 @@ def _mesh_at(factory, n):
     return build
 
 
+class _EngineFactory(partial):
+    """`partial` over an engine class whose call MERGES a caller's
+    ``solver_kwargs`` with the ones the engine spec bound, instead of
+    replacing them. A roster name such as ``momwire:razor-2p`` binds its
+    basis's kwargs (``nec5_quadrature``) as ``solver_kwargs``; plain
+    `partial` let ``factory(builder, solver_kwargs=...)`` (``None``, ``{}``
+    or an unrelated option) silently drop them, solving a different basis
+    under the roster's name. The bound kwargs win on a clash, as in the web
+    adapter, where a roster entry's kwargs are applied after the request's
+    options: the name means that basis. `.func` / `.keywords` are
+    `partial`'s, which the engine-spec tests read."""
+
+    def __call__(self, /, *args, **kw):
+        bound = self.keywords.get("solver_kwargs")
+        if bound is not None and "solver_kwargs" in kw:
+            kw["solver_kwargs"] = {**(kw["solver_kwargs"] or {}), **bound}
+        return super().__call__(*args, **kw)
+
+
 def make_engine_factory(
     engine_spec,
     ground_spec,
@@ -826,7 +845,7 @@ def make_engine_factory(
                 raise argparse.ArgumentTypeError(str(exc)) from None
         if nec42_sommerfeld is not None:
             kwargs["sommerfeld"] = int(nec42_sommerfeld)
-    factory = cls if not kwargs else partial(cls, **kwargs)
+    factory = cls if not kwargs else _EngineFactory(cls, **kwargs)
     return factory if nominal_nsegs is None else _mesh_at(factory, int(nominal_nsegs))
 
 

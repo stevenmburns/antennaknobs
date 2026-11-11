@@ -569,3 +569,30 @@ def test_cli_file_nec_deck_ek_card_runs_end_to_end(tmp_path):
     path = tmp_path / "fatdipole.nec"
     path.write_text(_FAT_DIPOLE_DECK.format(ek="EK\n"))
     ant.cli(f"pattern --builder @{path} --engine momwire{O}".split())
+
+
+@pytest.mark.parametrize("extra", [None, {}, {"rotational_symmetry": False}])
+def test_a_roster_factorys_bound_solver_kwargs_survive_a_callers(extra):
+    """`momwire:razor-2p` binds RazorSolver's `nec5_quadrature`. A caller
+    passing its own `solver_kwargs` (None, empty, or an unrelated option)
+    used to REPLACE the bound dict through plain `partial`, so the engine
+    solved plain razor under the razor-2p name, with a different Z. The
+    factory merges instead; the bound kwargs win on a clash, as in the web
+    adapter."""
+    from antennaknobs.cli import get_builder
+
+    factory = make_engine_factory("momwire:razor-2p", "free")
+    eng = factory(get_builder("dipoles.invvee")(), solver_kwargs=extra)
+    assert eng._solver_kwargs.get("nec5_quadrature") is True
+    for k, v in (extra or {}).items():
+        assert eng._solver_kwargs.get(k) == v
+
+
+def test_a_roster_factorys_bound_kwargs_win_a_clash():
+    from antennaknobs.cli import get_builder
+
+    factory = make_engine_factory("momwire:razor-2p", "free")
+    eng = factory(
+        get_builder("dipoles.invvee")(), solver_kwargs={"nec5_quadrature": False}
+    )
+    assert eng._solver_kwargs["nec5_quadrature"] is True
