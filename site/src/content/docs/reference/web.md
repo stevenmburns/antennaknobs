@@ -1515,6 +1515,16 @@ momwire's own refusal sentence and the issue it cites, and there is no
 *Solve anyway*: momwire would raise, so an override would buy an error
 dialog rather than a result.
 
+**PyNEC's tab has a fill-reuse box** — *reuse repeated geometry (faster
+fill)*, off by default, offered when the installed PyNEC is pynec-accel 1.7.7
+or later. On, PyNEC evaluates each class of identical segment pairs once
+instead of every pair: a ground grid, a Yagi's directors, a mirrored half.
+Across the catalog the answers move by at most a few parts in 10⁹; the W8IO ELT
+whip benchmark solves in 9.1 s against 12.7 s. A small design with no repeated
+pairs runs slightly slower, which is why the box starts unticked. A server can
+default it on with `ANTENNAKNOBS_PYNEC_FILL_REUSE=1`; a request that unticks it
+still wins.
+
 **On the buried designs, that gate now covers the external engines too, and
 each answer is measured rather than assumed.** **PyNEC** is greyed out: NEC-2's
 Sommerfeld-Norton ground is formulated for sources above the interface and has
