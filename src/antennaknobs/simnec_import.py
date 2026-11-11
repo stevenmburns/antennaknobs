@@ -158,8 +158,6 @@ from .nec_import import (
     parse_nec,
 )
 from .nec_import import _float as _nec_float
-from .network import Composite
-from .schematic import series
 
 __all__ = ["SsnCircuit", "SsnElement", "classify_dcl", "parse_ssn", "read_ssn"]
 
@@ -1554,13 +1552,12 @@ def _hang_chain(net, chain, *, rig_port, gen_zo, freq_mhz, files):
     # `at` is the node the next block attaches to. `pending` is a series
     # block whose antenna side is not wired yet: the next node closes it,
     # so two series blocks in a row meet with no pass-through between.
-    at, pending, n_thru = rig_port, None, 0
+    at, pending = rig_port, None
 
     def attach(node):
-        nonlocal pending, n_thru
+        nonlocal pending
         if pending is None:
-            n_thru += 1
-            branches.append(_through(at, node, n_thru))
+            branches.append(_through(at, node))
             return
         el, a, index = pending
         pending = None
@@ -1693,22 +1690,14 @@ def _block_nodes(chain, taken: set[str]) -> list[str]:
     return out
 
 
-# An ideal pass-through between two block nodes (AK#1679): SimNEC draws its
-# blocks joined by bare wire, and a shunt block's node must still be a node of
-# its own, or a plane on one side would carry the shunt on the other. The
-# ideal 1:1 `Transformer` is the network's zero-impedance through-connection
-# (its docstring: "n = 1 (with no loss) is an ideal through-connection"); an
-# alias would MERGE the nodes, which is the defect. It draws as a wire.
-_THROUGH = Composite(
-    ports=("a", "b"),
-    branches=(_net.Transformer(a="a", b="b", n=1.0),),
-    schematic=(series("short"),),
-    anonymous=True,
-)
-
-
-def _through(a: str, b: str, k: int):
-    return _net.Instance(f"through{k}", _THROUGH, a=a, b=b)
+def _through(a: str, b: str):
+    """An ideal pass-through between two block nodes (AK#1679): SimNEC draws
+    its blocks joined by bare wire, and a shunt block's node must still be a
+    node of its own, or a plane on one side would carry the shunt on the
+    other. An alias would MERGE the nodes, which is the defect; a `Through`
+    is the network's explicit zero-impedance link, and draws as a wire
+    (AK#2270)."""
+    return _net.Through(a=a, b=b)
 
 
 def _fnum(token: str, where: str, what: str) -> float:

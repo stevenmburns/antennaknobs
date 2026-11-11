@@ -31,7 +31,7 @@ from antennaknobs.mw.networks._reduce import C_LIGHT
 
 from antennaknobs.engines import NEC5Engine
 from antennaknobs.file_designs import builder_from_file
-from antennaknobs.network import PortVirtual, Shunt, Transformer, TwoPort
+from antennaknobs.network import PortVirtual, Shunt, Through, Transformer, TwoPort
 from antennaknobs.plane import driven_at, planes_of
 from antennaknobs.simnec_import import parse_ssn
 
@@ -104,8 +104,9 @@ def test_the_blocks_are_wired_generator_to_antenna():
     assert coil.l == pytest.approx(731.9e-9)
     (cap,) = [b for b in net.branches if isinstance(b, Shunt)]
     assert cap.port == "C1" and cap.c == pytest.approx(37.52e-12)
-    thru = [(b.a, b.b, b.n, b.r) for b in net.branches if isinstance(b, Transformer)]
-    assert thru == [("rig", "L1", 1.0, None), ("C1", "feed", 1.0, None)]
+    thru = [(b.a, b.b) for b in net.branches if isinstance(b, Through)]
+    assert thru == [("rig", "L1"), ("C1", "feed")]
+    assert not [b for b in net.branches if isinstance(b, Transformer)]
 
 
 # --- the planes' readings, circuit only -----------------------------------------

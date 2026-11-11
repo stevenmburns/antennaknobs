@@ -16,6 +16,7 @@ from antennaknobs.network import (
     Driven,
     PortVirtual,
     Shunt,
+    Through,
     Transformer,
     TwoPort,
     Wire,
@@ -425,11 +426,8 @@ def test_station_network_rebuilds_the_full_ladder():
     assert coil.port == "L1"  # the tee node, between the caps
     assert coil.l == pytest.approx(4.218e-6) and coil.ql == pytest.approx(200.0)
 
-    thru = [b for b in net.branches if isinstance(b, Transformer)]
-    assert [(b.a, b.b, b.n, b.r) for b in thru] == [
-        ("rig", "C1", 1.0, None),
-        ("L1", "C2", 1.0, None),
-    ]
+    thru = [(b.a, b.b) for b in net.branches if isinstance(b, Through)]
+    assert thru == [("rig", "C1"), ("L1", "C2")]
 
 
 def test_station_deck_trap_loads_ride_along():
@@ -448,12 +446,14 @@ def test_station_deck_trap_loads_ride_along():
 def test_station_ideal_transformer2():
     extra = _el("TRANSFORMER2", {"Mdl": "ideal", "N": 2}, label="X1")
     c = parse_ssn(_ssn(_SCRIPT_M, extra_elements=extra), name="t.ssn", network=True)
-    thru, x = [b for b in c.network().branches if isinstance(b, Transformer)]
+    net = c.network()
+    (x,) = [b for b in net.branches if isinstance(b, Transformer)]
     # SimNEC's N is the antenna:generator voltage ratio (validated on 5.1a0,
     # PR #696), so entered generator-side, Transformer n = 1/N.
     assert (x.a, x.b, x.n) == ("X1", "feed", 0.5)
     # The block's own node, joined to the generator by a pass-through.
-    assert (thru.a, thru.b, thru.n) == ("rig", "X1", 1.0)
+    (thru,) = [b for b in net.branches if isinstance(b, Through)]
+    assert (thru.a, thru.b) == ("rig", "X1")
 
 
 def test_station_non_ideal_transformer2_rejected():
@@ -491,7 +491,7 @@ def test_station_shunt_only_chain_sits_upstream_of_the_feed():
     assert sh.port == "shunt_cap1" and sh.c == pytest.approx(1e-10)
     (src,) = net.sources
     assert src.port == "rig"
-    thru = [(b.a, b.b) for b in net.branches if isinstance(b, Transformer)]
+    thru = [(b.a, b.b) for b in net.branches if isinstance(b, Through)]
     assert thru == [("rig", "shunt_cap1"), ("shunt_cap1", "feed")]
 
 
@@ -648,10 +648,13 @@ class _XfmrStation(AntennaBuilder):
 def test_roundtrip_transformer_n_identity():
     ssn = export_ssn(_XfmrStation(), freq_mhz=14.0, ground=None)
     net = parse_ssn(ssn, name="rt.ssn", network=True).network()
-    # The rig -> X pass-through (AK#1679) is the 1:1; the element is the other.
-    thru, x = [b for b in net.branches if isinstance(b, Transformer)]
-    assert thru.n == 1.0
+    # The rig -> X pass-through (AK#1679) is a Through; the element is the
+    # one Transformer.
+    (x,) = [b for b in net.branches if isinstance(b, Transformer)]
     assert x.n == pytest.approx(2.0)
+    assert [(b.a, b.b) for b in net.branches if isinstance(b, Through)] == [
+        ("rig", x.a)
+    ]
 
 
 def test_roundtrip_ladder_tuner_values():
