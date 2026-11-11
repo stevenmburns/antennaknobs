@@ -159,6 +159,13 @@ class Composite:
     #: one. Written with `schematic.series` / `shunt`, which are plain data, so
     #: declaring one costs this module no drawing-library import.
     schematic: object = None
+    #: True for a box that is plumbing, not something the user drew: it
+    #: draws its `schematic` as bare symbols, with no dashed enclosure and
+    #: no caption. The SimNEC importer's ideal pass-through between blocks
+    #: (`simnec_import._THROUGH`, AK#1679) is one: a wire in the drawing,
+    #: so naming it ("through1") only raised the question of what it is
+    #: (AK#2270).
+    anonymous: bool = False
     #: A self-tuning component's MECHANISM (AK#1646), e.g.
     #: `auto_match.LTuner`: it owns this box's topology, and the engine asks
     #: it for the branches to hold once it knows the load. Until then the box

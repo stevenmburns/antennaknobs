@@ -1703,6 +1703,7 @@ _THROUGH = Composite(
     ports=("a", "b"),
     branches=(_net.Transformer(a="a", b="b", n=1.0),),
     schematic=(series("short"),),
+    anonymous=True,
 )
 
 
