@@ -144,7 +144,10 @@ def test_each_plane_reads_its_block_and_everything_antenna_ward():
 def _nec5_at(plane: str, f_mhz: float) -> complex:
     cls = builder_from_file(str(C1L1))
     pruned = driven_at(cls().build_network(), plane)
-    b = cls({"freq": f_mhz, "design_freq": f_mhz})
+    # The file's own params (its station knobs among them, AK#2222) with the
+    # frequency moved: a bare {"freq", "design_freq"} drops the knobs, and
+    # the build raises on the first one it reads.
+    b = cls({**dict(cls.default_params), "freq": f_mhz, "design_freq": f_mhz})
     object.__setattr__(b, "build_network", lambda: pruned)
     (z,) = NEC5Engine(b, ground=cls.file_ground).impedance()
     return complex(z)
