@@ -3367,6 +3367,9 @@ class SySymbol:
     # does not own -- a .ssn's ``JamSegments(<expression>)`` -- and so plays
     # the density role (AK#1757).
     segment_count: bool = False
+    # The range a .ssn declares for the knob (``<format>`` ``range``), in
+    # knob units; None when it declares none (AK#2275).
+    declared_range: tuple[float, float] | None = None
 
     @property
     def param(self) -> str:

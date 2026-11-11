@@ -729,12 +729,14 @@ class _SyKnobs:
                 meta["unit"] = s.unit
             if s.default == 0 and not s.integer:
                 meta.update(min=-span, max=span, step=_nice_step(span / 500.0))
-            if s.unit == "%":
+            if s.declared_range is not None:
+                # The range the .ssn itself declares wins over every default.
+                meta.update(min=s.declared_range[0], max=s.declared_range[1])
+            elif s.unit == "%":
                 # A knob that is only a NECSource place (percent along its
                 # wire): the wire's whole span is its range. The default
                 # +/-20 % box (AK#2275) around a mid-wire value can exclude
-                # the optima. The .ssn parse reads no range of its own, so
-                # there is none to override.
+                # the optima.
                 meta.update(min=0.0, max=100.0)
             if s.segment_count:
                 # A JamSegments count: the file's density knob, which a
