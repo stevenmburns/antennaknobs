@@ -196,7 +196,7 @@ def test_the_catalogue_serves_every_option_and_is_json():
 
     served = model_option_specs()
     assert set(served) == set(_OPTION_SPECS)
-    assert len(served) == 23
+    assert len(served) == 24  # + PyNEC's fill_reuse
     assert json.loads(json.dumps(served)) == served
 
 
