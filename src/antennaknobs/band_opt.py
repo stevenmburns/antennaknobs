@@ -134,6 +134,22 @@ def builder_sweep_fn(builder, factory: Callable, z0: float) -> Callable:
     return sweep
 
 
+def _fold_words(res: dict) -> str:
+    """The minimax objective's formula, as the run folded the bands (AK#2275)."""
+    form = res.get("objective_form") or "balanced"
+    t = res.get("target")
+    v = "v" if t is None else f"max(v, {t:g})"
+    if form == "softmax":
+        p = res.get("p_norm")
+        return f"J = (sum {v}^{p:g})^(1/{p:g})"
+    if form == "clipped_sum":
+        return f"J = sum {v}"
+    w = res["mean_weight"]
+    if t is None:
+        return f"J = (1 - {w:g}) worst + {w:g} mean"
+    return f"J = (1 - {w:g}) max {v} + {w:g} mean {v}"
+
+
 def report_lines(res: dict) -> list[str]:
     """The run's per-band before/after table and its verdict."""
     lines = [
@@ -168,8 +184,8 @@ def report_lines(res: dict) -> list[str]:
         f"{res['objective_worst_after']:.4g} {res['unit']}, mean "
         f"{res['objective_mean_before']:.4g} -> {res['objective_mean_after']:.4g}"
         + (
-            f"; J = (1 - {res['mean_weight']:g}) worst + {res['mean_weight']:g} "
-            f"mean {res['objective_before']:.4g} -> {res['objective_after']:.4g}"
+            f"; {_fold_words(res)} {res['objective_before']:.4g} -> "
+            f"{res['objective_after']:.4g}"
             if res["form"] == "minimax"
             else ""
         )

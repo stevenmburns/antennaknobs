@@ -119,6 +119,28 @@ _UNREADABLE = 1e6
 #: scratch/1901-multiband/probe_ur0gt.py.
 DEFAULT_MEAN_WEIGHT = 0.5
 
+#: How the minimax form folds the bands' values into one number (AK#2275):
+#:
+#: - ``balanced`` -- the default: ``J = (1 - w) * worst + w * mean``.
+#: - ``softmax`` -- the p-norm ``(sum v_i^p)^(1/p)`` (``p_norm``, default
+#:   `DEFAULT_P_NORM`): a smooth worst case that still gives slope to the
+#:   bands that are not the worst, so one stuck band does not flatten the rest.
+#: - ``clipped_sum`` -- ``sum max(v_i, T)`` with ``target`` T: a sum of the
+#:   bands' values, each clipped at a "good enough" floor (a SimNEC user's
+#:   Nelder-Mead objective, in SWR).
+#:
+#: ``target`` T applies to every form: each band's value becomes
+#: ``max(v_i, T)`` first, so a band already under T stops counting. The
+#: reported worst and mean are always the bands' own values, unclipped.
+OBJECTIVE_FORMS = ("balanced", "softmax", "clipped_sum")
+DEFAULT_OBJECTIVE_FORM = "balanced"
+DEFAULT_P_NORM = 8.0
+
+#: The search's smoothing of ``max(v, T)`` at ``v = T`` (in the value's unit):
+#: a C1 corner within this of the clipped value, as `_SMOOTH_GAMMA` rounds the
+#: cone at a match. Everything REPORTED is the exact clipped value.
+_SMOOTH_TARGET = 1e-3
+
 #: Newton's step-size stop on the unit cube. `optimize._ROOT_XTOL` (1e-4 knob
 #: units) is the single-band path's and stays there; on the five-band fan a
 #: length_factor step of 1e-4 moves X by ~3 ohm, so that stop called a
@@ -401,13 +423,50 @@ def default_budget(n_knobs: int) -> int:
     return min(400, 60 * n_knobs + 40)
 
 
-def objective_terms(recs: list[dict], mean_weight: float) -> tuple[float, float, float]:
-    """``(J, worst, mean)`` of the bands' values: ``J = (1 - w) * worst + w *
-    mean``. The minimax form minimises J (see `DEFAULT_MEAN_WEIGHT`)."""
+def fold_values(
+    vals: list[float],
+    mean_weight: float,
+    *,
+    objective_form: str = DEFAULT_OBJECTIVE_FORM,
+    target: float | None = None,
+    p_norm: float = DEFAULT_P_NORM,
+) -> float:
+    """The bands' values ``vals`` folded into the one number the minimax form
+    minimises (see `OBJECTIVE_FORMS`)."""
+    if target is not None:
+        vals = [max(v, target) for v in vals]
+    if objective_form == "softmax":
+        return sum(v**p_norm for v in vals) ** (1.0 / p_norm)
+    if objective_form == "clipped_sum":
+        return sum(vals)
+    return (1.0 - mean_weight) * max(vals) + mean_weight * sum(vals) / len(vals)
+
+
+def objective_terms(
+    recs: list[dict],
+    mean_weight: float,
+    *,
+    objective_form: str = DEFAULT_OBJECTIVE_FORM,
+    target: float | None = None,
+    p_norm: float = DEFAULT_P_NORM,
+) -> tuple[float, float, float]:
+    """``(J, worst, mean)`` of the bands' values. By default ``J = (1 - w) *
+    worst + w * mean`` (see `DEFAULT_MEAN_WEIGHT`); ``objective_form``,
+    ``target`` and ``p_norm`` choose another fold (`fold_values`). ``worst``
+    and ``mean`` are the bands' own values, never clipped at ``target``."""
     vals = [r["value"] for r in recs]
     worst = max(vals)
     mean = sum(vals) / len(vals)
-    return (1.0 - mean_weight) * worst + mean_weight * mean, worst, mean
+    if objective_form == DEFAULT_OBJECTIVE_FORM and target is None:
+        return (1.0 - mean_weight) * worst + mean_weight * mean, worst, mean
+    J = fold_values(
+        vals,
+        mean_weight,
+        objective_form=objective_form,
+        target=target,
+        p_norm=p_norm,
+    )
+    return J, worst, mean
 
 
 #: What a failed Newton's last word means for the root form's verdict.
@@ -434,6 +493,9 @@ def optimize_bands(
     on_progress: Callable[[dict], None] | None = None,
     time_budget_s: float | None = None,
     knob_units: dict[str, str] | None = None,
+    objective_form: str = DEFAULT_OBJECTIVE_FORM,
+    target: float | None = None,
+    p_norm: float = DEFAULT_P_NORM,
 ) -> dict:
     """Tune ``free`` (``[{name, min, max}]``, flat or dotted group-leaf names)
     so the bands in ``bands`` meet their objectives. See the module docstring.
@@ -447,7 +509,10 @@ def optimize_bands(
     every residual under it at the answer and no resonance at a parallel
     resonance (Newton itself stops far tighter, at `optimize._ROOT_FTOL` on
     the stacked residual's norm). ``mean_weight`` is the MINIMAX form's one
-    tradeoff, ``J = (1 - w) * worst + w * mean``.
+    tradeoff, ``J = (1 - w) * worst + w * mean``; ``objective_form``,
+    ``target`` and ``p_norm`` choose another fold of the bands' values for
+    the minimax form (`OBJECTIVE_FORMS`, AK#2275). The default is the
+    balanced J above, unchanged.
 
     ``time_budget_s`` bounds the run's wall time (the hosted server's, so a
     slow design cannot hold a machine): past it no fresh point is solved, and
@@ -466,6 +531,33 @@ def optimize_bands(
         raise BandsRefused(f"mean_weight must be a number (got {mean_weight!r})")
     if not 0.0 <= w_mean <= 1.0:
         raise BandsRefused(f"mean_weight must be within 0..1 (got {mean_weight!r})")
+    if objective_form not in OBJECTIVE_FORMS:
+        raise BandsRefused(
+            f"unknown objective_form {objective_form!r} ({', '.join(OBJECTIVE_FORMS)})"
+        )
+    try:
+        p_run = float(p_norm)
+    except (TypeError, ValueError):
+        raise BandsRefused(f"p_norm must be a number (got {p_norm!r})")
+    if not (math.isfinite(p_run) and p_run >= 1.0):
+        raise BandsRefused(f"p_norm must be at least 1 (got {p_norm!r})")
+    t_run: float | None = None
+    if target is not None:
+        try:
+            t_run = float(target)
+        except (TypeError, ValueError):
+            raise BandsRefused(f"target must be a number (got {target!r})")
+        if not math.isfinite(t_run):
+            raise BandsRefused(f"target must be finite (got {target!r})")
+    if objective_form == "clipped_sum" and t_run is None:
+        raise BandsRefused("objective_form clipped_sum needs a target")
+    if mode != "minimax" and (
+        objective_form != DEFAULT_OBJECTIVE_FORM or t_run is not None
+    ):
+        raise BandsRefused(
+            "objective_form and target choose the minimax form's objective; "
+            f"mode {mode!r} has none"
+        )
 
     names = [f["name"] for f in free]
     if len(set(names)) != len(names):
@@ -603,8 +695,17 @@ def optimize_bands(
             zs = zs.reshape(len(freqs), -1)
         return zs, out
 
+    def terms(recs) -> tuple[float, float, float]:
+        return objective_terms(
+            recs,
+            w_run,
+            objective_form=objective_form,
+            target=t_run,
+            p_norm=p_run,
+        )
+
     def score(recs) -> float:
-        return objective_terms(recs, w_run)[0]
+        return terms(recs)[0]
 
     def evaluate(x, idx=all_idx) -> list[dict]:
         """Solve at the bands ``idx`` (one build, every band's frequency),
@@ -655,7 +756,7 @@ def optimize_bands(
         recs, params = hit
         if idx == all_idx:
             wi_all, _ = _worst(recs)
-            jv_all = objective_terms(recs, w_run)[0]
+            jv_all = terms(recs)[0]
             if objective_start is None:
                 objective_start = jv_all
             if best_frame is None or jv_all < best_frame["objective"]:
@@ -666,7 +767,7 @@ def optimize_bands(
                 }
         if on_progress is not None:
             wi, _ = _worst(recs)
-            jv, mx, mn = objective_terms(recs, w_run)
+            jv, mx, mn = terms(recs)
             on_progress(
                 json_safe(
                     {
@@ -780,12 +881,30 @@ def optimize_bands(
         nonlocal phase, hard_cap, cap_now
         seen: list[tuple[float, np.ndarray]] = []
 
+        # The balanced form is the epigraph problem (minimise (1 - w) t + w
+        # mean, every band's value <= t, and t >= target when one is set);
+        # every other form is smooth enough to minimise directly, its
+        # gradient by the same forward differences.
+        epigraph = objective_form == DEFAULT_OBJECTIVE_FORM
+
+        def clip(v: float) -> float:
+            """``max(v, T)`` smoothed at the corner (`_SMOOTH_TARGET`)."""
+            d = v - t_run
+            return t_run + 0.5 * (d + math.sqrt(d * d + _SMOOTH_TARGET**2))
+
         def vals(recs) -> list[float]:
             return [_smooth_value(b, r) for b, r in zip(bands, recs, strict=True)]
 
-        def stage_score(recs) -> float:
+        def cvals(recs) -> list[float]:
+            """The search's values with the target's floor applied."""
             v = vals(recs)
-            return (1.0 - w_run) * max(v) + w_run * sum(v) / len(v)
+            return v if t_run is None else [clip(x) for x in v]
+
+        def stage_score(recs) -> float:
+            v = cvals(recs)
+            if epigraph:
+                return (1.0 - w_run) * max(v) + w_run * sum(v) / len(v)
+            return fold_values(v, w_run, objective_form=objective_form, p_norm=p_run)
 
         def recs_at(u):
             recs = evaluate(to_x(u))
@@ -806,7 +925,11 @@ def optimize_bands(
             return np.array(out)
 
         def mean_of(recs) -> float:
-            v = vals(recs)
+            """The smooth term SLSQP minimises beside t: the bands' mean in
+            the epigraph form, the whole objective in the others."""
+            if not epigraph:
+                return stage_score(recs)
+            v = cvals(recs)
             return sum(v) / len(v)
 
         grads: dict[tuple, tuple[np.ndarray, np.ndarray]] = {}
@@ -834,9 +957,13 @@ def optimize_bands(
             return grads[key]
 
         def fun(z):
+            if not epigraph:
+                return mean_of(recs_at(z))
             return (1.0 - w_run) * z[-1] + w_run * mean_of(recs_at(z[:-1]))
 
         def fun_jac(z):
+            if not epigraph:
+                return grad(z)[1]
             _Jc, Jm = grad(z[:-1])
             return np.append(w_run * Jm, 1.0 - w_run)
 
@@ -864,17 +991,31 @@ def optimize_bands(
             for _round in range(40):
                 lb = np.maximum(u_c - r, 0.0)
                 ub = np.minimum(u_c + r, 1.0)
-                t0 = max(comps(recs_at(u_c)).max(), 0.0)
-                res = minimize(
-                    fun,
-                    np.append(u_c, t0),
-                    jac=fun_jac,
-                    method="SLSQP",
-                    bounds=list(zip(lb, ub, strict=True)) + [(0.0, None)],
-                    constraints=[{"type": "ineq", "fun": con, "jac": con_jac}],
-                    options={"maxiter": 100, "ftol": 1e-5 * max(1.0, t0)},
-                )
-                u_n = np.clip(res.x[:-1], lb, ub)
+                if epigraph:
+                    t0 = max(comps(recs_at(u_c)).max(), 0.0)
+                    t_lo = 0.0
+                    if t_run is not None:
+                        t0, t_lo = max(t0, t_run), max(t_run, 0.0)
+                    res = minimize(
+                        fun,
+                        np.append(u_c, t0),
+                        jac=fun_jac,
+                        method="SLSQP",
+                        bounds=list(zip(lb, ub, strict=True)) + [(t_lo, None)],
+                        constraints=[{"type": "ineq", "fun": con, "jac": con_jac}],
+                        options={"maxiter": 100, "ftol": 1e-5 * max(1.0, t0)},
+                    )
+                    u_n = np.clip(res.x[:-1], lb, ub)
+                else:
+                    res = minimize(
+                        fun,
+                        u_c,
+                        jac=fun_jac,
+                        method="SLSQP",
+                        bounds=list(zip(lb, ub, strict=True)),
+                        options={"maxiter": 100, "ftol": 1e-5 * max(1.0, j_c)},
+                    )
+                    u_n = np.clip(res.x, lb, ub)
                 j_n = stage_score(recs_at(u_n))
                 # The round's best SOLVED point, which may not be res.x.
                 j_b, u_b = min(seen, key=lambda t: t[0])
@@ -1153,8 +1294,8 @@ def optimize_bands(
             converged = mr <= tol and not anti_end
         else:
             converged = fixed
-    jb, mxb, mnb = objective_terms(recs0, w_run)
-    ja, mxa, mna = objective_terms(recs_end, w_run)
+    jb, mxb, mnb = terms(recs0)
+    ja, mxa, mna = terms(recs_end)
     wb, _ = _worst(recs0)
     wa, _ = _worst(recs_end)
     u_end = (np.asarray(x_best, float) - lo) / span
@@ -1183,6 +1324,11 @@ def optimize_bands(
             "objective_mean_before": mnb,
             "objective_mean_after": mna,
             "mean_weight": w_run,
+            # The fold the minimax form minimised (AK#2275): the balanced J
+            # unless the request chose another; the target floor, if any.
+            "objective_form": objective_form,
+            "target": t_run,
+            "p_norm": p_run,
             "unit": next(iter(units)),
             # Read off the bands, never tracked separately: the worst SWR IS the
             # max of the per-band SWRs reported beside it.
