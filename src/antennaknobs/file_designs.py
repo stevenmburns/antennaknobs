@@ -500,6 +500,33 @@ def _ssn_dialect(symbols):
     return _SCRIPT_DIALECT if kinds == {True, False} else _DCL_DIALECT
 
 
+def _clip_to_declared(meta, sym, declared):
+    """Bound ``meta``'s range by the range the ``.ssn`` declares (AK#2275).
+
+    The declared range is a BOUND, not the window: SimNEC fields carry
+    generic validity limits such as ``{-10k,10k}`` that would make absurd
+    search windows. So the knob's default window -- its ``meta`` min/max if
+    set, else the +/-``DEFAULT_SPAN`` box around its value that
+    ``auto_range`` / ``band_opt.free_for`` would use -- is clipped to the
+    declared range. When the declared range contains that window it changes
+    nothing; when the knob's value sits outside it, the declared range itself
+    is the window."""
+    from .band_opt import DEFAULT_SPAN
+
+    lo_d, hi_d = declared
+    if "min" in meta and "max" in meta:
+        lo, hi = meta["min"], meta["max"]
+    else:
+        v = float(sym.default)
+        lo, hi = sorted((v * (1 - DEFAULT_SPAN), v * (1 + DEFAULT_SPAN)))
+    if lo_d <= lo and hi <= hi_d:
+        return  # the declared range does not cut the default window
+    a, b = max(lo, lo_d), min(hi, hi_d)
+    if a >= b:
+        a, b = lo_d, hi_d
+    meta.update(min=a, max=b)
+
+
 class _SyKnobs:
     """A file's constants as the design's knobs: a ``.nec`` deck's constant SY
     symbols (AK#1705), or the dcl constants and element parameters a
@@ -729,15 +756,15 @@ class _SyKnobs:
                 meta["unit"] = s.unit
             if s.default == 0 and not s.integer:
                 meta.update(min=-span, max=span, step=_nice_step(span / 500.0))
-            if s.declared_range is not None:
-                # The range the .ssn itself declares wins over every default.
-                meta.update(min=s.declared_range[0], max=s.declared_range[1])
-            elif s.unit == "%":
+            if s.unit == "%":
                 # A knob that is only a NECSource place (percent along its
-                # wire): the wire's whole span is its range. The default
-                # +/-20 % box (AK#2275) around a mid-wire value can exclude
-                # the optima.
+                # wire): a coordinate, not a magnitude, so its default range
+                # is its domain, the wire's whole span. The relative +/-20 %
+                # box (AK#2275) is arbitrary for a coordinate and around a
+                # mid-wire value can exclude the optima.
                 meta.update(min=0.0, max=100.0)
+            if s.declared_range is not None:
+                _clip_to_declared(meta, s, s.declared_range)
             if s.segment_count:
                 # A JamSegments count: the file's density knob, which a
                 # convergence analysis sweeps (AK#1757).
