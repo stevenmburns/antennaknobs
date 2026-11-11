@@ -29,28 +29,34 @@ import { Card, CardGrid, LinkCard } from "@astrojs/starlight/components";
 {/* What's-new box: refresh as part of the release ritual (bump the version,
     swap the highlights) — a stale "new" box is worse than none. */}
 
-<Card title="New in v0.116.0" icon="star">
-  **Big lumped networks solve in milliseconds.** A network with hundreds or
-  thousands of circuit-only nodes, such as a transmission line modelled as many
-  RLC sections or a large matching or distribution network, now solves sparse:
-  a 1,000-section line in front of a dipole went from 3.6 s and 777 MB to
-  0.03 s and 118 MB per frequency. Smaller networks, every design in the
-  catalog among them, solve as before.
+<Card title="New in v0.117.0" icon="star">
+  **Zoom the SWR and S11 charts.** Click a band, drag across a span, or
+  Ctrl+scroll to zoom the frequency axis (plain scrolling still turns knobs),
+  and **Sweep this span** re-sweeps just the zoomed window at full resolution.
+  See [zooming the frequency axis](/reference/web/#more-than-one-chart).
 
-  **A network element tied to one node twice now reads correctly.** A two-port
-  with both of its ports on the same node, such as an imported NEC deck's `NT`
-  card with both ends on one segment, now adds all four of its admittances
-  there, as NEC-5 and NEC-4.2 do; before, some were dropped. If you have
-  imported a deck with such a card, its numbers change.
+  **Transmission-line loss reads correctly in the schematic.** A line modelled
+  as AC6LA's Johnson line now shows its own matched loss. The label used to
+  print the K0 + K1·√f + K2·f formula figure, which reads high on the low bands,
+  about 16 % at 3.6 MHz for a cable with a sizeable K0. The impedances and SWR
+  were always right. The hover names the model, an EZNEC lossy line's names
+  EZNEC's own terms, and a lossless line has no loss hover.
 
-  **SimNEC files.** A Generator that lists several frequencies sets the SWR
-  charts' bands to the amateur bands those frequencies fall in, instead of
-  shading every HF band. `antennaknobs optimize` on an opened file lists the
-  optimized knobs, with units, to set in the file, where it used to print an
-  empty block. See [importing a .ssn](/reference/simnec/#importing-ssn--design).
+  **Faster solves on big wire grids.** B-spline frequency sweeps of models
+  with many junctions are much faster, up to 7× on a 4,000-segment ground grid,
+  and the sinusoidal engine's solves are a little faster too. On the PyNEC tab,
+  a new **reuse repeated geometry (faster fill)** box, off by default, fills
+  each set of identical wire pairs once: the W8IO ELT whip benchmark went from
+  12.7 to 9.1 s.
 
-  Also: a slider that moves a SimNEC load no longer renumbers the loads in the
-  power budget.
+  **Rotational symmetry on more antennas.** The rotational-symmetry option now
+  takes any structure that repeats around its axis, vertical wires off the axis
+  included, such as a cage around a whip. Two benchmark variants show it off:
+  `verticals.elt_whip:sym4` (four-fold) and `:hex6` (six-fold, on a triangular
+  ground grid).
+
+  Also: a NEC-5 deck exported for a pattern now runs on momwire's own NEC-5
+  launchers, and momwire's printouts time the matrix FILL and FACTOR apart.
 </Card>
 
 ## The whole pitch, in one line
