@@ -88,6 +88,12 @@ const BSPLINE_KWARGS = ["degree", "feed_model", "n_qp_pair", "n_qp_source", "fee
 const RAZOR_KWARGS = ["extended_kernel", "factored_columns", "height_sheet_recal", "crossing_table"];
 // The NEC-4.2 slot's one knob (pinned Python-side beside the others).
 const NEC42_KWARGS = ["sommerfeld"];
+// PyNEC's one knob, offered only where the installed PyNEC's nec_context has
+// `set_fill_reuse` (pynec-accel 1.7.7). SERVED_ROSTER's pynec row models a
+// PyNEC without it (CI installs 1.7.6), so it takes none; the row that has it
+// is ROSTER_WITH_PYNEC_FILL_REUSE below. Python twin:
+// tests/test_pynec_fill_reuse_option.py.
+const PYNEC_FILL_REUSE_KWARGS = ["fill_reuse"];
 
 
 // Each entry's `constraints` come from the generated fixture, keyed by name,
@@ -234,6 +240,12 @@ export const ROSTER_WITH_NEC42: BackendRoster = [
     exact_pattern: { label: "NEC-4.2", ground_refusals: { terrain: EXACT_PATTERN_TERRAIN_REFUSAL } },
   }),
 ];
+
+/** The roster a server whose PyNEC has `set_fill_reuse` serves (pynec-accel
+ *  1.7.7): the pynec row offers the fill reuse checkbox, nothing else moves. */
+export const ROSTER_WITH_PYNEC_FILL_REUSE: BackendRoster = SERVED_ROSTER.map((b) =>
+  b.kind === "pynec" ? { ...b, model_kwargs: PYNEC_FILL_REUSE_KWARGS } : b,
+);
 
 export function entry(name: string, roster: BackendRoster = SERVED_ROSTER): BackendEntry {
   const found = roster.find((b) => b.name === name);

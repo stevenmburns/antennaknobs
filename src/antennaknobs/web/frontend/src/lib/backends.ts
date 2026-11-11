@@ -882,8 +882,9 @@ export function coverageRefusal(
  *  True only when the user asked for it AND this backend can serve it — a
  *  slot whose backend changed under a set flag solves reduced rather than
  *  erroring, so the chip and the request agree with the toggle on screen.
- *  PyNEC is excluded outright: it sends no `model_options` at all, and its
- *  own extended-kernel support (issue #414) is a separate, unexposed kwarg.
+ *  PyNEC is excluded outright: its only served knob is the fill reuse switch
+ *  (pynec-accel 1.7.7), and its own extended-kernel support (issue #414) is a
+ *  separate, unexposed kwarg.
  *
  *  THE ENRICHMENT EXCLUSION NO LONGER LIVES HERE. `EK_ENRICHMENT_REASON` and
  *  `extendedKernelRefusal` were a hand-written copy of momwire's refusal,

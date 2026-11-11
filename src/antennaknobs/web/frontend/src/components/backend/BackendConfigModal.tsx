@@ -308,9 +308,9 @@ export function BackendConfigModal({
           {/* The extended thin-wire kernel (issue #849) sits next to the wire
               radius on purpose — it is the knob that decides how the on-axis
               Green's function treats that radius. It lives here rather than in
-              a bespoke panel; PyNEC gets no row at all (it sends no
-              model_options, and its own extended kernel — issue #414 — is a
-              separate, unexposed kwarg).
+              a bespoke panel; PyNEC gets no row at all (its own extended
+              kernel — issue #414 — is a separate, unexposed kwarg, and its
+              one served knob is the fill reuse checkbox below).
 
               The guard was `kind === "momwire"` under the comment "common to
               every momwire backend". The Pulse tab (#1148) made that false —
