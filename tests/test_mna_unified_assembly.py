@@ -20,11 +20,11 @@ alone; forced sparse 22.6262 − j14.7805 Ω, the right answer. The two paths
 disagreed, and the dense one is what every real network took. All three
 repeated-port tests here fail on that tree, on the dense path.
 
-momwire's own `momwire.networks` still drops them (momwire#1887 is its side),
-so repeated-port cases live HERE and not in ``test_mw_networks_ab_2219.py``,
-whose cases are byte-for-byte against momwire: there they would fail for the
-right reason. When momwire's fix lands, `test_momwire_still_drops_them`
-fails, and the cases can join the A/B.
+momwire's own `momwire.networks` dropped them too until momwire 0.90.0
+(momwire#1887 is its side); it now sums them, which
+`test_momwire_sums_them_too` checks to a tolerance. The repeated-port cases
+still live HERE rather than in ``test_mw_networks_ab_2219.py``, whose cases
+are byte-for-byte against momwire, until the two sums are shown identical.
 """
 
 from __future__ import annotations
@@ -154,10 +154,12 @@ def test_a_touchstone_two_port_on_one_node_is_its_summed_shunt(path):
     _assert_same(rep, eq, path, exact_z=1.0 / (Y_ANT[0, 0] + Y2.sum()))
 
 
-def test_momwire_still_drops_them():
-    """momwire#1887, momwire's side: its dense stamp keeps one entry (y22,
-    measured) rather than the sum. When this fails, momwire sums too: move
-    the cases above into the byte-for-byte A/B and delete this test."""
+def test_momwire_sums_them_too():
+    """momwire#1887, momwire's side, fixed in momwire 0.90.0: its stamp sums a
+    two-port on one node as this repo's does, where it used to keep one entry
+    (y22). Checked to a tolerance here rather than byte for byte; moving the
+    cases above into the byte-for-byte A/B (`test_mw_networks_ab_2219.py`) is
+    its own change, once the two sums are shown to agree bit for bit."""
     ports = {"ant": core.PortOnWire("ant")}
     net = core.Network(
         ports=ports,
@@ -168,7 +170,7 @@ def test_momwire_still_drops_them():
         np.ravel(core.NetworkReducer(net, {"ant": 0}, 1).driven_impedance(Y_ANT, WL))[0]
     )
     summed = 1.0 / (Y_ANT[0, 0] + Y2.sum())
-    assert abs(z - summed) > 1e-3 * abs(summed)
+    assert abs(z - summed) <= 1e-12 * abs(summed)
 
 
 # --- the densify step accumulates in triple order --------------------------------
