@@ -1513,7 +1513,7 @@ class SsnCircuit:
         Raises ``ValueError`` for a chain the app cannot faithfully rebuild:
         an element outside the captured set (see ``other_elements``), a
         non-ideal TRANSFORMER2, an S block whose file cannot be found, or a deck without exactly
-        one voltage feed to attach the chain to."""
+        one source to attach the chain to (`_chain_feed`)."""
         return _hang_chain(
             self.deck.network(),
             self.chain,
@@ -1526,9 +1526,10 @@ class SsnCircuit:
 
 def _hang_chain(net, chain, *, rig_port, gen_zo, freq_mhz, files):
     """``net`` with the station ``chain`` re-hung between a virtual
-    generator-side ``rig_port`` node, where its one ``Driven`` source moves
-    to, and the port that source drove. See `SsnCircuit.network`; the same
-    for any antenna's network (`SsnStation.network`, AK#2200)."""
+    generator-side ``rig_port`` node, where its one source moves to as a
+    ``Driven``, and the port that source drove (`_chain_feed`). See
+    `SsnCircuit.network`; the same for any antenna's network
+    (`SsnStation.network`, AK#2200)."""
     if not chain:
         return net
     bad = sorted({el.typ for el in chain if el.typ not in _CHAIN_TYPES})
@@ -1538,13 +1539,7 @@ def _hang_chain(net, chain, *, rig_port, gen_zo, freq_mhz, files):
             f"translation: {', '.join(bad)} — importing the antenna "
             f"while dropping them would misrepresent the circuit"
         )
-    if len(net.sources) != 1 or not isinstance(net.sources[0], _net.Driven):
-        raise ValueError(
-            "a station chain attaches between the generator and one "
-            "voltage-driven feed; this antenna does not have exactly one "
-            "voltage source"
-        )
-    src = net.sources[0]
+    src = _chain_feed(net)
     feed_port = src.port
     ports = dict(net.ports)
     branches = list(net.branches)
@@ -1583,10 +1578,47 @@ def _hang_chain(net, chain, *, rig_port, gen_zo, freq_mhz, files):
             pending = (el, node, index)
         at = node
     attach(feed_port)
+    # A current source names amperes, not an EMF, so the generator that
+    # replaces one takes `Driven`'s default 1 V.
+    emf = src.voltage if isinstance(src, _net.Driven) else 1 + 0j
     return _net.Network(
         ports=ports,
         branches=branches,
-        sources=[_net.Driven(port=rig_port, voltage=src.voltage)],
+        sources=[_net.Driven(port=rig_port, voltage=emf)],
+    )
+
+
+def _chain_feed(net):
+    """The one source a station chain replaces: its port is the feed the
+    chain's antenna end attaches to (AK#2271).
+
+    Either kind of source marks that feed. A ``DrivenCurrent`` is how
+    ``nec_import`` reads EZNEC's NEC-2 current-source idiom -- an ``EX`` on a
+    one-segment parked wire, coupled to the real feed segment by a gyrator
+    ``NT`` (Y11 = Y22 = 0, Y12 = jB): `nec_import._collapse_gyrator_drives`
+    (AK#1595) turns the pair into a current source ON the real segment,
+    because the gyrator inverts impedance and the parked port reads
+    1/(B²·Z_antenna). It is also how NEC-4's ``EX 6`` and NEC-5's ``EX 4``
+    arrive. The generator replaces the deck's source whatever its kind, so
+    the chain hangs on the segment the deck drives, and ``feed`` reads the
+    antenna the deck alone reads there."""
+    kinds = (_net.Driven, _net.DrivenCurrent)
+    if len(net.sources) == 1 and isinstance(net.sources[0], kinds):
+        return net.sources[0]
+    if len(net.sources) == 1:
+        raise ValueError(
+            "a station chain attaches between the generator and the antenna's "
+            "one feed; this antenna's one excitation is a "
+            f"{type(net.sources[0]).__name__}, which drives no feed port"
+        )
+    where = ", ".join(repr(s.port) for s in net.sources) or "none"
+    raise ValueError(
+        "a station chain attaches between the generator and the antenna's "
+        f"one feed; this antenna has {len(net.sources)} sources ({where}). "
+        "Keep one EX in the NEC block -- EZNEC's current-source idiom, an EX "
+        "on a parked one-segment wire with a gyrator NT (Y11 = Y22 = 0, "
+        "Y12 = jB) to the feed segment, counts as one -- or put the EX "
+        "directly on the feed segment"
     )
 
 
@@ -4832,7 +4864,7 @@ class SsnStation:
     freqs: tuple[float, ...] = ()
 
     def network(self, antenna, *, rig_port: str = "rig"):
-        """``antenna`` (a ``network.Network`` with one ``Driven`` source, such
+        """``antenna`` (a ``network.Network`` with one source, such
         as ``deck.network()`` or a builder's own) with this chain between a
         virtual ``rig_port``, the GENERATOR, and the port the source drove,
         which keeps its name as the antenna's own terminals. Every chain block
