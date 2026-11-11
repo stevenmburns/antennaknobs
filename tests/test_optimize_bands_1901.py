@@ -16,6 +16,7 @@ import numpy as np
 import pytest
 from fastapi.testclient import TestClient
 
+from antennaknobs.band_opt import report_lines
 from antennaknobs.web import server
 from antennaknobs.web.optimize import DegenerateObjective, optimize
 from antennaknobs.web.optimize_bands import (
@@ -733,3 +734,22 @@ def test_the_report_says_it_in_plain_words_2275():
     assert "stayed where it started" in stuck_sentence(
         {"name": "L", "reason": "did_not_move"}
     )
+
+
+def test_the_result_counts_its_trials_and_times_the_search_2272():
+    """AK#2272: the trial count beside the elapsed time. Every build is one
+    sweep_fn call; n_evals counts objective evaluations, memo hits included,
+    so it is at least the builds; elapsed_s is the search's wall time."""
+    stub = LinearStub([[3.0, 1.0], [1.0, 4.0]], [1.0, 2.0], [3.6, 7.1])
+    res = optimize_bands(
+        {"k": [0.0, 0.0], "measurement_freq_mhz": 7.0},
+        _free(2),
+        parse_bands("3.6,7.1"),
+        sweep_fn=stub,
+    )
+    assert res["n_solves"] == len(stub.calls) > 0
+    assert res["n_evals"] >= res["n_solves"]
+    assert 0.0 < res["elapsed_s"] < 60.0
+    head = report_lines(res)[0]
+    assert f"{res['n_evals']} evals, {res['n_solves']} builds" in head
+    assert head.endswith(f"{res['elapsed_s']:.1f} s")

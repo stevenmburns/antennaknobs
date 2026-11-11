@@ -12,6 +12,7 @@ import {
 import {
   BandsEditor,
   BandsReadout,
+  bandRunSummary,
   type OptBandRecord,
   type OptBandsControl,
 } from "../components/session/OptBands";
@@ -310,6 +311,19 @@ describe("the band readouts", () => {
     expect(box.textContent).toContain("7.1: SWR 2.20");
     expect(box.textContent).toContain("14.2: SWR 1.60");
     expect(box.textContent).toContain("worst 2.20");
+  });
+
+  it("result summary: the trial count beside the elapsed time (AK#2272)", () => {
+    const res: OptimizeResult = { ...BAND_RESULT, n_evals: 84, n_solves: 61, elapsed_s: 52.34 };
+    render(<BandsReadout running={false} progress={null} result={res} error={null} />);
+    expect(screen.getByLabelText("Run summary").textContent).toBe("84 trials (61 solved), 52.3 s");
+  });
+
+  it("result summary: builds equal to trials are not repeated, and an old server's result still reads", () => {
+    expect(bandRunSummary({ ...BAND_RESULT, n_evals: 5, n_solves: 5, elapsed_s: 3 })).toBe(
+      "5 trials, 3.0 s",
+    );
+    expect(bandRunSummary({ ...BAND_RESULT, n_evals: 1 })).toBe("1 trial");
   });
 
   it("result notes: a clean run says nothing beyond the table", () => {

@@ -174,7 +174,8 @@ def report_lines(res: dict) -> list[str]:
         + (f" ({res['root_reason']})" if res.get("root_reason") else "")
         + f"; {res['n_evals']} evals, {res['n_solves']} builds, "
         f"{res['n_freq_solves']} band solves"
-        + (f", {res['passes']} passes" if res.get("passes") else ""),
+        + (f", {res['passes']} passes" if res.get("passes") else "")
+        + (f", {res['elapsed_s']:.1f} s" if res.get("elapsed_s") is not None else ""),
         f"{'band':>4} {'MHz':>9} {'objective':>9} {'feed':>4} "
         f"{'Z before':>20} {'Z after':>20} {'SWR':>13} {'residual':>15}",
     ]

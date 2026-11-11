@@ -268,9 +268,15 @@ export function BandsReadout({
   }
   if (!running && result?.objective === "bands" && result.bands_after) {
     const notes = bandResultNotes(result);
+    const summary = bandRunSummary(result);
     return (
       <>
       <BandTable result={result} />
+      {summary && (
+        <div className="gear-menu-hint opt-bands-summary" aria-label="Run summary">
+          {summary}
+        </div>
+      )}
       {notes.length > 0 && (
         <ul className="opt-bands-readout opt-bands-notes" aria-label="Band run notes">
           {notes.map((n) => (
@@ -347,6 +353,19 @@ function BandTable({ result }: { result: OptimizeResult }) {
 /** What the result table alone does not say (AK 0.97.1, AK#1909): the run
  *  stopped at the hosted time limit, a knob ended pinned at its range, or no
  *  band is anywhere near a match. */
+/** "84 trials (61 solved), 52.3 s": how much the run did and how long it took
+ *  (AK#2272). A trial is one objective evaluation; "solved" counts the ones
+ *  that paid for a build (a revisited point is answered from memory). */
+export function bandRunSummary(result: OptimizeResult): string | null {
+  if (typeof result.n_evals !== "number") return null;
+  const parts = [`${result.n_evals} trial${result.n_evals === 1 ? "" : "s"}`];
+  if (typeof result.n_solves === "number" && result.n_solves !== result.n_evals) {
+    parts[0] += ` (${result.n_solves} solved)`;
+  }
+  if (typeof result.elapsed_s === "number") parts.push(`${result.elapsed_s.toFixed(1)} s`);
+  return parts.join(", ");
+}
+
 export function bandResultNotes(result: OptimizeResult): string[] {
   const out: string[] = [];
   if (result.stopped === "time") {

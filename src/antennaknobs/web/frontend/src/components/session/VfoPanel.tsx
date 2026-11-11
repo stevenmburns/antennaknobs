@@ -51,6 +51,10 @@ export type OptimizeResult = {
   metrics_before: OptMetrics;
   metrics_after: OptMetrics;
   n_evals: number;
+  /** Builds the run paid for (a memo hit does no engine work). */
+  n_solves?: number;
+  /** The search's wall time, s (AK#2272). */
+  elapsed_s?: number;
   /** Which path ran (#1202): "secant", "nelder-mead", or a fallback naming
    *  why the root path stood down (e.g. "nelder-mead (root: no-sign-change)"). */
   method?: string;

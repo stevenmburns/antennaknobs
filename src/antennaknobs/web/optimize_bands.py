@@ -661,6 +661,7 @@ def optimize_bands(
     # Where `hard_cap` stops a search: the budget, or a stage's own share of it.
     cap_now = budget
     memo: dict[tuple, tuple[list[dict], dict]] = {}
+    t_run0 = time.perf_counter()
     t_end = None if time_budget_s is None else time.monotonic() + float(time_budget_s)
     timed_out = False
     # The best full-band point solved, by the run's own score: the answer
@@ -1377,6 +1378,9 @@ def optimize_bands(
             "n_fresh": fresh,
             "n_solves": n_solves,
             "n_freq_solves": n_freq_solves,
+            # Wall time of the search itself, the readout beside the trial
+            # count (AK#2272).
+            "elapsed_s": time.perf_counter() - t_run0,
             "passes": passes,
             "improved": ja < jb,
             # Root: a root was found (root_status "root"). Sequential: every root
