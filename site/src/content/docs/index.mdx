@@ -29,7 +29,16 @@ import { Card, CardGrid, LinkCard } from "@astrojs/starlight/components";
 {/* What's-new box: refresh as part of the release ritual (bump the version,
     swap the highlights) — a stale "new" box is worse than none. */}
 
-<Card title="New in v0.118.0" icon="star">
+<Card title="New in v0.118.1" icon="star">
+  **Longer optimize runs on the hosted app, and a trial count.** A
+  several-band optimize run on the hosted simulator may now run 15 minutes
+  (it was 2), enough for a 5-band SimNEC design at a few seconds a trial.
+  The result now says how many trials the run took and how long, beside its
+  table, and `optimize --bands` prints the time in its header.
+
+  From v0.118.0:
+
+
   **The optimizer searches where the answer can be.** A knob that places
   something along a wire in an opened SimNEC file (a load's or a source's
   percent position) now searches the whole wire, 0–100 %, instead of ±20 % of
