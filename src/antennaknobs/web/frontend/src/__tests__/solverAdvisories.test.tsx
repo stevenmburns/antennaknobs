@@ -154,3 +154,61 @@ describe("SolverAdvisories", () => {
     expect(screen.queryByText(/first order in the far mesh/)).toBeNull();
   });
 });
+
+// AK#2291: a list carrying one advisory many times shows it once, with the
+// count, and a long list folds behind one "Advisories (N)" line. Nothing is
+// dropped: every distinct advisory and its count are one click away.
+describe("SolverAdvisories: duplicates and folding (AK#2291)", () => {
+  const SOIL = {
+    category: "SoilConstantsSingleValued",
+    text: "the soil constants are single-valued, and real soil disperses with frequency…",
+  };
+
+  it("shows each distinct advisory once, with its count", () => {
+    render(<SolverAdvisories advisories={[SOIL, SURFACE, SOIL, SOIL, SURFACE]} />);
+    expect(screen.getAllByText(/soil constants are single-valued/)).toHaveLength(1);
+    expect(screen.getAllByText(/h\/a = 2\.1/)).toHaveLength(1);
+    expect(screen.getByText("(×3)")).toBeTruthy();
+    expect(screen.getByText("(×2)")).toBeTruthy();
+  });
+
+  it("shows no count on an advisory that appears once", () => {
+    render(<SolverAdvisories advisories={[SURFACE]} />);
+    expect(screen.queryByText(/×/)).toBeNull();
+  });
+
+  it("counts the collapsed far-mesh advisory too", async () => {
+    render(<SolverAdvisories advisories={[FARMESH, FARMESH]} />);
+    await userEvent.click(screen.getByRole("button", { name: /convergence advisory/ }));
+    expect(screen.getAllByText(/first order in the far mesh/)).toHaveLength(1);
+    expect(screen.getByText("(×2)")).toBeTruthy();
+  });
+
+  it("does not fold three distinct advisories, however often each repeats", () => {
+    render(<SolverAdvisories advisories={[SOIL, SURFACE, COARSE, SOIL, SOIL]} />);
+    expect(screen.queryByRole("button", { name: /^Advisories/ })).toBeNull();
+    expect(screen.getByText(/node region is unresolved/)).toBeTruthy();
+  });
+
+  it("folds more than three behind one line, and opens to every one", async () => {
+    const extra = { category: "SomethingNewMomwireAdded", text: "a new advisory" };
+    render(
+      <SolverAdvisories advisories={[SOIL, SURFACE, COARSE, extra, SOIL, FARMESH]} />,
+    );
+    const header = screen.getByRole("button", { name: "Advisories (5)" });
+    expect(header.getAttribute("aria-expanded")).toBe("false");
+    expect(screen.queryByText(/soil constants are single-valued/)).toBeNull();
+    expect(screen.queryByText(/a new advisory/)).toBeNull();
+    await userEvent.click(header);
+    expect(screen.getByText(/soil constants are single-valued/)).toBeTruthy();
+    expect(screen.getByText("(×2)")).toBeTruthy();
+    expect(screen.getByText(/h\/a = 2\.1/)).toBeTruthy();
+    expect(screen.getByText(/node region is unresolved/)).toBeTruthy();
+    expect(screen.getByText(/a new advisory/)).toBeTruthy();
+    // The unconditional one keeps its own fold inside the group.
+    await userEvent.click(screen.getByRole("button", { name: /convergence advisory/ }));
+    expect(screen.getByText(/first order in the far mesh/)).toBeTruthy();
+    await userEvent.click(screen.getByRole("button", { name: "Advisories (5)" }));
+    expect(screen.queryByText(/soil constants are single-valued/)).toBeNull();
+  });
+});

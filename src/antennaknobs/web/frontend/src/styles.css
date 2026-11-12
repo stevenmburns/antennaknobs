@@ -4520,6 +4520,19 @@ div.opt-bands-readout {
 .solver-advisory-toggle:hover {
   color: var(--fg);
 }
+/* AK#2291: a long advisory list folds behind one line, and a list a design
+   note writes inline folds to its lead and count. */
+.solver-advisories-header {
+  align-self: flex-start;
+  font-size: var(--text-xs);
+}
+.solver-advisory-count {
+  white-space: nowrap;
+}
+.design-note-items {
+  margin: var(--space-1) 0 var(--space-1) var(--space-4);
+  padding: 0;
+}
 
 /* A sweep's advisories (AK#1682) over the sweep views' bottom-left corner:
    the solve notes' muted text, on the overlay-readout chip so it stays

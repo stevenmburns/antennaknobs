@@ -5326,6 +5326,7 @@ def _example_entry(name: str, ex) -> dict:
             for v, h in ex.variant_ui.items()
         },
         "notes": ex.notes,
+        "note_lists": [dict(n) for n in ex.note_lists],
         "layout": ex.layout,
     }
 

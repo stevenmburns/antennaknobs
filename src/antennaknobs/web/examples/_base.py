@@ -507,6 +507,11 @@ class AntennaExample:
     # never a warning; None (the norm) renders nothing. Authored under the
     # reserved ui_params["notes"] key.
     notes: Optional[str] = None
+    # Lists written into ``notes`` as ``<lead>: <a>; <b>; ...`` (AK#2291),
+    # each ``{"lead", "items"}``, so the panel can fold a long one into one
+    # line without parsing the prose. The note itself is unchanged. Authored
+    # under ui_params["note_lists"].
+    note_lists: tuple = ()
     # Optional grid-level layout config for the top-level knob rail.
     # Recognised key today: {"columns": int} — pins the param grid to a
     # fixed column count so per-ParamSpec.layout col positions land

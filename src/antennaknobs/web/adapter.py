@@ -4276,6 +4276,24 @@ def request_z0(req: dict, design_z0: float) -> float:
     return _positive_finite("z0_ohms", raw)
 
 
+def _note_lists(default_params: dict, notes) -> tuple:
+    """The ``ui_params["note_lists"]`` entries whose list the note carries
+    as written (AK#2291): ``{"lead", "items"}``. One the note does not
+    contain verbatim is not served, so the panel never folds text it cannot
+    find, and shows the note whole instead."""
+    raw = _ui_scalar(default_params, "note_lists", ())
+    if not notes or not isinstance(raw, (list, tuple)):
+        return ()
+    out = []
+    for entry in raw:
+        if not isinstance(entry, Mapping):
+            continue
+        lead, items = entry.get("lead"), [str(i) for i in entry.get("items") or ()]
+        if lead and items and f"{lead}: {'; '.join(items)}" in str(notes):
+            out.append({"lead": str(lead), "items": items})
+    return tuple(out)
+
+
 def _ui_scalar(default_params: dict, key: str, default):
     ui = default_params.get("ui_params") or {}
     if key in ui and not isinstance(ui[key], dict):
@@ -6048,6 +6066,7 @@ def _make_example(name: str, cls, *, defer_hints: bool = False) -> AntennaExampl
         },
         variant_ui=variant_ui,
         notes=str(notes) if notes else None,
+        note_lists=_note_lists(dp, notes),
         layout=grid_layout,
     )
 
