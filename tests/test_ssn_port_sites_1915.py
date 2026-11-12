@@ -197,3 +197,52 @@ def test_the_deck_s_knob_gradients_match_rebuilds(design):
         ) / (2 * h)
         rel = float(np.max(np.abs(dzs[name] - fd) / np.abs(fd)))
         assert rel <= 1e-5, (name, rel)
+
+
+@needs_port_sites
+def test_a_cached_trial_builds_no_solver_and_parses_once(design, monkeypatch):
+    """A trial served from the cache constructs no solver (the base digest is
+    read off the engine's constructor kwargs, `MomwireEngine._construction`),
+    re-parses the deck once for its new knob value, and builds its wires
+    once. The wires stay: the moved load's arclength is what the parse of the
+    new percentage says, so no trial can be keyed without it."""
+    from momwire import BSplineSolver
+
+    import antennaknobs.file_designs as fdm
+    from antennaknobs.band_opt import builder_sweep_fn
+
+    s = port_sites.PortSitesSession()
+    sweep = builder_sweep_fn(
+        design(dict(design.default_params)), MomwireEngine, 50.0, port_sites=s
+    )
+    p = {"par_H_len": LEN, "par_Cap_F": 83.0}
+    for pct in (30.0, 31.0, 32.0):
+        sweep({**p, "par_Cap_Pct": pct}, FREQS)
+    assert s.counts["fast"] == 1 and s.ready()
+
+    counts = {"solver": 0, "parse": 0, "wires": 0}
+    real_init = BSplineSolver.__init__
+    real_parse = fdm._ssn_reparse
+    real_wires = design.build_wires
+
+    def init(self, *a, **k):
+        counts["solver"] += 1
+        return real_init(self, *a, **k)
+
+    def parse(*a, **k):
+        counts["parse"] += 1
+        return real_parse(*a, **k)
+
+    def wires(self):
+        counts["wires"] += 1
+        return real_wires(self)
+
+    monkeypatch.setattr(BSplineSolver, "__init__", init)
+    monkeypatch.setattr(fdm, "_ssn_reparse", parse)
+    monkeypatch.setattr(design, "build_wires", wires)
+    zs = sweep({**p, "par_Cap_Pct": 47.3}, FREQS)["zs"]
+    assert s.counts["fast"] == 2
+    assert counts == {"solver": 0, "parse": 1, "wires": 1}, counts
+    monkeypatch.setattr(BSplineSolver, "__init__", real_init)
+    ref = _z(_b(design, True, **{**p, "par_Cap_Pct": 47.3}))
+    assert float(np.max(np.abs(zs - ref) / np.abs(ref))) <= RTOL

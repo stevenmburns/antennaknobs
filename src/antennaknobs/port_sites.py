@@ -141,6 +141,10 @@ class PortSitesSession:
         self.counts = {"fast": 0, "first": 0, "rebuild": 0, "built": 0}
         # Knob gradients served by `gradients`, no solve each.
         self.n_gradients = 0
+        # Solvers built only to note where ports landed (`_construction`),
+        # and whether one has shown the notes are empty on this run.
+        self.n_solvers = 0
+        self._notes_empty = False
         self._last: dict | None = None
         self.declined: Counter = Counter()
         self._cache: OrderedDict = OrderedDict()
@@ -158,9 +162,7 @@ class PortSitesSession:
         why = self._ineligible(eng)
         if why is not None:
             return self._rebuild(eng, freqs, why)
-        solver = eng._make_solver(wavelength=eng._wavelength_for(freqs[0]))
-        cls, kwargs = solver._ak_construct
-        del solver
+        cls, kwargs = self._construction(eng, eng._wavelength_for(freqs[0]))
         n = len(kwargs["feeds"])
         moving = self._moving
         if moving is None or moving >= n:
@@ -260,9 +262,7 @@ class PortSitesSession:
                 e = at(name, v + s * d)
                 if self._ineligible(e) is not None:
                     break
-                solver = e._make_solver(wavelength=last["wls"][0])
-                cls, kw = solver._ak_construct
-                del solver
+                cls, kw = self._construction(e, last["wls"][0])
                 if (
                     len(kw["feeds"]) != last["n"]
                     or _sig(cls, kw, moving) != last["base"]
@@ -329,6 +329,27 @@ class PortSitesSession:
                 "with port_sites.engine_kwargs()"
             )
         return None
+
+    def _construction(self, eng, wl):
+        """The trial's solver class and constructor kwargs, with no solver
+        built (`MomwireEngine._construction`), and its placement notes.
+
+        A solver is what notes where each positioned port landed
+        (`_note_feed_placements`), and the CLI holds an engine until it has
+        them. On this path the basis is the B-spline one with point feeds,
+        which honours every arclength exactly, so the notes are empty: the
+        first engines of a run are noted by a real solver until one has
+        confirmed that, and from then on each engine's notes are set empty
+        without one. A run whose solver ever notes an offset keeps building
+        the solver for every engine."""
+        if getattr(eng, "_placement_notes", None) is None:
+            if self._notes_empty:
+                eng._placement_notes = []
+            else:
+                self.n_solvers += 1
+                eng._make_solver(wavelength=wl)
+                self._notes_empty = eng._placement_notes == []
+        return eng._construction(wavelength=wl)
 
     def _rebuild(self, eng, freqs, why: str) -> np.ndarray:
         self.counts["rebuild"] += 1

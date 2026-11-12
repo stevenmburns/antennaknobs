@@ -2235,6 +2235,30 @@ class MomwireEngine(SimulationEngine):
         ``extended_kernel`` overrides the engine's kernel setting for this
         one solver (issue #849 — the portal's per-group ``EK``); None keeps
         it. ``share_z``: see `_share_z_fill`."""
+        solver = self._construct_solver(
+            feeds=self._solver_feeds(),
+            wavelength=wavelength,
+            kw=self._port_kw(end_port_voltages, vertex_port_voltages),
+            extended_kernel=extended_kernel,
+            share_z=share_z,
+        )
+        self._note_feed_placements(solver)
+        return solver
+
+    def _construction(self, *, wavelength):
+        """``(solver class, constructor kwargs)`` of the solver
+        `_make_solver(wavelength=...)` would build, with no solver built and
+        no placement noted: what the port-sites cache keys a trial on
+        (`port_sites`), the same dict `_ak_construct` records."""
+        return self._solver, self._construct_kwargs(
+            feeds=self._solver_feeds(),
+            wavelength=wavelength,
+            kw=self._port_kw(None, None),
+        )
+
+    def _port_kw(self, end_port_voltages, vertex_port_voltages):
+        """The port kwargs (``junctions`` / ``junction_ports`` /
+        ``node_gaps``) of `_make_solver`."""
         kw = {}
         if _solver_accepts_junctions_kwarg(self._solver):
             kw["junctions"] = self._junctions or None
@@ -2266,15 +2290,7 @@ class MomwireEngine(SimulationEngine):
                     self._vertex_port_members, v_volts, self._vertex_dirs, strict=True
                 )
             ]
-        solver = self._construct_solver(
-            feeds=self._solver_feeds(),
-            wavelength=wavelength,
-            kw=kw,
-            extended_kernel=extended_kernel,
-            share_z=share_z,
-        )
-        self._note_feed_placements(solver)
-        return solver
+        return kw
 
     def _construct_solver(
         self, *, feeds, wavelength, kw, extended_kernel=None, share_z=False
@@ -2284,6 +2300,21 @@ class MomwireEngine(SimulationEngine):
 
         ``kw`` carries the port kwargs (``junctions`` / ``junction_ports`` /
         ``node_gaps``) the two call sites assemble differently."""
+        kwargs = self._construct_kwargs(
+            feeds=feeds, wavelength=wavelength, kw=kw, extended_kernel=extended_kernel
+        )
+        solver = self._solver(**kwargs)
+        # The construction kwargs, for a key over everything the operator
+        # and the port solution depend on (`_z_fill_key`, `_swept_y`).
+        solver._ak_construct = (self._solver, kwargs)
+        if "exact_kernel" in kwargs:
+            self._exact_kernel_seen.add(bool(getattr(solver, "exact_kernel", False)))
+        if share_z:
+            self._share_z_fill(solver, _z_fill_key(self._solver, kwargs))
+        return solver
+
+    def _construct_kwargs(self, *, feeds, wavelength, kw, extended_kernel=None):
+        """The constructor kwargs `_construct_solver` builds its solver with."""
         kwargs = dict(
             wires=self._polylines,
             n_per_edge_per_wire=self._edge_segments,
@@ -2304,15 +2335,7 @@ class MomwireEngine(SimulationEngine):
             kwargs["pair_reuse"] = hint
         if self._offset_reuse:
             kwargs["offset_reuse"] = True
-        solver = self._solver(**kwargs)
-        # The construction kwargs, for a key over everything the operator
-        # and the port solution depend on (`_z_fill_key`, `_swept_y`).
-        solver._ak_construct = (self._solver, kwargs)
-        if "exact_kernel" in kwargs:
-            self._exact_kernel_seen.add(bool(getattr(solver, "exact_kernel", False)))
-        if share_z:
-            self._share_z_fill(solver, _z_fill_key(self._solver, kwargs))
-        return solver
+        return kwargs
 
     def _pair_reuse_hint(self):
         """The congruent edge pairs of this engine's mesh, found once per mesh,
