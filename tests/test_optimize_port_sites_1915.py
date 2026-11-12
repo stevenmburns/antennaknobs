@@ -1,0 +1,332 @@
+"""The optimizer's opt-in moved-load fast path (momwire#1915, `port_sites`).
+
+A trial that moves only one load's position along one wire is served from a
+cached `PortSites` per (everything else, frequency) instead of a rebuild. The
+oracle is the full AK rebuild of the same engine (whole-wire, the load at that
+position), solved through ``impedance_sweep`` with ``port_sites`` forbidden.
+
+Every geometry and value here is invented. The design is an inverted L in
+free space: a vertical wire fed at its middle, a horizontal top
+wire carrying a coil, and a 50 ohm line from the rig to the feed (the station
+network, stamped on the antenna's port Y by the trial's own reducer). The coil
+position is a knob in two spellings: a percentage of the top wire's length,
+and an absolute arclength in metres from the top wire's start.
+
+Skips by name where the installed momwire has no ``port_sites`` (the 0.90.0
+submodule pointer and PyPI pin): there this path declines every trial and
+nothing here can be checked.
+"""
+
+from types import MappingProxyType
+
+import numpy as np
+import pytest
+from momwire import BSplineSolver
+
+from antennaknobs import AntennaBuilder, port_sites
+from antennaknobs.band_opt import builder_sweep_fn
+from antennaknobs.engines.momwire import MomwireEngine
+from antennaknobs.network import TL, Driven, Load, Network, PortOnWire, PortVirtual
+from antennaknobs.network import Wire as W
+
+needs_port_sites = pytest.mark.skipif(
+    not port_sites.available(), reason=port_sites.NO_PORT_SITES
+)
+
+H = 7.3  # vertical height, m
+TOP = 9.1  # top wire length, m
+FREQS = [6.95, 7.12, 7.27]
+# Off-knot on the top wire's 23 segments (knots at k/23), and off-centre.
+PCTS = [21.37, 38.11, 55.62, 71.94]
+RTOL = 1e-9
+
+
+class _CoilL(AntennaBuilder):
+    default_params = MappingProxyType(
+        {
+            "freq": 7.12,
+            "design_freq": 7.12,
+            "coil_pct": 30.0,
+            "coil_m": None,
+            "coil_uh": 4.7,
+            "line_m": 6.4,
+        }
+    )
+
+    def build_wires(self):
+        return [
+            W((0.0, 0.0, 0.4), (0.0, 0.0, H), n_seg=17, name="vert"),
+            W((0.0, 0.0, H), (TOP, 0.0, H), n_seg=23, name="top"),
+        ]
+
+    def coil_at(self) -> float:
+        if self.coil_m is not None:
+            return float(self.coil_m) / TOP
+        return float(self.coil_pct) / 100.0
+
+    def build_network(self):
+        return Network(
+            ports={
+                "feed": PortOnWire("feed", wire="vert"),
+                "coil": PortOnWire("coil", wire="top", at=self.coil_at()),
+                "rig": PortVirtual("rig"),
+            },
+            branches=[
+                Load(port="coil", r=1.3, l=self.coil_uh * 1e-6),
+                TL("rig", "feed", z0=50.0, length=self.line_m, vf=0.66),
+            ],
+            sources=[Driven(port="rig")],
+        )
+
+
+def _builder(**params):
+    return _CoilL(dict(_CoilL.default_params, **params))
+
+
+@pytest.fixture
+def forbid_port_sites(monkeypatch):
+    """``port_sites`` counted, and refused while ``state["forbid"]``."""
+    real = BSplineSolver.port_sites
+    state = {"calls": 0, "forbid": False}
+
+    def spy(self, *a, **k):
+        if state["forbid"]:
+            raise AssertionError("the rebuild side reached port_sites")
+        state["calls"] += 1
+        return real(self, *a, **k)
+
+    monkeypatch.setattr(BSplineSolver, "port_sites", spy)
+    return state
+
+
+def _rebuild(state, **params):
+    """The oracle: a whole-wire engine's own ``impedance_sweep``."""
+    state["forbid"] = True
+    try:
+        eng = MomwireEngine(_builder(**params), **port_sites.engine_kwargs())
+        assert not getattr(eng, "_split_wires", None)
+        return np.asarray(eng.impedance_sweep(FREQS))
+    finally:
+        state["forbid"] = False
+
+
+def _fast(session, state, **params):
+    eng = MomwireEngine(_builder(**params), **port_sites.engine_kwargs())
+    before = session.counts["fast"]
+    zs = session.sweep(eng, FREQS)
+    return zs, session.counts["fast"] > before
+
+
+def _rel(a, b):
+    return float(np.max(np.abs(a - b) / np.abs(b)))
+
+
+@needs_port_sites
+def test_fast_path_matches_the_rebuild_at_off_knot_percentages(forbid_port_sites):
+    """Per band, the driven Z at the rig (after the line) via the cache equals
+    the rebuild with the coil there, at four off-knot positions."""
+    s = port_sites.PortSitesSession()
+    _z, fast = _fast(s, forbid_port_sites, coil_pct=PCTS[0])
+    assert not fast  # nothing to compare with yet: a rebuild
+    worst = 0.0
+    for pct in PCTS[1:] + PCTS[:1]:
+        zs, fast = _fast(s, forbid_port_sites, coil_pct=pct)
+        assert fast, s.summary()
+        worst = max(worst, _rel(zs, _rebuild(forbid_port_sites, coil_pct=pct)))
+    assert worst <= RTOL, worst
+    # One factorisation per band, built once, served four times.
+    assert s.counts == {"fast": 4, "rebuild": 1, "built": len(FREQS)}
+    assert forbid_port_sites["calls"] == len(FREQS)
+
+
+@needs_port_sites
+def test_an_arclength_knob_in_metres_is_the_same_load(forbid_port_sites):
+    """The metres spelling of the same positions gives the percentage's Z, on
+    the fast path and against the rebuild."""
+    s = port_sites.PortSitesSession()
+    _fast(s, forbid_port_sites, coil_m=0.2 * TOP)
+    for pct in PCTS:
+        m = pct / 100.0 * TOP
+        zs, fast = _fast(s, forbid_port_sites, coil_m=m)
+        assert fast
+        assert _rel(zs, _rebuild(forbid_port_sites, coil_pct=pct)) <= RTOL
+
+
+@needs_port_sites
+def test_the_position_is_read_and_from_the_wire_start(forbid_port_sites):
+    """Adversarial: a fast path that kept the first position, or measured the
+    arclength from the wire's far end, fails here. The two mirror positions
+    differ by far more than the gate, so the gate can tell them apart."""
+    s = port_sites.PortSitesSession()
+    _fast(s, forbid_port_sites, coil_pct=50.0)
+    near, _ = _fast(s, forbid_port_sites, coil_pct=17.3)
+    far, fast = _fast(s, forbid_port_sites, coil_pct=82.7)
+    assert fast and s.counts["fast"] == 2
+    z_near = _rebuild(forbid_port_sites, coil_pct=17.3)
+    z_far = _rebuild(forbid_port_sites, coil_pct=82.7)
+    assert _rel(z_near, z_far) > 1e-3
+    assert _rel(near, z_near) <= RTOL and _rel(far, z_far) <= RTOL
+    assert _rel(near, far) > 1e-3
+
+
+@needs_port_sites
+def test_another_knob_moving_rebuilds_and_says_why(forbid_port_sites):
+    """A trial that moved a knob besides the position is a rebuild, counted
+    under its reason; the network-only knob (the line) keeps the fast path,
+    because the antenna's solver inputs did not move."""
+    s = port_sites.PortSitesSession()
+    _fast(s, forbid_port_sites, coil_pct=30.0)
+    _fast(s, forbid_port_sites, coil_pct=40.0)
+    assert s.counts["fast"] == 1
+    zs, fast = _fast(s, forbid_port_sites, coil_pct=45.0, line_m=7.9)
+    assert fast  # the line is the reducer's, not the antenna's
+    assert _rel(zs, _rebuild(forbid_port_sites, coil_pct=45.0, line_m=7.9)) <= RTOL
+
+    class _Taller(_CoilL):
+        def build_wires(self):
+            w = super().build_wires()
+            return [w[0]._replace(p0=(0.0, 0.0, 0.3)), w[1]]
+
+    eng = MomwireEngine(
+        _Taller(dict(_CoilL.default_params, coil_pct=45.0)),
+        **port_sites.engine_kwargs(),
+    )
+    s.sweep(eng, FREQS)
+    assert s.counts["rebuild"] == 2
+    assert s.declined["knobs other than the port's position moved"] == 1
+
+
+@needs_port_sites
+def test_declines_by_name_off_the_bspline_basis(forbid_port_sites):
+    from momwire import SinusoidalGalerkinSolver
+
+    s = port_sites.PortSitesSession()
+    for pct in (30.0, 40.0):
+        s.sweep(
+            MomwireEngine(_builder(coil_pct=pct), solver=SinusoidalGalerkinSolver),
+            FREQS,
+        )
+    assert s.counts["fast"] == 0 and s.counts["rebuild"] == 2
+    (why,) = s.declined
+    assert "B-spline basis only" in why
+
+
+@needs_port_sites
+def test_the_default_engine_splits_and_the_session_declines_it():
+    """Off the fast path nothing changed: the default engine still splits the
+    top wire at an off-site coil (AK#1519), and a session handed such an
+    engine rebuilds and names why, instead of keying a moving mesh."""
+    eng = MomwireEngine(_builder(coil_pct=38.11))
+    assert "top" in eng._split_wires
+    s = port_sites.PortSitesSession()
+    s.sweep(eng, FREQS)
+    assert s.counts["fast"] == 0
+    assert any("AK#1519" in r for r in s.declined)
+
+
+@needs_port_sites
+def test_on_a_segment_centre_the_whole_wire_is_the_default_mesh():
+    """At a site of the top wire's count the default engine keeps it whole
+    too, so there the continuous model is main's model, bit for bit."""
+    pct = 100.0 * 7.5 / 23  # the centre of segment 8 of 23
+    a = MomwireEngine(_builder(coil_pct=pct))
+    b = MomwireEngine(_builder(coil_pct=pct), **port_sites.engine_kwargs())
+    assert not a._split_wires
+    np.testing.assert_array_equal(a.impedance_sweep(FREQS), b.impedance_sweep(FREQS))
+
+
+@needs_port_sites
+def test_optimize_bands_takes_the_fast_path_and_counts_it(forbid_port_sites):
+    """End to end through the CLI's sweep_fn: a three-band run on the coil
+    position alone serves most trials from the cache."""
+    from antennaknobs.web.optimize_bands import optimize_bands, parse_bands
+
+    b = _builder()
+    s = port_sites.PortSitesSession()
+    res = optimize_bands(
+        {"coil_pct": 30.0},
+        [{"name": "coil_pct", "min": 10.0, "max": 90.0}],
+        parse_bands(",".join(str(f) for f in FREQS)),
+        sweep_fn=builder_sweep_fn(b, MomwireEngine, 50.0, port_sites=s),
+        max_evals=14,
+    )
+    assert s.counts["fast"] >= 5, s.summary()
+    assert s.counts["fast"] > s.counts["rebuild"]
+    assert res["n_solves"] == s.counts["fast"] + s.counts["rebuild"]
+
+
+def test_off_unless_asked(monkeypatch):
+    monkeypatch.delenv(port_sites.SEED_ENV, raising=False)
+    assert not port_sites.asked(None)
+    monkeypatch.setenv(port_sites.SEED_ENV, "1")
+    assert port_sites.asked(None)
+    assert not port_sites.asked(False)  # an explicit off wins over the seed
+    assert port_sites.asked(True)
+
+
+def test_without_a_session_the_sweep_is_the_engines_own(monkeypatch):
+    """port_sites=None (the default) never builds a whole-wire engine nor
+    reaches the session: the engine's own impedance_sweep, as on main."""
+    seen = []
+
+    def factory(builder, **kw):
+        seen.append(kw)
+        return MomwireEngine(builder, **kw)
+
+    out = builder_sweep_fn(_builder(), factory, 50.0)({}, FREQS[:1])
+    assert seen == [{}]
+    ref = MomwireEngine(_builder()).impedance_sweep(FREQS[:1])
+    np.testing.assert_array_equal(out["zs"], ref)
+
+
+def _example():
+    import antennaknobs.web.examples  # noqa: F401 — the registry first; it imports the adapter
+    from antennaknobs.web.adapter import _make_example
+
+    return _make_example("test.port_sites_coil_l", _CoilL)
+
+
+@needs_port_sites
+def test_the_workbench_seam_serves_moved_coils_from_the_cache(forbid_port_sites):
+    """``momwire_bands`` (what /optimize evaluates) with a session: the second
+    position is served fast, and equals a fresh session's first trial there,
+    which is the adapter's own whole-wire rebuild."""
+    ex = _example()
+    s = port_sites.PortSitesSession()
+    ex.momwire_bands({"coil_pct": 30.0}, FREQS, port_sites=s)
+    out = ex.momwire_bands({"coil_pct": 61.3}, FREQS, port_sites=s)
+    assert s.counts["fast"] == 1
+    forbid_port_sites["forbid"] = True
+    ref_s = port_sites.PortSitesSession()
+    ref = ex.momwire_bands({"coil_pct": 61.3}, FREQS, port_sites=ref_s)
+    assert ref_s.counts == {"fast": 0, "rebuild": 1, "built": 0}
+    assert _rel(np.asarray(out["zs"]), np.asarray(ref["zs"])) <= RTOL
+
+
+@needs_port_sites
+@pytest.mark.parametrize("ask", [None, True, False])
+def test_optimize_endpoint_is_off_unless_asked(monkeypatch, forbid_port_sites, ask):
+    """/optimize with bands: the tally rides on the result only when the
+    request (or the server seed, here unset) asks; asked, trials go fast."""
+    from fastapi.testclient import TestClient
+
+    from antennaknobs.web import server
+
+    monkeypatch.delenv(port_sites.SEED_ENV, raising=False)
+    monkeypatch.setitem(server.EXAMPLES, "test.port_sites_coil_l", _example())
+    opt = {
+        "free": [{"name": "coil_pct", "min": 10.0, "max": 90.0}],
+        "bands": [{"freq": f} for f in FREQS],
+        "max_evals": 10,
+    }
+    if ask is not None:
+        opt["port_sites"] = ask
+    body = {"geometry": "test.port_sites_coil_l", "coil_pct": 30.0, "optimize": opt}
+    res = TestClient(server.app).post("/optimize", json=body).json()
+    assert "error" not in res, res
+    if ask:
+        assert res["port_sites"]["fast"] >= 3, res["port_sites"]
+        assert forbid_port_sites["calls"] == len(FREQS)
+    else:
+        assert "port_sites" not in res
+        assert forbid_port_sites["calls"] == 0

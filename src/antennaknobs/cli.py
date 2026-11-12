@@ -2314,6 +2314,18 @@ def cli(arguments=None):
         help="With --bands: at most this many sequential passes (default 8).",
     )
     p.add_argument(
+        "--port-sites",
+        dest="port_sites",
+        default=False,
+        action="store_true",
+        help="With --bands, on the momwire B-spline basis, opt-in: a trial "
+        "that moves only one load's position along its wire is solved from "
+        "one cached factorisation per band (momwire#1915) instead of a "
+        "rebuild. The wire is kept whole at the load (no split at an "
+        "off-site position), so the load moves continuously on the wire's "
+        "own mesh. Needs a momwire with BSplineSolver.port_sites.",
+    )
+    p.add_argument(
         "--keep",
         default=None,
         metavar="PATH",
@@ -2427,12 +2439,24 @@ def cli(arguments=None):
                 f"# knob {fr['name']} = {base[fr['name']]:.6g}{u}, "
                 f"range {fr['min']:.6g}..{fr['max']:.6g}{u}"
             )
+        session = None
+        if args.port_sites:
+            from .port_sites import PortSitesSession
+
+            if parse_engine_spec(args.engine)[0] != "momwire":
+                raise SystemExit(
+                    "optimize --port-sites: runs on the momwire engine's "
+                    "B-spline basis only"
+                )
+            session = PortSitesSession()
         try:
             res = optimize_bands(
                 base,
                 free,
                 bands,
-                sweep_fn=band_opt.builder_sweep_fn(b, engine, args.z0),
+                sweep_fn=band_opt.builder_sweep_fn(
+                    b, engine, args.z0, port_sites=session
+                ),
                 mode=args.mode,
                 max_evals=args.max_evals,
                 tol=args.tol,
@@ -2451,6 +2475,8 @@ def cli(arguments=None):
             )
         except (BandsRefused, DegenerateObjective) as e:
             raise SystemExit(f"optimize --bands: {e}") from None
+        if session is not None:
+            res["port_sites"] = session.summary()
         for line in band_opt.report_lines(res):
             print(line)
         if args.keep is not None:

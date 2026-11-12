@@ -4833,6 +4833,7 @@ async def optimize_endpoint(req: dict, request: Request):
           "objective_form": "balanced" | "softmax" | "clipped_sum",  # bands
           "target": <a band value's "good enough" floor, optional>,  # bands
           "p_norm": <softmax's p, default 8>,                  # with bands
+          "port_sites": <bool, opt-in, default off>,           # with bands
         }
     Returns the best params found + before/after metrics. The objective is
     evaluated at the request's measurement frequency with no far field, so a
@@ -5024,6 +5025,18 @@ async def optimize_endpoint(req: dict, request: Request):
         out.pop("_engine_runs", None)
         return out
 
+    # The opt-in moved-port cache (momwire#1915, `port_sites`): asked by the
+    # request's optimize.port_sites, else seeded by ANTENNAKNOBS_PORT_SITES;
+    # an explicit false wins. A momwire slot's multi-band run only. Where the
+    # installed momwire lacks the method the session declines every trial by
+    # name and the run is the ordinary rebuild.
+    sites = None
+    if bands is not None and backend is None:
+        from .. import port_sites as _port_sites
+
+        if _port_sites.asked(opt.get("port_sites")):
+            sites = _port_sites.PortSitesSession()
+
     def _eval_bands(r: dict, freqs: list[float]) -> dict:
         """One multi-band eval (AK#1901): one build solved at every band.
         momwire: the example's one-build sweep. An external engine solves
@@ -5034,6 +5047,8 @@ async def optimize_endpoint(req: dict, request: Request):
             if backend is None:
                 fn = getattr(ex, "momwire_bands", None)
                 if fn is not None:
+                    if sites is not None:
+                        return fn(r, freqs, cancel=turn, port_sites=sites)
                     return fn(r, freqs, cancel=turn)
                 outs = [
                     ex.momwire_solve({**r, "measurement_freq_mhz": f}, cancel=turn)
@@ -5058,9 +5073,16 @@ async def optimize_endpoint(req: dict, request: Request):
         if bands is not None:
             from .optimize_bands import optimize_bands
 
+            def _bands_run(*a, **k):
+                res = optimize_bands(*a, **k)
+                if sites is not None:
+                    # Which path served each trial, and why one was rebuilt.
+                    res["port_sites"] = sites.summary()
+                return res
+
             return run_in_threadpool(
                 _shed,
-                optimize_bands,
+                _bands_run,
                 base,
                 free,
                 bands,

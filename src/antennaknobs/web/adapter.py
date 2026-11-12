@@ -3201,7 +3201,9 @@ def _metrics_from_gain(gain, meas_freq: float) -> dict:
     return metrics
 
 
-def _make_momwire_engine(req: dict, builder, cancel=None):
+def _make_momwire_engine(req: dict, builder, cancel=None, **engine_kwargs):
+    # ``engine_kwargs``: extra MomwireEngine kwargs from a caller that owns
+    # them (the optimizer's opt-in port-sites path, `port_sites.engine_kwargs`).
     # "bspline" is the default and the fallback for unknown/retired model
     # names (a stale client may still send "triangular").
     model = req.get("momwire_model", "bspline")
@@ -3315,6 +3317,7 @@ def _make_momwire_engine(req: dict, builder, cancel=None):
         pair_reuse=pair_reuse,
         features=features,
         cancel=cancel,
+        **engine_kwargs,
     )
 
 
@@ -5916,7 +5919,9 @@ def _make_example(name: str, cls, *, defer_hints: bool = False) -> AntennaExampl
             return re, im, feeds_re, feeds_im
         return re, im
 
-    def momwire_bands(req: dict, freqs_mhz: list[float], cancel=None) -> dict:
+    def momwire_bands(
+        req: dict, freqs_mhz: list[float], cancel=None, port_sites=None
+    ) -> dict:
         """AK#1901: one multi-band /optimize evaluation -- ONE build of the
         request's design solved at every frequency in ``freqs_mhz``.
 
@@ -5927,14 +5932,25 @@ def _make_example(name: str, cls, *, defer_hints: bool = False) -> AntennaExampl
         then a point of the engine's vectorized ``impedance_sweep`` (the
         frequency sweep's own path). ``zs`` is (n_freqs, n_feeds) at every
         port, whatever the design's multi-feed hint says: a band may be read
-        at any feed."""
+        at any feed.
+
+        ``port_sites`` (a `port_sites.PortSitesSession`, opt-in): the run's
+        cache of moved-port solves; the engine is built whole-wire and a trial
+        that moved only one port's position is served from it."""
         z0 = request_z0(req, hints()["target_z0"])
         design_freq, meas_freq = _req_freqs(req)
         builder = _solve_builder(req)
         _apply_plane(builder, req)
-        eng = _make_momwire_engine(req, builder, cancel=cancel)
-        t0 = time.perf_counter()
-        zs = np.asarray(eng.impedance_sweep(list(freqs_mhz)), dtype=np.complex128)
+        if port_sites is None:
+            eng = _make_momwire_engine(req, builder, cancel=cancel)
+            t0 = time.perf_counter()
+            zs = np.asarray(eng.impedance_sweep(list(freqs_mhz)), dtype=np.complex128)
+        else:
+            from ..port_sites import engine_kwargs
+
+            eng = _make_momwire_engine(req, builder, cancel=cancel, **engine_kwargs())
+            t0 = time.perf_counter()
+            zs = port_sites.sweep(eng, list(freqs_mhz))
         solve_ms = (time.perf_counter() - t0) * 1e3
         if zs.ndim == 1:
             zs = zs.reshape(len(freqs_mhz), -1)

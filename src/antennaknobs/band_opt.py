@@ -116,17 +116,29 @@ def fixed_frequency_refusal(builder, freqs_mhz) -> str | None:
     return None if note is None else note["text"]
 
 
-def builder_sweep_fn(builder, factory: Callable, z0: float) -> Callable:
+def builder_sweep_fn(
+    builder, factory: Callable, z0: float, port_sites=None
+) -> Callable:
     """The CLI's ``sweep_fn``: each knob of the request set on ``builder``
     (dotted group leaves through `opt._set_path`, which rebuilds the group
-    rather than mutating the class's defaults), one engine, every band."""
+    rather than mutating the class's defaults), one engine, every band.
+
+    ``port_sites`` (a `port_sites.PortSitesSession`, opt-in, momwire only)
+    builds every engine whole-wire and serves a trial that moved only one
+    port's position from its cache; None is the ordinary rebuild."""
     from .auto_match import tuner_holding_match
 
     def sweep(req: dict, freqs: list[float]) -> dict:
         for k, v in req.items():
             _set_path(builder, k, v)
-        eng = factory(builder)
-        zs = eng.impedance_sweep(list(freqs))
+        if port_sites is None:
+            eng = factory(builder)
+            zs = eng.impedance_sweep(list(freqs))
+        else:
+            from .port_sites import engine_kwargs
+
+            eng = factory(builder, **engine_kwargs())
+            zs = port_sites.sweep(eng, list(freqs))
         tuner = [tuner_holding_match(eng, float(f)) for f in freqs]
         del eng
         return {"zs": zs, "z0_ohms": float(z0), "tuner": tuner}
@@ -162,6 +174,15 @@ def stuck_sentence(k: Mapping) -> str:
     return (
         f"{k['name']} did not move: {why}. Try sweeping it, or an engine that "
         "places loads continuously."
+    )
+
+
+def port_sites_line(ps: Mapping) -> str:
+    """The port-sites tally of a run (`port_sites.PortSitesSession.summary`)."""
+    why = "; ".join(f"{n}x {r}" for r, n in sorted(ps.get("declined", {}).items()))
+    return (
+        f"port sites: {ps['fast']} trials from the cache, {ps['rebuild']} "
+        f"rebuilt, {ps['built']} factorisations" + (f" (rebuilt: {why})" if why else "")
     )
 
 
@@ -219,6 +240,9 @@ def report_lines(res: dict) -> list[str]:
             "optimum may lie outside the range; widen it and run again"
         )
     lines.extend(stuck_sentence(k) for k in res.get("stuck") or [])
+    ps = res.get("port_sites")
+    if ps is not None:
+        lines.append(port_sites_line(ps))
     if res.get("far_from_match"):
         lines.append(
             "no band is near a match at the answer (worst SWR "
