@@ -65,6 +65,107 @@ SCRIPT = "\n".join(
 TEXT = _with_sliders(_ssn(SCRIPT), H_len=str(LEN), Cap_F="83p", Cap_Pct="37.77")
 
 
+# --- the same antenna in a station, as a full-station file is saved ----------
+#
+# Seven wires and 302 segments: the flat top, its lead, and five parasitic
+# counterpoise wires, one carrying a fixed coil. Between the antenna and the
+# GENERATOR a station chain SimNEC style: an S block (a choke), a coax run,
+# a second S block (an unun) and a second coax run, the two .s2p files stored
+# in the .ssn's FILEARCHIVE (gzip, then base64), as SimNEC saves them.
+
+
+def _s2p(s11, s21, s22) -> str:
+    """A synthetic 2-port Touchstone file, RI, 50 ohm."""
+    rows = []
+    for k, f in enumerate((6.9, 7.0, 7.1, 7.2, 7.3)):
+        d = 0.01 * k
+        a, b, c = s11 + d, s21 * (1 - d), s22 - d
+        rows.append(
+            f"{f} {a.real} {a.imag} {b.real} {b.imag} {b.real} {b.imag} "
+            f"{c.real} {c.imag}"
+        )
+    return "\n".join(["! invented", "# MHz S RI R 50", *rows])
+
+
+def _stored(name: str, text: str) -> tuple[str, str]:
+    import base64
+    import gzip
+
+    b64 = base64.b64encode(gzip.compress(text.encode())).decode()
+    return name, "\n".join(b64[i : i + 76] for i in range(0, len(b64), 76))
+
+
+def _station_ssn(script: str) -> str:
+    import xml.etree.ElementTree as ET
+
+    root = ET.Element("SimNEC1p0")
+    top = ET.SubElement(root, "SmithChartCircuit")
+    fa = ET.SubElement(top, "FILEARCHIVE")
+    for name, blob in (
+        _stored(
+            "C:\\SimNEC\\choke.s2p", _s2p(0.06 + 0.04j, 0.95 - 0.18j, -0.02 + 0.1j)
+        ),
+        _stored("C:\\SimNEC\\unun.s2p", _s2p(0.11 - 0.07j, 0.88 + 0.25j, 0.05 - 0.03j)),
+    ):
+        el = ET.SubElement(fa, "element")
+        ET.SubElement(el, "name").text = name
+        ET.SubElement(el, "compressed").text = blob
+    circuit = ET.SubElement(top, "CIRCUIT")
+
+    def element(typ, label, params):
+        el = ET.SubElement(circuit, "element")
+        ET.SubElement(el, "type").text = typ
+        ET.SubElement(el, "sweeperLabel").text = label
+        for n, v in params:
+            p = ET.SubElement(el, "p")
+            ET.SubElement(p, "n").text = n
+            ET.SubElement(p, "v").text = v
+
+    coax = [("Zo", "50"), ("VFnom", "0.66"), ("k1", "0.3"), ("k2", "0.004")]
+    element("LOAD", "L", [("ohms", "1000000000")])
+    element("NETWORK", "A", [("equ", script)])
+    element(
+        "SCATTERING",
+        "S1",
+        [("dir", "2 <> 1"), ("Zref", "50"), ("file", ".\\choke.s2p")],
+    )
+    element("SERIES_TLINE", "T1", [("ft", "35"), *coax])
+    element(
+        "SCATTERING", "S2", [("dir", "2 <> 1"), ("Zref", "50"), ("file", ".\\unun.s2p")]
+    )
+    element("SERIES_TLINE", "T2", [("ft", "60"), *coax])
+    element("GENERATOR", "G", [("MHz", "7.1"), ("Zo", "50")])
+    return ET.tostring(root, encoding="unicode")
+
+
+STATION_SCRIPT = "\n".join(
+    [
+        "//invented flat top in a station",
+        "P1 w2 gnd;",
+        "H_len;",
+        "Cap_F;",
+        "Cap_Pct;",
+        "NECUnits meters;",
+        "NEC2",
+        f"GW 1 {N} 0 -H_len 10 0 0 10 0.00035",
+        "GW 2 9 0 0 10 0 0 8.6 0.00035",
+        *(
+            f"GW {3 + k} 25 -12 {1.5 * k + 1} 1 4 {1.5 * k + 1} 1 0.001"
+            for k in range(5)
+        ),
+        "FR 0 1 0 0 7.1 0",
+        "NECEND",
+        f"$GW_1.JamSegments({N});",
+        "$src = NECSource({w2, gnd}, $GW_1, 100);",
+        "$cap = NECSource(C(Cap_F), $GW_1, Cap_Pct);",
+        "$coil = NECSource(R(0.7) + L(2.2u), $GW_3, 50);",
+    ]
+)
+STATION_TEXT = _with_sliders(
+    _station_ssn(STATION_SCRIPT), H_len=str(LEN), Cap_F="83p", Cap_Pct="37.77"
+)
+
+
 @pytest.fixture(scope="module")
 def design():
     return builder_from_text("invented_flat_top.ssn", TEXT)
