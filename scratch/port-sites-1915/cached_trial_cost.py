@@ -45,7 +45,9 @@ def main():
         sweep({**base, "par_Cap_Pct": p}, FREQS)
         ts.append(time.perf_counter() - t0)
     g0 = time.perf_counter()
-    sweep({**base, "par_Cap_Pct": 40.0}, FREQS, grad_knobs={**base, "par_Cap_Pct": 40.0})
+    sweep(
+        {**base, "par_Cap_Pct": 40.0}, FREQS, grad_knobs={**base, "par_Cap_Pct": 40.0}
+    )
     grad = time.perf_counter() - g0
     assert s.counts["fast"] >= 20, s.summary()
     print(
