@@ -290,3 +290,96 @@ describe("useOptimizer SSE progress (#773 unit 4)", () => {
     expect(result.current.optProgress).toBeNull();
   });
 });
+
+// AK#2292: a run belongs to its design, and to its session's tab. Leaving
+// either and coming back neither aborts the run nor starts another, and a
+// result that lands while another design is shown is written back to its
+// own design's knobs only once that design is shown again.
+describe("useOptimizer across a design or tab switch (AK#2292)", () => {
+  type Props = { geometry: string; active: boolean };
+  function mountSwitchable() {
+    return renderHook(
+      ({ geometry, active }: Props) =>
+        useOptimizer({
+          geometry,
+          currentValues: { length_factor: 1.0 },
+          currentValuesKey: `${geometry}:length_factor=1`,
+          currentSchema: [],
+          backend: "momwire",
+          designFreq: 14.1,
+          measFreq: 14.1,
+          autoSim: true,
+          active,
+          buildRequest: () => ({ geometry }) as SolveRequest,
+          setParamAtPath,
+        }),
+      { initialProps: { geometry: "dipoles.probe", active: true } },
+    );
+  }
+  const settle = () =>
+    act(async () => {
+      vi.advanceTimersByTime(1000);
+      await Promise.resolve();
+      await Promise.resolve();
+    });
+
+  it("a tab switch and back keeps the run in flight, with no second request", async () => {
+    const sse = makeSseReader();
+    fetchMock = vi.fn(async () => sseResponse(sse.reader));
+    vi.stubGlobal("fetch", fetchMock);
+    const { result, rerender } = mountSwitchable();
+    await armAndFire(result);
+    act(() => sse.push("progress", progressFrame(4)));
+    await settle();
+    rerender({ geometry: "dipoles.probe", active: false });
+    act(() => sse.push("progress", progressFrame(9)));
+    await settle();
+    rerender({ geometry: "dipoles.probe", active: true });
+    await settle();
+    expect(fetchMock).toHaveBeenCalledTimes(1);
+    expect(sse.canceled).toBe(false);
+    expect(result.current.optRunning).toBe(true);
+    expect(result.current.optProgress?.n_evals).toBe(9);
+  });
+
+  it("a result landing on another design waits for its own design's knobs", async () => {
+    const sse = makeSseReader();
+    fetchMock = vi.fn(async () => sseResponse(sse.reader));
+    vi.stubGlobal("fetch", fetchMock);
+    const { result, rerender } = mountSwitchable();
+    await armAndFire(result);
+    rerender({ geometry: "loops.other", active: true });
+    await settle();
+    // The other design shows nothing of the run, and Optimize is off there.
+    expect(result.current.optRunning).toBe(false);
+    expect(result.current.optEnabled).toBe(false);
+    act(() => sse.push("progress", progressFrame(5)));
+    act(() => sse.push("result", RESULT));
+    act(() => sse.close());
+    await settle();
+    expect(result.current.optResult).toBeNull();
+    expect(setParamAtPath).not.toHaveBeenCalled();
+    rerender({ geometry: "dipoles.probe", active: true });
+    await settle();
+    expect(result.current.optResult).toEqual(RESULT);
+    expect(result.current.optEnabled).toBe(true);
+    expect(setParamAtPath).toHaveBeenCalledWith(["length_factor"], 0.99);
+    expect(fetchMock).toHaveBeenCalledTimes(1);
+  });
+
+  it("turning Optimize off and on again re-tunes, as it always has", async () => {
+    const sse = makeSseReader();
+    fetchMock = vi.fn(async () => sseResponse(sse.reader));
+    vi.stubGlobal("fetch", fetchMock);
+    const { result } = mountSwitchable();
+    await armAndFire(result);
+    act(() => sse.push("result", RESULT));
+    act(() => sse.close());
+    await settle();
+    act(() => result.current.setOptEnabled(false));
+    await settle();
+    act(() => result.current.setOptEnabled(true));
+    await settle();
+    expect(fetchMock).toHaveBeenCalledTimes(2);
+  });
+});

@@ -1,4 +1,11 @@
-import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import {
+  useCallback,
+  useEffect,
+  useMemo,
+  useRef,
+  useState,
+  type SetStateAction,
+} from "react";
 import type { SolveRequest } from "../../lib/api";
 
 import {
@@ -142,19 +149,55 @@ export function optimizeSpec(
   };
 }
 
+// The empty band lists, shared so a design with none keeps one identity
+// across renders (the memos and effects below take them as deps).
+const NO_BANDS: number[] = [];
+
+/** State kept per design (AK#2292): the value for `geometry`, a setter for
+ *  it, and a setter for any design by key. A run writes its own design's
+ *  slot from its stream whichever design is shown. */
+function useByGeometry<T>(
+  geometry: string,
+  initial: T,
+): [T, (action: SetStateAction<T>) => void, (g: string, action: SetStateAction<T>) => void] {
+  const [byGeom, setByGeom] = useState<Record<string, T>>({});
+  const setFor = useCallback(
+    (g: string, action: SetStateAction<T>) =>
+      setByGeom((prev) => {
+        const old = g in prev ? prev[g] : initial;
+        const next =
+          typeof action === "function" ? (action as (p: T) => T)(old) : action;
+        return Object.is(next, old) ? prev : { ...prev, [g]: next };
+      }),
+    // `initial` is a constant at every call site.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+    [],
+  );
+  const set = useCallback((action: SetStateAction<T>) => setFor(geometry, action), [geometry, setFor]);
+  return [geometry in byGeom ? byGeom[geometry] : initial, set, setFor];
+}
+
 // --- Reactive knob optimiser (POST /optimize) ---
 //
 // The reactive knob optimiser's whole behavior cluster (#642 seam 5b-3):
-// state, the render-time optEnabledRef mirror, the design-load reset, the
-// POST /optimize runner, the fixed-input signature that triggers a re-tune,
-// the pause cue, the per-knob settings helpers and the knob-menu Escape
-// listener. The cluster moves whole so its internal hook order and every
-// literal dep array are unchanged.
+// state, the render-time optEnabledRef mirror, the POST /optimize runner,
+// the fixed-input signature that triggers a re-tune, the pause cue, the
+// per-knob settings helpers and the knob-menu Escape listener.
+//
+// A RUN BELONGS TO ITS DESIGN (AK#2292). Its toggle, band list, progress,
+// result and abort controller are kept per design key, and a design switch
+// neither cancels nor forgets it: the run keeps streaming into its own
+// design's slot while another is shown, and switching back shows its live
+// progress, or its result. A result that lands while another design is
+// shown waits, and is written back to its own knobs when its design is
+// shown again, so it can never land on the wrong design's knobs. A design
+// switch used to abort the run and clear all of it, which lost a long band
+// run the user had come back for.
 //
 // optAbortRef and optEnabledRef come back raw: selectVariant and
 // handleUserParamChange stay in DesignSession and mutate them directly, which
 // is exactly the "the human took over" path, so wrapping them in helpers would
-// change what those call sites can express.
+// change what those call sites can express. Both read the SHOWN design's.
 export function useOptimizer({
   geometry,
   currentValues,
@@ -191,7 +234,7 @@ export function useOptimizer({
 }) {
   // Master enable + objective live in the compact control by meas-freq; per-knob
   // "vary" + extents + step live in each knob's right-click menu (knobOpt).
-  const [optEnabled, setOptEnabled] = useState(false);
+  const [optEnabled, setOptEnabled] = useByGeometry(geometry, false);
   const [optObjective, setOptObjective] = useState<OptObjective>("swr");
   // #1176. OFF by default: the seed is measured neutral-to-slightly-negative
   // from a TUNED start and decisive from a poor one, so it is the user's
@@ -200,12 +243,12 @@ export function useOptimizer({
   // AK#1901: optimise across several bands at once. null = off, and then the
   // request is exactly the single-frequency one; a list = each band's
   // frequency in MHz (SWR at each, minimax). Belongs to the design it was set
-  // on, so the design-load reset clears it.
-  const [optBands, setOptBands] = useState<number[] | null>(null);
+  // on, and is kept per design.
+  const [optBands, setOptBands] = useByGeometry<number[] | null>(geometry, null);
   // The bands ticked to show on the Smith chart while a knob turns: each a
   // live solve of its own per knob change, so none is shown until asked.
   // Only the ticked bands still in the list count (`optBandsLive`).
-  const [optBandsShown, setOptBandsShown] = useState<number[]>([]);
+  const [optBandsShown, setOptBandsShown] = useByGeometry<number[]>(geometry, NO_BANDS);
   const optBandsLive = useMemo(
     () => (optBands ? optBands.filter((f) => optBandsShown.includes(f)) : []),
     [optBands, optBandsShown],
@@ -214,7 +257,7 @@ export function useOptimizer({
   const [optMeanWeight, setOptMeanWeight] = useState<number>(DEFAULT_MEAN_WEIGHT);
   // A kept run's form (#1921): read only while the band list is still its
   // frequencies (`formFor`), so an edit to Bands drops it by itself.
-  const [optBandForm, setOptBandForm] = useState<BandForm | null>(null);
+  const [optBandForm, setOptBandForm] = useByGeometry<BandForm | null>(geometry, null);
   const optForm = formFor(optBandForm, optBands);
   const [knobOpt, setKnobOpt] = useState<Record<string, Record<string, KnobOpt>>>({});
   // Open knob context menu: which param + anchor position, and the design it
@@ -239,40 +282,63 @@ export function useOptimizer({
       setKnobMenuAt(m ? { ...m, geometry } : null),
     [geometry],
   );
-  const [optRunning, setOptRunning] = useState(false);
-  const [optResult, setOptResult] = useState<OptimizeResult | null>(null);
+  // The run's own state, per design (AK#2292): each `...For` setter writes
+  // the slot of the design a run belongs to, whichever is shown.
+  const [optRunning, , setOptRunningFor] = useByGeometry(geometry, false);
+  const [optResult, setOptResult, setOptResultFor] = useByGeometry<OptimizeResult | null>(
+    geometry,
+    null,
+  );
+  // A result that landed while another design was shown, written back when
+  // its own design is shown again.
+  const [optPendingResult, setOptPendingResult, setOptPendingResultFor] =
+    useByGeometry<OptimizeResult | null>(geometry, null);
   // Latest `progress` frame of the in-flight run; reset to null at the start
   // of every runOptimize call so a stale frame never outlives its run.
-  const [optProgress, setOptProgress] = useState<OptProgress | null>(null);
+  const [optProgress, , setOptProgressFor] = useByGeometry<OptProgress | null>(geometry, null);
   // A run the user stopped early (Optimize off mid-run) that had found a
   // better point than it started from: the "keep best so far" prompt.
-  const [optStopped, setOptStopped] = useState<OptStopped | null>(null);
-  // The run's starting objective: its first frame's, the warm start's solve.
-  const startObjectiveRef = useRef<number | null>(null);
+  const [optStopped, setOptStopped, setOptStoppedFor] = useByGeometry<OptStopped | null>(
+    geometry,
+    null,
+  );
+  // The shown design, for a run's stream to tell whether its design is the
+  // one on screen when its result lands.
+  const geometryRef = useRef(geometry);
+  // eslint-disable-next-line react-hooks/refs
+  geometryRef.current = geometry; // mirror latest for the runs in flight
+  // Each design's run starting objective: its first frame's, the warm
+  // start's solve.
+  const startObjectiveByGeom = useRef(new Map<string, number | null>());
   // Frame-to-frame arrival interval (#1007). The interactive `rtt` is one
   // request/response pair on the /ws channel, which the optimiser never
   // touches, so it has no exact analogue mid-run — but the gap between
   // progress frames is what the user is actually waiting through, and it
   // carries the same network and queueing the interactive number does. It is a
   // DIFFERENT quantity and the readout labels it as one.
-  const [optFrameMs, setOptFrameMs] = useState<number | null>(null);
-  const lastFrameAtRef = useRef<number | null>(null);
-  const [optError, setOptError] = useState<string | null>(null);
+  const [optFrameMs, , setOptFrameMsFor] = useByGeometry<number | null>(geometry, null);
+  const [optError, , setOptErrorFor] = useByGeometry<string | null>(geometry, null);
   // A band run's live markers on the Smith chart (AK 0.97.1): each band's
   // last few impedances, from every progress frame. They outlive the run —
   // the final positions stay until the next edit — and the next run starts
   // them afresh.
-  const [optBandMarks, setOptBandMarks] = useState<BandMarks | null>(null);
+  const [optBandMarks, setOptBandMarks, setOptBandMarksFor] = useByGeometry<BandMarks | null>(
+    geometry,
+    null,
+  );
   // The last run's answer, the values it replaces and the bag it leaves. A
   // bag on the way there — every answered knob at its old value or its new
   // one, nothing else moved — is the run's own write-back (whole or knob by
   // knob), not an edit, so it must not clear the markers. Once the write-back
   // has landed (`done`), only that exact bag is.
+  // Kept for the shown design only: a write-back happens only while its
+  // design is shown, and it names that design, so another never reads it.
   const writtenBackRef = useRef<{
     params: Record<string, number | string | boolean>;
     before: Record<string, unknown>;
     key: string;
     done: boolean;
+    geometry: string;
   } | null>(null);
   // The run's pace (AK 0.97.1): wall time since it started over the points
   // it has solved (`n_solves`; a memo hit costs nothing and is not counted).
@@ -280,12 +346,11 @@ export function useOptimizer({
   // repeats the last solve's `solve_ms`, and the wall time also carries the
   // lane and network a hosted run waits through. No ETA: how many points a
   // run needs is decided by when it converges, not known up front.
-  const [optPaceMs, setOptPaceMs] = useState<number | null>(null);
-  const runStartedAtRef = useRef(0);
+  const [optPaceMs, , setOptPaceMsFor] = useByGeometry<number | null>(geometry, null);
   // The run in flight replaced one that had not finished (AK#1912): a newer
   // input superseded it. Said on the readout ("restarted") rather than
   // dropping the old run silently.
-  const [optRestarted, setOptRestarted] = useState(false);
+  const [optRestarted, , setOptRestartedFor] = useByGeometry(geometry, false);
   // The Optimize gear menu is open (AK 0.97.1). Optimize is OFF while its
   // settings are edited: each edit in the menu (a band, the balance, Zo, the
   // objective) is a new input, and re-tuning on each started a run per edit,
@@ -302,47 +367,48 @@ export function useOptimizer({
   // on), or loading a new design/variant (a brief cue, cleared after a few
   // seconds).
   const [optPausedBy, setOptPausedBy] = useState<OptPause | null>(null);
-  const optAbortRef = useRef<AbortController | null>(null);
-  // Latest optEnabled mirrored into a ref so the design-load reset (effects keyed
-  // on geometry, and selectVariant) can tell whether the optimizer was actually
-  // running — to show the pause cue only then — without taking optEnabled as a
-  // dep (which would re-run the reset on every toggle).
-  const optEnabledRef = useRef(false);
-  // optEnabled mirrored so the design-load reset can tell whether the
-  // optimizer was actually running, without taking it as a dep (#768).
-  // eslint-disable-next-line react-hooks/refs
-  optEnabledRef.current = optEnabled; // mirror latest for the design-load reset
-  // Per-knob settings persist per geometry (knobOpt is keyed by geometry); just
-  // close any open menu / clear the last result / abort any in-flight run when
-  // the antenna changes. The optimizer also *pauses* on a design switch — its
-  // objective and marks belong to the design you left — but this design's marks
-  // are kept (they're keyed by geometry), so returning restores them; only the
-  // running toggle is switched off. Show the cue only if it was actually on.
+  // Each design's run in flight (AK#2292). `optAbortRef` is the SHOWN
+  // design's, which is what every caller of it means: the human took over
+  // the knobs on screen.
+  const abortByGeom = useRef(new Map<string, AbortController | null>());
+  const optAbortRef = useMemo<{ current: AbortController | null }>(
+    () => ({
+      get current() {
+        return abortByGeom.current.get(geometryRef.current) ?? null;
+      },
+      set current(c: AbortController | null) {
+        abortByGeom.current.set(geometryRef.current, c);
+      },
+    }),
+    [],
+  );
+  // A closed tab stops its runs: nothing is left to read them.
   useEffect(() => {
-    optAbortRef.current?.abort();
-    // Design-load reset: clears the optimizer's result/menu and shows the
-    // pause cue. A reset on input change, not a derivable value (#768).
-    // (The knob menu needs no reset here: it is keyed to its design, above.)
-    // eslint-disable-next-line react-hooks/set-state-in-effect
-    setOptResult(null);
-    setOptProgress(null);
-    setOptStopped(null);
-    setOptError(null);
-    setOptBands(null);
-    setOptBandsShown([]);
-    setOptBandForm(null);
-    setOptBandMarks(null);
-    if (optEnabledRef.current) {
-      setOptEnabled(false);
-      setOptPausedBy({ kind: "load" });
-    }
-    // optEnabledRef is read (not a dep) on purpose — see its declaration.
-  }, [geometry]);
+    const runs = abortByGeom.current;
+    return () => {
+      for (const c of runs.values()) c?.abort();
+    };
+  }, []);
+  // The signature each design's last run started at (`optFixedSig`): a
+  // return to the design, or to its tab, with the same inputs re-runs
+  // nothing, so the run in flight or the result on screen stays.
+  const lastRunSig = useRef(new Map<string, string>());
+  // Latest optEnabled mirrored into a ref so a variant load (selectVariant)
+  // can tell whether the optimizer was actually running — to show the pause
+  // cue only then — without taking optEnabled as a dep (#768).
+  const optEnabledRef = useRef(false);
+  // eslint-disable-next-line react-hooks/refs
+  optEnabledRef.current = optEnabled; // mirror latest for a variant load
+  // A design switch keeps every design's run, marks and toggle (all keyed
+  // by design, AK#2292): nothing here is reset or aborted. Optimize stays on
+  // in the design it was turned on in and off in one never turned on, so a
+  // run never starts on a design the user did not ask it of.
 
   // Apply a settled /optimize outcome exactly as before: stash it for the
   // readout, and push every returned param through the normal onChange path
   // (which re-solves). Shared by the streaming `result` event and the
-  // non-streaming JSON body.
+  // non-streaming JSON body. Only ever for the shown design: a result for
+  // another is held (`landed`) until that design is shown.
   function applyOptimizeResult(data: OptimizeResult) {
     setOptResult(data);
     writtenBackRef.current = {
@@ -352,6 +418,7 @@ export function useOptimizer({
       ),
       key: JSON.stringify(layParams(currentValues, data.params)),
       done: false,
+      geometry,
     };
     // A group leaf comes back under its dotted key (`bands.0.length_factor`,
     // AK#1901) and lands at its path; a flat name is the one-element path
@@ -371,6 +438,7 @@ export function useOptimizer({
       ),
       key: JSON.stringify(layParams(currentValues, params)),
       done: false,
+      geometry,
     };
     for (const [name, val] of Object.entries(params)) {
       setParamAtPath(knobPath(name), val);
@@ -390,7 +458,7 @@ export function useOptimizer({
     // The start comes off the frame (the server's, so a dropped first frame
     // cannot lose it), else the first frame this page saw.
     const best = frame?.best;
-    const start = frame?.objective_start ?? startObjectiveRef.current;
+    const start = frame?.objective_start ?? startObjectiveByGeom.current.get(geometry) ?? null;
     if (frame && best && start != null) {
       setOptStopped({
         params: best.params,
@@ -419,28 +487,44 @@ export function useOptimizer({
   // `progress` frames; a server that doesn't stream yet ignores the header
   // and answers with today's plain JSON, which the content-type check below
   // routes to the unchanged single-shot path.
+  //
+  // The run is its design's (AK#2292): everything it writes goes to that
+  // design's slot (`g`), so a design switch mid-run leaves it streaming
+  // there, and its result is written back only to its own knobs.
   async function runOptimize() {
-    const settings = knobOpt[geometry] ?? {};
+    const g = geometry;
+    const settings = knobOpt[g] ?? {};
     const free = Object.entries(settings)
       .filter(([, o]) => o.vary)
       .map(([name, o]) => ({ name, min: o.optMin, max: o.optMax }));
     if (free.length === 0) return;
+    const runs = abortByGeom.current;
     // A controller still set here is a run that has not settled: this one
     // supersedes it.
-    setOptRestarted(optAbortRef.current !== null);
-    optAbortRef.current?.abort();
+    setOptRestartedFor(g, (runs.get(g) ?? null) !== null);
+    runs.get(g)?.abort();
     const ctrl = new AbortController();
-    optAbortRef.current = ctrl;
-    setOptRunning(true);
-    setOptError(null);
-    setOptProgress(null);
-    setOptStopped(null);
-    startObjectiveRef.current = null;
-    setOptBandMarks(null);
-    setOptPaceMs(null);
-    runStartedAtRef.current = performance.now();
-    setOptFrameMs(null);
-    lastFrameAtRef.current = null;
+    runs.set(g, ctrl);
+    setOptRunningFor(g, true);
+    setOptErrorFor(g, null);
+    setOptProgressFor(g, null);
+    setOptStoppedFor(g, null);
+    setOptPendingResultFor(g, null);
+    startObjectiveByGeom.current.set(g, null);
+    setOptBandMarksFor(g, null);
+    setOptPaceMsFor(g, null);
+    const startedAt = performance.now();
+    setOptFrameMsFor(g, null);
+    let lastFrameAt: number | null = null;
+    // The run's answer: written back now when its design is shown, else held
+    // until it is (`optPendingResult`).
+    const landed = (data: OptimizeResult) => {
+      if (geometryRef.current === g) applyOptimizeResult(data);
+      else {
+        setOptResultFor(g, data);
+        setOptPendingResultFor(g, data);
+      }
+    };
     try {
       const resp = await apiFetch("/optimize", {
         method: "POST",
@@ -471,41 +555,53 @@ export function useOptimizer({
           if (event === "progress") {
             {
               const now = performance.now();
-              const prev = lastFrameAtRef.current;
-              lastFrameAtRef.current = now;
-              setOptFrameMs(prev == null ? null : now - prev);
+              const prev = lastFrameAt;
+              lastFrameAt = now;
+              setOptFrameMsFor(g, prev == null ? null : now - prev);
               const frame = JSON.parse(data) as OptProgress;
-              if (startObjectiveRef.current === null && frame.n_evals === 1)
-                startObjectiveRef.current = frame.objective;
-              setOptProgress(frame);
-              setOptBandMarks((prev) => nextBandMarks(prev, frame));
+              if (startObjectiveByGeom.current.get(g) == null && frame.n_evals === 1)
+                startObjectiveByGeom.current.set(g, frame.objective);
+              setOptProgressFor(g, frame);
+              setOptBandMarksFor(g, (prev) => nextBandMarks(prev, frame));
               const solved = frame.n_solves ?? frame.n_evals;
-              if (solved > 0) setOptPaceMs((now - runStartedAtRef.current) / solved);
+              if (solved > 0) setOptPaceMsFor(g, (now - startedAt) / solved);
             }
           } else if (event === "result") {
-            applyOptimizeResult(JSON.parse(data) as OptimizeResult);
+            landed(JSON.parse(data) as OptimizeResult);
           } else if (event === "error") {
-            setOptError(String((JSON.parse(data) as { detail: string }).detail));
+            setOptErrorFor(g, String((JSON.parse(data) as { detail: string }).detail));
           }
         }
       } else {
         const data = await resp.json();
         if (ctrl.signal.aborted) return; // superseded while the body was read
         if (data.error) {
-          setOptError(String(data.error));
+          setOptErrorFor(g, String(data.error));
         } else {
-          applyOptimizeResult(data as OptimizeResult);
+          landed(data as OptimizeResult);
         }
       }
     } catch (e) {
-      if (!ctrl.signal.aborted) setOptError(String(e));
+      if (!ctrl.signal.aborted) setOptErrorFor(g, String(e));
     } finally {
-      if (optAbortRef.current === ctrl) {
-        optAbortRef.current = null;
-        setOptRunning(false);
+      if (runs.get(g) === ctrl) {
+        runs.set(g, null);
+        setOptRunningFor(g, false);
       }
     }
   }
+
+  // A result that landed while another design was shown is written back
+  // when its design is shown again (AK#2292), through the same path a run's
+  // answer always takes, so its knobs, markers and readout follow.
+  useEffect(() => {
+    if (!optPendingResult) return;
+    // Applying the held result is the write-back the run would have made.
+    setOptPendingResult(null);
+    applyOptimizeResult(optPendingResult);
+    // applyOptimizeResult is this render's, for the design now shown.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [optPendingResult]);
 
   // Reactive optimisation. When enabled with >=1 free knob, re-tune shortly
   // after the user pauses on any *fixed* input. The trigger is a signature of
@@ -569,9 +665,17 @@ export function useOptimizer({
   useEffect(() => {
     // Paused (Live off) holds the optimiser too — it drives engine solves, so it
     // must respect the same gate as the main solve. Resuming re-runs this effect
-    // (autoSim is a dep) and re-tunes.
-    if (!optFixedSig || !autoSim || !active) return;
+    // (autoSim is a dep) and re-tunes; so does turning Optimize back on.
+    if (!optFixedSig || !autoSim) {
+      lastRunSig.current.delete(geometry);
+      return;
+    }
+    if (!active) return;
+    // Back on a design (or its tab) whose inputs are the ones its run
+    // started at: that run, in flight or finished, is the answer (AK#2292).
+    if (lastRunSig.current.get(geometry) === optFixedSig) return;
     const t = setTimeout(() => {
+      lastRunSig.current.set(geometry, optFixedSig);
       runOptimize();
     }, 400);
     return () => clearTimeout(t);
@@ -582,10 +686,16 @@ export function useOptimizer({
 
   // An edit after the run (a knob, the band list) leaves the markers
   // describing an antenna that is no longer there: they go. The run's own
-  // write-back is the exception — it is where the markers already are.
+  // write-back is the exception — it is where the markers already are. A
+  // design switch is no edit: each design keeps its own markers (AK#2292).
+  const valuesSeenFor = useRef(geometry);
   useEffect(() => {
+    if (valuesSeenFor.current !== geometry) {
+      valuesSeenFor.current = geometry;
+      return;
+    }
     const written = writtenBackRef.current;
-    if (written) {
+    if (written && written.geometry === geometry) {
       if (currentValuesKey === written.key) {
         written.done = true;
         return;
@@ -604,13 +714,19 @@ export function useOptimizer({
     setOptBandMarks(null);
     // currentValuesKey stands in for currentValues' contents in the deps.
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [currentValuesKey]);
+  }, [currentValuesKey, geometry]);
+  const bandsSeenFor = useRef(geometry);
   useEffect(() => {
+    if (bandsSeenFor.current !== geometry) {
+      bandsSeenFor.current = geometry;
+      return;
+    }
     writtenBackRef.current = null;
     // A reset on input change, not a derivable value (#768).
-    // eslint-disable-next-line react-hooks/set-state-in-effect
     setOptBandMarks(null);
-  }, [optBands]);
+    // setOptBandMarks follows geometry, which is already a dep.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [optBands, geometry]);
 
   // The "loaded a new design" cue is a brief flash: clear it a few seconds
   // after it appears so it doesn't linger while Optimize stays off. A hand
