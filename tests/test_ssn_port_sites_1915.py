@@ -22,6 +22,7 @@ from __future__ import annotations
 
 import contextlib
 import io
+import math
 import sys
 
 import numpy as np
@@ -75,10 +76,12 @@ TEXT = _with_sliders(_ssn(SCRIPT), H_len=str(LEN), Cap_F="83p", Cap_Pct="37.77")
 
 
 def _s2p(s11, s21, s22) -> str:
-    """A synthetic 2-port Touchstone file, RI, 50 ohm."""
+    """A synthetic 2-port Touchstone file, RI, 50 ohm, 801 points over 1-30
+    MHz: the size of a measured choke's sweep."""
     rows = []
-    for k, f in enumerate((6.9, 7.0, 7.1, 7.2, 7.3)):
-        d = 0.01 * k
+    for k in range(801):
+        f = 1.0 + 29.0 * k / 800
+        d = 0.02 * math.sin(f)
         a, b, c = s11 + d, s21 * (1 - d), s22 - d
         rows.append(
             f"{f} {a.real} {a.imag} {b.real} {b.imag} {b.real} {b.imag} "
