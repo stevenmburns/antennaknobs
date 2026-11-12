@@ -1768,7 +1768,8 @@ def _mhos(token: str, where: str, what: str) -> float:
 # Read: numbers with SimNEC's SI suffix (`1.054u`, `30p`, `5m`: `_SI_SUFFIX`),
 # `+ - * / %`, `^` and `**` (both power), unary `+ -`, parentheses, the
 # constants `Pi`, `mpf`, `fpm`, the functions `Sqrt Abs Int Sin Cos Tan Asin
-# Acos Atan`, and names the script sets once as constants. Refused by name:
+# Acos Atan` and the two-argument `Max Min`, and names the script sets once as
+# constants. Refused by name:
 # the `j` operator and complex values, `/_`, `|||`, comparisons and `?:`,
 # member access (`G.MHz`), Anvil's `^T` / `^I` / `^*` suffix operators, any
 # other function, and a result that is not a finite real (Anvil's numbers
@@ -1842,6 +1843,10 @@ _SIM_FUNCS = {
     "Acos": _anvil_arc(math.acos),
     "Atan": _anvil_arc(math.atan),
 }
+# The two-argument functions, spelled as SimNEC's own scripts spell them
+# (`Max(<gain>, -50)` in the AK#1714 fixtures). Read for a clamp on a knob,
+# `P = Max(Min(P, 90), 10);` (AK#2290).
+_SIM_FUNCS2 = {"Max": max, "Min": min}
 # Appendix B: Pi; mpf and fpm are metres per foot and feet per metre, whose
 # definition is the international foot.
 _SIM_CONSTANTS = {"Pi": math.pi, "mpf": 0.3048, "fpm": 1.0 / 0.3048}
@@ -1869,7 +1874,7 @@ _SIM_TOKEN = re.compile(
     r"\s*(?:"
     r"(?P<num>(?:\d+\.?\d*|\.\d+)(?:[eE][+-]?\d+)?)(?P<suf>[A-Za-zµ]\w*)?"
     r"|(?P<name>\$?[A-Za-z_]\w*)"
-    r"|(?P<op>\*\*|/_|[-+*/%^()])"
+    r"|(?P<op>\*\*|/_|[-+*/%^(),])"
     r")"
 )
 _SIM_ADD = ("+", "-")
@@ -1922,7 +1927,8 @@ def _sim_tokens(text: str, what: str) -> list[tuple[str, object]]:
 
 def _sim_parse(text: str, what: str):
     """One SimNEC expression as a tree: ``("num", value)``, ``("name", n)``,
-    ``("const", name)``, ``("call", name, arg)``, ``("neg", x)`` or
+    ``("const", name)``, ``("call", name, arg)``, ``("call2", name, a, b)``
+    (`_SIM_FUNCS2`), ``("neg", x)`` or
     ``("bin", op, a, b)``, grouped by Anvil's precedence under `ANVIL`.
     Anything outside the subset is a ValueError that names the construct."""
     toks = _sim_tokens(text, what)
@@ -1948,20 +1954,30 @@ def _sim_parse(text: str, what: str):
         if kind == "name":
             take()
             if peek() == ("op", "("):
-                spelled = _documented_spelling(_SIM_FUNCS, val)
-                if spelled is not None and _builtin(_SIM_FUNCS, val) is None:
+                funcs = {**_SIM_FUNCS, **_SIM_FUNCS2}
+                spelled = _documented_spelling(funcs, val)
+                if spelled is not None and _builtin(funcs, val) is None:
                     # SimNEC's own refusal: "(maybe: 'Sin' ...Capitalization)".
                     raise ValueError(
                         f"{what}: SimNEC has no function {val}(...); its names "
                         f"are case-sensitive (did you mean {spelled!r}?)"
                     )
-                if _builtin(_SIM_FUNCS, val) is None:
+                if _builtin(funcs, val) is None:
                     raise ValueError(
                         f"{what}: the function {val}(...) is not read here "
-                        f"(this import reads {', '.join(_SIM_FUNCS)})"
+                        f"(this import reads {', '.join(funcs)})"
                     )
                 take()
                 arg = additive()
+                if _builtin(_SIM_FUNCS2, val) is not None:
+                    if peek() != ("op", ","):
+                        raise ValueError(f"{what}: {val}(...) takes two arguments")
+                    take()
+                    arg2 = additive()
+                    if peek() != ("op", ")"):
+                        raise ValueError(f"{what}: {val}(...) takes two arguments")
+                    take()
+                    return ("call2", val, arg, arg2)
                 if peek() != ("op", ")"):
                     raise ValueError(f"{what}: expected ')' after {val}(...")
                 take()
@@ -2049,7 +2065,7 @@ def _sim_names(tree) -> list[str]:
         return _sim_names(tree[2])
     if kind == "neg":
         return _sim_names(tree[1])
-    if kind == "bin":
+    if kind in ("bin", "call2"):
         return _sim_names(tree[2]) + _sim_names(tree[3])
     return []
 
@@ -2099,6 +2115,8 @@ def _sim_eval(tree, env: Mapping[str, float], what: str) -> float:
             return _builtin(_SIM_CONSTANTS, t[1])
         if kind == "neg":
             return -ev(t[1])
+        if kind == "call2":
+            return float(_builtin(_SIM_FUNCS2, t[1])(ev(t[2]), ev(t[3])))
         if kind == "call":
             arg = ev(t[2])
             try:
@@ -2466,6 +2484,12 @@ class _DclConstant:
     # The `_Assign.form` of the constant's statement: "dcl", "tmp", "prm" or
     # "plain" (AK#1734); "" for an input parameter.
     form: str = ""
+    # An input parameter the script clamps in place (`_Script.clamp`,
+    # AK#2290): the clamp's tree, which reads the parameter's input value,
+    # and its statement. The knob is the input; what the script reads after
+    # the clamp is its value.
+    clamp: tuple | None = None
+    clamp_stmt: str = ""
 
 
 @dataclass(frozen=True)
@@ -2499,9 +2523,12 @@ class _DclCards:
         env: dict[str, float] = {}
         for c in self.constants:
             if overrides and c.name in overrides:
-                env[c.name] = float(overrides[c.name])
+                v = float(overrides[c.name])
             else:
-                env[c.name] = _sim_eval(c.tree, env, _constant_what(where, c))
+                v = _sim_eval(c.tree, env, _constant_what(where, c))
+            if c.clamp is not None:
+                v = _sim_eval(c.clamp, {c.name: v}, f"{where}: {c.clamp_stmt!r}")
+            env[c.name] = v
         return env
 
     def jam_counts(
@@ -2625,11 +2652,19 @@ def _dcl_cards(script: _Script, where: str) -> _DclCards:
         assigned.setdefault(a.name, []).append(a)
 
     def constant(name: str) -> _Assign | None:
+        if script.clamp(name) is not None:
+            # An input, clamped in place: `_param_constant` (AK#2290).
+            return None
         hits = [a for a in assigned.get(name, ()) if not a.declares]
         if len(hits) == 1 and hits[0].constant and hits[0].expr:
-            if hits[0].form in ("prm", "plain") and not _readable(hits[0].expr):
+            if hits[0].form in ("prm", "plain") and (
+                not _readable(hits[0].expr)
+                or name in _sim_names(_sim_parse(hits[0].expr, ""))
+            ):
                 # `Trap23 = R2.z;`: a parameter the script sets from what is
                 # no constant (a member, a string) -- an output (AK#1734).
+                # So is one it sets from itself and anything more than
+                # constants (`P = Max(P, Q);`): no clamp on an input.
                 return None
             return hits[0]
         return None
@@ -2733,7 +2768,11 @@ def _dcl_cards(script: _Script, where: str) -> _DclCards:
             if a is None:
                 if not script.input_param(name):
                     return None
-                return _sim_eval(_param_constant(script, name, where).tree, {}, "")
+                return script.clamped(
+                    name,
+                    _sim_eval(_param_constant(script, name, where).tree, {}, ""),
+                    where,
+                )
             if name in seen:
                 return None
             tree = _sim_parse(a.expr, "")
@@ -2771,6 +2810,14 @@ def _dcl_cards(script: _Script, where: str) -> _DclCards:
         tree = _sim_parse(a.expr, f"{where}: {a.stmt!r}")
         for ref in _sim_names(tree):
             if script.input_param(ref) and constant(ref) is None:
+                clamp = script.clamp(ref)
+                if clamp is not None and order[id(clamp)] >= order[id(a)]:
+                    # SimNEC would read the input unclamped here, and the
+                    # knob carries one value (AK#2290).
+                    raise ValueError(
+                        f"{where}: {a.stmt!r} reads {ref!r} before the script "
+                        f"clamps it ({clamp.stmt!r})"
+                    )
                 todo.append(ref)
                 continue
             ra = constant(ref)
@@ -2805,6 +2852,38 @@ def _dcl_cards(script: _Script, where: str) -> _DclCards:
     )
 
 
+def _clamp_bounds(tree, name: str) -> tuple[float, float] | None:
+    """The range a clamp's ``tree`` maps ``name`` into, read statically
+    (AK#2290): ``name`` itself under nested ``Max`` / ``Min`` with constant
+    other arguments, either side infinite when one is open. None for any
+    other shape -- arithmetic on ``name`` included -- and for a clamp that
+    bounds nothing."""
+
+    def walk(t) -> tuple[float, float] | None:
+        if t == ("name", name):
+            return -math.inf, math.inf
+        if t[0] != "call2":
+            return None
+        fn = _builtin(_SIM_FUNCS2, t[1])
+        for inner, other in ((t[2], t[3]), (t[3], t[2])):
+            if _sim_names(other):
+                continue
+            rng = walk(inner)
+            if rng is None:
+                return None
+            try:
+                c = _sim_eval(other, {}, "")
+            except ValueError:
+                return None
+            return fn(rng[0], c), fn(rng[1], c)
+        return None
+
+    rng = walk(tree)
+    if rng is None or rng == (-math.inf, math.inf) or not rng[0] < rng[1]:
+        return None
+    return rng
+
+
 def _param_constant(script: _Script, name: str, where: str) -> _DclConstant:
     """An input parameter of the element (`_Script.input_param`) as the
     constant it is to the cards (AK#1716): its saved ``<v>``, read by the
@@ -2817,8 +2896,22 @@ def _param_constant(script: _Script, name: str, where: str) -> _DclConstant:
     tree = _sim_parse(raw, what)
     if _sim_names(tree):
         raise ValueError(f"{what} is not a number")
-    comment, line, stmt = script.bare.get(name, ("", 0, name))
-    return _DclConstant(name, raw, tree, comment, line, stmt, param=True)
+    clamp = script.clamp(name)
+    if clamp is None:
+        comment, line, stmt = script.bare.get(name, ("", 0, name))
+        return _DclConstant(name, raw, tree, comment, line, stmt, param=True)
+    comment, line, stmt = script.bare.get(name, (clamp.comment, clamp.line, clamp.stmt))
+    return _DclConstant(
+        name,
+        raw,
+        tree,
+        comment,
+        line,
+        stmt,
+        param=True,
+        clamp=_sim_parse(clamp.expr or "", f"{where}: {clamp.stmt!r}"),
+        clamp_stmt=clamp.stmt,
+    )
 
 
 def _classify(
@@ -2910,6 +3003,13 @@ def _classify(
             ) or (None, None, default)
         segment_count = kind == "knob" and bool(closure(c.name) & jam_names)
         declared = (ranges or {}).get(c.name) if kind == "knob" and c.param else None
+        bounds = _clamp_bounds(c.clamp, c.name) if kind == "knob" and c.clamp else None
+        if bounds is not None:
+            # A clamp bounds the knob's window as a declared range does
+            # (AK#2290): a value past it builds as the bound.
+            lo, hi = declared or (-math.inf, math.inf)
+            lo, hi = max(lo, bounds[0]), min(hi, bounds[1])
+            declared = (lo, hi) if lo < hi else declared
         if declared is not None and factor:
             # The file declares it in SI; the knob reads in its unit.
             declared = (declared[0] / factor, declared[1] / factor)
@@ -3362,8 +3462,42 @@ class _Script:
         return (
             not name.startswith("$")
             and name in self.params
-            and not any(a.name == name for a in self.assigns)
+            and (
+                not any(a.name == name for a in self.assigns)
+                or self.clamp(name) is not None
+            )
         )
+
+    def clamp(self, name: str) -> _Assign | None:
+        """The statement that clamps the input parameter ``name`` in place
+        (AK#2290), ``P = Max(Min(P, 90), 10);``, or None: the script's one
+        assignment of a saved parameter, top level, reading only the
+        parameter itself, constants and functions. SimNEC runs it on the
+        slider's value before anything after it reads ``P``, so the slider
+        is still the input, and the clamp a function of it. Reading any
+        other name, the parameter is an output (`input_param`)."""
+        if name.startswith("$") or name not in self.params:
+            return None
+        hits = [a for a in self.assigns if a.name == name]
+        if len(hits) != 1:
+            return None
+        a = hits[0]
+        if not (a.constant and a.expr and a.form in ("prm", "plain")):
+            return None
+        try:
+            names = set(_sim_names(_sim_parse(a.expr, "")))
+        except ValueError:
+            return None
+        return a if names == {name} else None
+
+    def clamped(self, name: str, value: float, where: str) -> float:
+        """The input parameter ``name``'s ``value`` as the script reads it
+        after its `clamp`, if it has one."""
+        a = self.clamp(name)
+        if a is None:
+            return value
+        what = f"{where}: {a.stmt!r}"
+        return _sim_eval(_sim_parse(a.expr or "", what), {name: value}, what)
 
     def _run(
         self, nodes: list[_Node], mode: str, const: bool, why: str | None, where: str
@@ -3542,7 +3676,11 @@ class _Script:
         what = "NECOptions.segmentsPerWavelength"
         if not self.input_param(name):
             raise ValueError(f"{where}: bad {what} value {name!r}")
-        self.seg_per_wl = int(_fnum(self.params[name] or "", where, f"{what} ({name})"))
+        self.seg_per_wl = int(
+            self.clamped(
+                name, _fnum(self.params[name] or "", where, f"{what} ({name})"), where
+            )
+        )
 
     def _apply_loads(self, where: str) -> None:
         """Each NECSource load (an `R` component on a `$GW_<tag>` wire,
@@ -3616,6 +3754,9 @@ class _Script:
         # block or a condition, has no one value, and what uses it refuses.
         sets: dict[str, list[str | None]] = {}
         for a in self.assigns:
+            if self.clamp(a.name) is a:
+                # An input clamped in place reads as its input (`param_value`).
+                continue
             sets.setdefault(a.name, []).append(a.expr if a.constant else None)
         consts = {k: v[0].strip() for k, v in sets.items() if len(v) == 1 and v[0]}
 
@@ -3636,16 +3777,17 @@ class _Script:
             makes it a knob (`_dcl_cards`)."""
             self.load_params.add(name)
             if name in self._overrides:
-                return float(self._overrides[name])
+                return self.clamped(name, float(self._overrides[name]), where)
             raw = (self.params.get(name) or "").strip()
             what = f"{where}: the element's parameter {name} = {raw!r}"
             try:
                 tree = _sim_parse(raw, what)
                 if not raw or _sim_names(tree):
                     raise ValueError(what)
-                return _sim_eval(tree, {}, what)
+                value = _sim_eval(tree, {}, what)
             except ValueError:
                 raise _Unread(f"{name}'s saved value {raw!r} is not a number") from None
+            return self.clamped(name, value, where)
 
         def lookup(name: str):
             if name not in consts:
@@ -3675,6 +3817,8 @@ class _Script:
                     return name
                 if self.input_param(name):
                     param_value(name)
+                    if self.clamp(name) is not None:
+                        return None  # computed by its clamp (AK#2290)
                     saved = (self.params.get(name) or "").strip()
                 elif name in consts and name in self._overrides:
                     saved = consts[name]
