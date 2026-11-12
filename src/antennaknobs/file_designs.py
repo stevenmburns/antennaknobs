@@ -501,7 +501,8 @@ def _ssn_dialect(symbols):
 
 
 def _clip_to_declared(meta, sym, declared):
-    """Bound ``meta``'s range by the range the ``.ssn`` declares (AK#2275).
+    """Bound ``meta``'s range by the range the ``.ssn`` declares (AK#2275),
+    or its script clamps the knob to (AK#2290).
 
     The declared range is a BOUND, not the window: SimNEC fields carry
     generic validity limits such as ``{-10k,10k}`` that would make absurd
@@ -523,7 +524,10 @@ def _clip_to_declared(meta, sym, declared):
         return  # the declared range does not cut the default window
     a, b = max(lo, lo_d), min(hi, hi_d)
     if a >= b:
-        a, b = lo_d, hi_d
+        # A one-sided clamp (AK#2290) bounds one side only: the window keeps
+        # its width against the bound it has.
+        a = lo_d if math.isfinite(lo_d) else hi_d - (hi - lo)
+        b = hi_d if math.isfinite(hi_d) else lo_d + (hi - lo)
     meta.update(min=a, max=b)
 
 
