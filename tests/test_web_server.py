@@ -348,6 +348,7 @@ def test_each_example_has_the_keys_the_frontend_reads(client: TestClient):
         "sweep_policy",
         "variant_ui",
         "notes",
+        "note_lists",
     }
     for ex in payload["examples"]:
         missing = required - set(ex.keys())

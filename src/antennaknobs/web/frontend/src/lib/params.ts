@@ -152,6 +152,10 @@ export type ResultGroupItem = {
 };
 export type ResultSchemaItem = ResultFieldSpec | ResultGroupItem;
 
+/** A list a design note writes inline (AK#2291): `notes` carries
+ *  `<lead>: <items joined by "; ">` verbatim. */
+export type NoteList = { lead: string; items: string[] };
+
 export type ExampleDescriptor = {
   name: string;
   label: string;
@@ -265,6 +269,9 @@ export type ExampleDescriptor = {
    *  designs list the NEC cards the import recorded but did not apply.
    *  null (the norm) renders nothing. */
   notes?: string | null | undefined;
+  /** Lists `notes` carries verbatim as `<lead>: <a>; <b>; ...`, which the
+   *  panel folds to one line (AK#2291). Absent on most designs. */
+  note_lists?: NoteList[] | null | undefined;
   /** Per-variant UI-hint overrides, keyed by variant name. Only variants
    *  whose derived hints differ from the design-level values appear; look up
    *  the active variant and fall back to the top-level field (e.g.

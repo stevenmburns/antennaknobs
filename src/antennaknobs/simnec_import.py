@@ -1332,6 +1332,10 @@ def _series_branch(el: SsnElement, a: str, b: str, files=None):
     return _net.Transformer(a=a, b=b, n=1.0 / n)
 
 
+# The lead of the note's list of directives not read (`SsnCircuit.note_lists`).
+DIRECTIVES_NOT_APPLIED = "NEC-portal directives not applied"
+
+
 @dataclass(frozen=True)
 class SsnCircuit:
     """A parsed ``.ssn``: the antenna block's NEC deck plus the circuit-level
@@ -1398,6 +1402,19 @@ class SsnCircuit:
     # chart markers. ``freq_mhz`` is the last of them (`_gen_mhz`).
     freqs: tuple[float, ...] = ()
 
+    def note_lists(self) -> tuple[dict, ...]:
+        """The lists `skipped_note` writes inline, as the panel folds them
+        (AK#2291): ``{"lead", "items"}``, the note carrying
+        ``<lead>: <item>; <item>; ...`` verbatim."""
+        if not self.ignored_directives:
+            return ()
+        return (
+            {
+                "lead": DIRECTIVES_NOT_APPLIED,
+                "items": [str(s) for s in self.ignored_directives],
+            },
+        )
+
     def skipped_note(self) -> str | None:
         """One human-readable sentence naming what the file carries that the
         import leaves behind — untranslated circuit elements and daemon
@@ -1412,8 +1429,7 @@ class SsnCircuit:
             )
         if self.ignored_directives:
             parts.append(
-                "NEC-portal directives not applied: "
-                + "; ".join(self.ignored_directives)
+                f"{DIRECTIVES_NOT_APPLIED}: " + "; ".join(self.ignored_directives)
             )
         if self.sweep_note:
             parts.append(self.sweep_note)

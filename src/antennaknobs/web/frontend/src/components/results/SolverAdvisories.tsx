@@ -51,6 +51,35 @@ const UNCONDITIONAL = new Set(["RazorFarMeshClass"]);
 
 export type Advisory = { category: string; text: string; summary?: string };
 
+/** Above this many distinct advisories the list folds behind one
+ *  "Advisories (N)" line (AK#2291). */
+const GROUP_FOLD_ABOVE = 3;
+
+function keyOf(a: Advisory): string {
+  return `${a.category}\u0000${a.text}\u0000${a.summary ?? ""}`;
+}
+
+/** Each distinct advisory once, in first-seen order, with how many times the
+ *  list carried it (AK#2291). THIS is the one place duplicates collapse: the
+ *  server serves every advisory it raised, and every advisory list the app
+ *  shows (a solve's, a sweep's, a map's) renders through this component. A
+ *  count keeps every occurrence visible, so nothing is dropped, and React
+ *  never sees two children under one key. */
+function counted(items: readonly Advisory[]): { a: Advisory; n: number }[] {
+  const byKey = new Map<string, { a: Advisory; n: number }>();
+  for (const a of items) {
+    const k = keyOf(a);
+    const hit = byKey.get(k);
+    if (hit) hit.n += 1;
+    else byKey.set(k, { a, n: 1 });
+  }
+  return [...byKey.values()];
+}
+
+function Times({ n }: { n: number }) {
+  return n > 1 ? <span className="solver-advisory-count">{` (×${n})`}</span> : null;
+}
+
 /** One advisory's words: the summary with momwire's text behind a toggle,
  *  or the text alone when there is no summary. */
 function AdvisoryWords({ a }: { a: Advisory }) {
@@ -80,20 +109,36 @@ export function SolverAdvisories({
   className?: string | undefined;
 }) {
   const [showAll, setShowAll] = useState(false);
-  const items = advisories ?? [];
+  const [groupOpen, setGroupOpen] = useState<boolean | null>(null);
+  const items = counted(advisories ?? []);
   if (items.length === 0) return null;
 
-  const shown = items.filter((a) => !UNCONDITIONAL.has(a.category));
-  const collapsed = items.filter((a) => UNCONDITIONAL.has(a.category));
+  const shown = items.filter(({ a }) => !UNCONDITIONAL.has(a.category));
+  const collapsed = items.filter(({ a }) => UNCONDITIONAL.has(a.category));
+  // A long list folds behind one header line (AK#2291); a short one shows
+  // as it always has, with no header to learn to skip.
+  const folds = items.length > GROUP_FOLD_ABOVE;
+  const open = !folds || (groupOpen ?? false);
 
   return (
     <div className={`solver-advisories${className ? " " + className : ""}`}>
-      {shown.map((a) => (
-        <div className="solver-advisory" key={`${a.category}:${a.text}`}>
+      {folds && (
+        <button
+          type="button"
+          className="solver-advisory-toggle solver-advisories-header"
+          aria-expanded={open}
+          onClick={() => setGroupOpen(!open)}
+        >
+          {`Advisories (${items.length})`}
+        </button>
+      )}
+      {open && shown.map(({ a, n }) => (
+        <div className="solver-advisory" key={keyOf(a)}>
           <span className="solver-advisory-tag">Advisory</span> <AdvisoryWords a={a} />
+          <Times n={n} />
         </div>
       ))}
-      {collapsed.length > 0 && (
+      {open && collapsed.length > 0 && (
         <div className="solver-advisory solver-advisory-collapsed">
           <button
             type="button"
@@ -108,9 +153,10 @@ export function SolverAdvisories({
                 } for this backend`}
           </button>
           {showAll &&
-            collapsed.map((a) => (
-              <div className="solver-advisory-body" key={`${a.category}:${a.text}`}>
+            collapsed.map(({ a, n }) => (
+              <div className="solver-advisory-body" key={keyOf(a)}>
                 <AdvisoryWords a={a} />
+                <Times n={n} />
               </div>
             ))}
         </div>

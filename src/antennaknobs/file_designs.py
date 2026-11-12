@@ -153,6 +153,7 @@ def _make_builder(
     c_light_mhz_m=NEC_C_LIGHT_MHZ_M,
     seed_card=None,
     bands=(),
+    note_lists=(),
 ):
     ui: dict = {}
     # AK#1735: the reference impedance the file itself names (a `.ssn`
@@ -199,6 +200,10 @@ def _make_builder(
     note = " ".join(n for n in notes if n)
     if note:
         ui["notes"] = note
+        if note_lists:
+            # The lists the note writes inline, for the panel to fold
+            # (AK#2291); the note stays whole for every other reader.
+            ui["note_lists"] = [dict(n) for n in note_lists]
     params = {"freq": freq, "design_freq": freq}
     if knobs is not None:
         params.update(knobs.default_params())
@@ -1068,6 +1073,7 @@ def _ssn_builder(path: Path, text: str, refine: int = 1, limits=None, dialect=No
         knobs=knobs,
         target_z0=_generator_zo(circuit.gen_zo),
         bands=bands,
+        note_lists=circuit.note_lists(),
     )
 
 

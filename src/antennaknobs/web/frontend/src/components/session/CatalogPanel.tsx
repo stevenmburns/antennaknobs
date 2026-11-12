@@ -5,6 +5,7 @@ import {
 import { GeometryCombobox } from "../params/GeometryCombobox";
 import type { ExampleDescriptor, ExampleGroup } from "../../lib/params";
 import { SolverAdvisories, type Advisory } from "../results/SolverAdvisories";
+import { DesignNote } from "./DesignNote";
 
 export function CatalogPanel({
   geomGroups,
@@ -135,7 +136,7 @@ export function CatalogPanel({
         </div>
       )}
       {currentExample?.notes && (
-        <div className="design-note">{currentExample.notes}</div>
+        <DesignNote notes={currentExample.notes} lists={currentExample.note_lists} />
       )}
       {/* Live advisories from the last solve (#1144), beside the static
           design note rather than somewhere else: this is where a user
