@@ -125,12 +125,16 @@ def builder_sweep_fn(
 
     ``port_sites`` (a `port_sites.PortSitesSession`, opt-in, momwire only)
     builds every engine whole-wire and serves a trial that moved only one
-    port's position from its cache; None is the ordinary rebuild."""
+    port's position from its cache; None is the ordinary rebuild. With a
+    session the sweep also takes ``grad_knobs`` (``{name: value}``) and
+    returns ``dzs``, the knobs' dZ/dknob it could find with no solve
+    (`port_sites.PortSitesSession.gradients`)."""
     from .auto_match import tuner_holding_match
 
-    def sweep(req: dict, freqs: list[float]) -> dict:
+    def sweep(req: dict, freqs: list[float], grad_knobs=None) -> dict:
         for k, v in req.items():
             _set_path(builder, k, v)
+        dzs = None
         if port_sites is None:
             eng = factory(builder)
             zs = eng.impedance_sweep(list(freqs))
@@ -139,10 +143,25 @@ def builder_sweep_fn(
 
             eng = factory(place_loads_exactly(builder), **engine_kwargs())
             zs = port_sites.sweep(eng, list(freqs))
+            if grad_knobs:
+
+                def at(name, value):
+                    b = place_loads_exactly(type(builder)(dict(builder._params)))
+                    _set_path(b, name, value)
+                    return factory(b, **engine_kwargs())
+
+                dzs = port_sites.gradients(at, grad_knobs)
         tuner = [tuner_holding_match(eng, float(f)) for f in freqs]
         del eng
-        return {"zs": zs, "z0_ohms": float(z0), "tuner": tuner}
+        out = {"zs": zs, "z0_ohms": float(z0), "tuner": tuner}
+        if dzs is not None:
+            out["dzs"] = dzs
+        return out
 
+    # optimize_bands asks for gradients only of a sweep that takes them.
+    sweep.takes_grad_knobs = port_sites is not None
+    if port_sites is not None:
+        sweep.gradients_ready = port_sites.ready
     return sweep
 
 

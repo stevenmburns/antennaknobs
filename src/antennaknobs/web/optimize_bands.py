@@ -702,6 +702,54 @@ def optimize_bands(
             zs = zs.reshape(len(freqs), -1)
         return zs, out
 
+    # Knob gradients with no solve (the port-sites path): a sweep that takes
+    # ``grad_knobs`` returns ``dzs``, dZ/dknob per band for the knobs it can
+    # differentiate (a load's position, network values). The searches use
+    # them in place of a finite-difference probe per such knob and keep the
+    # probe, a real solve, for the rest. A sweep without it, the default,
+    # leaves every search exactly as before.
+    grad_ok = bool(getattr(sweep_fn, "takes_grad_knobs", False))
+    dz_memo: dict[tuple, dict[int, dict[str, complex]]] = {}
+    grad_stats = {"points": 0, "fd_probes": 0, "analytic": 0, "probes_per_point": []}
+
+    def dz_at(x) -> dict[int, dict[str, complex]]:
+        """``{band index: {knob: dZ/dknob}}`` at ``x``, every band, for the
+        knobs the sweep differentiates there; one sweep call per point."""
+        nonlocal n_solves
+        x = np.asarray(x, dtype=float)
+        key = tuple(float(v) for v in x)
+        hit = dz_memo.get(key)
+        if hit is not None:
+            return hit
+        ready = getattr(sweep_fn, "gradients_ready", None)
+        if ready is not None and not ready():
+            # Nothing to differentiate with yet (the port-sites cache has not
+            # found its moving port): no sweep, every knob by its probe.
+            return {i: {} for i in range(len(bands))}
+        freqs = sorted({b.freq_mhz for b in bands})
+        req, params = _req_at(x)
+        out = sweep_fn(req, list(freqs), grad_knobs=params)
+        n_solves += 1
+        dzs = out.get("dzs") or {}
+        res = {}
+        for i, b in enumerate(bands):
+            row = freqs.index(b.freq_mhz)
+            res[i] = {
+                nm: complex(np.asarray(d)[row, b.feed])
+                for nm, d in dzs.items()
+                if np.asarray(d).ndim == 2 and b.feed < np.asarray(d).shape[1]
+            }
+        dz_memo[key] = res
+        return res
+
+    def moved_recs(recs, dzu, h):
+        """``recs`` with every band's Z moved by ``h * dzu[i]``, no solve."""
+        out = []
+        for i, r in enumerate(recs):
+            z = complex(r["z_re"], r["z_im"]) + h * dzu[i]
+            out.append(_band_record(bands[i], z, r["z0_ohms"]))
+        return out
+
     def terms(recs) -> tuple[float, float, float]:
         return objective_terms(
             recs,
@@ -953,7 +1001,29 @@ def optimize_bands(
             c0, m0 = comps(r0), mean_of(r0)
             Jc = np.zeros((len(c0), n))
             Jm = np.zeros(n)
+            have = set()
+            if grad_ok:
+                dz = dz_at(to_x(u))
+                grad_stats["points"] += 1
+                for j, nm in enumerate(names):
+                    if not all(nm in dz[i] for i in range(len(bands))):
+                        continue
+                    # dZ/du = dZ/dknob * span; the objective's own
+                    # derivative along it by a central difference in Z, no
+                    # solve (the values are smooth functions of Z).
+                    dzu = [dz[i][nm] * span[j] for i in range(len(bands))]
+                    hz = 1e-7
+                    rp, rm = moved_recs(r0, dzu, hz), moved_recs(r0, dzu, -hz)
+                    Jc[:, j] = (comps(rp) - comps(rm)) / (2 * hz)
+                    Jm[j] = (mean_of(rp) - mean_of(rm)) / (2 * hz)
+                    have.add(j)
+                grad_stats["analytic"] += len(have)
+                grad_stats["probes_per_point"].append(n - len(have))
             for j in range(n):
+                if j in have:
+                    continue
+                if grad_ok:
+                    grad_stats["fd_probes"] += 1
                 h = _FD_U if u[j] + _FD_U <= 1.0 else -_FD_U
                 up = u.copy()
                 up[j] += h
@@ -1087,18 +1157,53 @@ def optimize_bands(
                 ls_seen.append((float(np.sum(xv * xv)), np.clip(u, 0.0, 1.0)))
                 return xv
 
+            def ls_jac(u):
+                """The reactances' Jacobian on the unit cube: Im dZ/du where
+                the sweep differentiates a knob, else the forward difference
+                least_squares would take (a solve), stepped inward at a bound."""
+                u = np.clip(np.asarray(u, float), 0.0, 1.0)
+                x0v = reactances_logged(u)
+                dz = dz_at(to_x(u))
+                grad_stats["points"] += 1
+                J = np.zeros((len(bands), n))
+                for j, nm in enumerate(names):
+                    if all(nm in dz[i] for i in range(len(bands))):
+                        J[:, j] = [
+                            (dz[i][nm] * span[j]).imag for i in range(len(bands))
+                        ]
+                        grad_stats["analytic"] += 1
+                        continue
+                    grad_stats["fd_probes"] += 1
+                    h = _FD_U * 10 if u[j] + _FD_U * 10 <= 1.0 else -_FD_U * 10
+                    up = u.copy()
+                    up[j] += h
+                    J[:, j] = (reactances_logged(up) - x0v) / h
+                return J
+
             cap_now = min(budget, fresh + max(budget // 3, 3 * (n + 1)))
             try:
-                ls = least_squares(
-                    reactances_logged,
-                    u_best,
-                    bounds=(np.zeros(n), np.ones(n)),
-                    method="trf",
-                    diff_step=_FD_U * 10,
-                    x_scale=1.0,
-                    xtol=1e-6,
-                    ftol=1e-4,
-                )
+                if grad_ok:
+                    ls = least_squares(
+                        reactances_logged,
+                        u_best,
+                        jac=ls_jac,
+                        bounds=(np.zeros(n), np.ones(n)),
+                        method="trf",
+                        x_scale=1.0,
+                        xtol=1e-6,
+                        ftol=1e-4,
+                    )
+                else:
+                    ls = least_squares(
+                        reactances_logged,
+                        u_best,
+                        bounds=(np.zeros(n), np.ones(n)),
+                        method="trf",
+                        diff_step=_FD_U * 10,
+                        x_scale=1.0,
+                        xtol=1e-6,
+                        ftol=1e-4,
+                    )
                 u_ls = np.clip(ls.x, 0.0, 1.0)
             except _OutOfEvals:
                 u_ls = min(ls_seen, key=lambda t: t[0])[1] if ls_seen else u_best
@@ -1335,8 +1440,25 @@ def optimize_bands(
         elif any(moved[k] >= _MOVED_U for k in range(n) if k != j):
             stuck.append({"name": nm, "reason": "did_not_move"})
     worst_after = max(r["swr"] for r in recs_end)
+    extra = (
+        {
+            # The searches' gradients (port-sites path): points where one
+            # was taken, knob columns read with no solve, and the
+            # finite-difference probes (a solve each) taken for the rest.
+            "gradients": {
+                "points": grad_stats["points"],
+                "analytic_columns": grad_stats["analytic"],
+                "fd_probes": grad_stats["fd_probes"],
+                # The minimax's probes at each of its gradient points.
+                "probes_per_point": grad_stats["probes_per_point"],
+            }
+        }
+        if grad_ok
+        else {}
+    )
     return json_safe(
         {
+            **extra,
             "objective": "bands",
             "form": form,
             "method": method,

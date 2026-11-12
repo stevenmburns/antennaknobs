@@ -173,3 +173,27 @@ def test_the_cli_optimize_moves_the_position_knob_and_serves_it_fast(tmp_path):
     fast = int(line.split()[2])
     assert fast > 0, line
     assert "par_Cap_Pct did not move" not in text, text
+
+
+@needs_port_sites
+def test_the_deck_s_knob_gradients_match_rebuilds(design):
+    """On the deck: dZ/dCap_Pct (through x = pct/100 * H_len) and dZ/dCap_F
+    (the network) with no solve, against central differences of whole-wire
+    rebuilds, <= 1e-5 relative; H_len, which moves the geometry, has none."""
+    from antennaknobs.band_opt import builder_sweep_fn
+
+    s = port_sites.PortSitesSession()
+    sweep = builder_sweep_fn(
+        design(dict(design.default_params)), MomwireEngine, 50.0, port_sites=s
+    )
+    p = {"par_H_len": LEN, "par_Cap_F": 83.0, "par_Cap_Pct": 41.3}
+    sweep({**p, "par_Cap_Pct": 44.0}, FREQS)
+    dzs = sweep(p, FREQS, grad_knobs=p)["dzs"]
+    assert set(dzs) == {"par_Cap_Pct", "par_Cap_F"}
+    for name, h in {"par_Cap_Pct": 1e-4, "par_Cap_F": 1e-4}.items():
+        fd = (
+            _z(_b(design, True, **{**p, name: p[name] + h}))
+            - _z(_b(design, True, **{**p, name: p[name] - h}))
+        ) / (2 * h)
+        rel = float(np.max(np.abs(dzs[name] - fd) / np.abs(fd)))
+        assert rel <= 1e-5, (name, rel)

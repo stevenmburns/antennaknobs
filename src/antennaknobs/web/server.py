@@ -5037,7 +5037,7 @@ async def optimize_endpoint(req: dict, request: Request):
         if _port_sites.asked(opt.get("port_sites")):
             sites = _port_sites.PortSitesSession()
 
-    def _eval_bands(r: dict, freqs: list[float]) -> dict:
+    def _eval_bands(r: dict, freqs: list[float], grad_knobs=None) -> dict:
         """One multi-band eval (AK#1901): one build solved at every band.
         momwire: the example's one-build sweep. An external engine solves
         each band as its own frequency sweep does, one run per frequency."""
@@ -5048,7 +5048,13 @@ async def optimize_endpoint(req: dict, request: Request):
                 fn = getattr(ex, "momwire_bands", None)
                 if fn is not None:
                     if sites is not None:
-                        return fn(r, freqs, cancel=turn, port_sites=sites)
+                        return fn(
+                            r,
+                            freqs,
+                            cancel=turn,
+                            port_sites=sites,
+                            grad_knobs=grad_knobs,
+                        )
                     return fn(r, freqs, cancel=turn)
                 outs = [
                     ex.momwire_solve({**r, "measurement_freq_mhz": f}, cancel=turn)
@@ -5064,6 +5070,11 @@ async def optimize_endpoint(req: dict, request: Request):
         for o in outs:
             o.pop("_engine_runs", None)
         return bands_from_solves(outs)
+
+    # Knob gradients ride a port-sites run only (`optimize_bands` asks).
+    _eval_bands.takes_grad_knobs = sites is not None
+    if sites is not None:
+        _eval_bands.gradients_ready = sites.ready
 
     def _run(on_progress):
         # THE dispatch, shared by both representations so _shed can never be

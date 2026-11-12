@@ -5920,7 +5920,11 @@ def _make_example(name: str, cls, *, defer_hints: bool = False) -> AntennaExampl
         return re, im
 
     def momwire_bands(
-        req: dict, freqs_mhz: list[float], cancel=None, port_sites=None
+        req: dict,
+        freqs_mhz: list[float],
+        cancel=None,
+        port_sites=None,
+        grad_knobs=None,
     ) -> dict:
         """AK#1901: one multi-band /optimize evaluation -- ONE build of the
         request's design solved at every frequency in ``freqs_mhz``.
@@ -5936,7 +5940,9 @@ def _make_example(name: str, cls, *, defer_hints: bool = False) -> AntennaExampl
 
         ``port_sites`` (a `port_sites.PortSitesSession`, opt-in): the run's
         cache of moved-port solves; the engine is built whole-wire and a trial
-        that moved only one port's position is served from it."""
+        that moved only one port's position is served from it. With it,
+        ``grad_knobs`` (``{name: value}``) adds ``dzs``: each knob's dZ/dknob
+        the session finds with no solve (`PortSitesSession.gradients`)."""
         z0 = request_z0(req, hints()["target_z0"])
         design_freq, meas_freq = _req_freqs(req)
         builder = _solve_builder(req)
@@ -5956,12 +5962,27 @@ def _make_example(name: str, cls, *, defer_hints: bool = False) -> AntennaExampl
         solve_ms = (time.perf_counter() - t0) * 1e3
         if zs.ndim == 1:
             zs = zs.reshape(len(freqs_mhz), -1)
-        return {
+        out = {
             "zs": zs,
             "z0_ohms": z0,
             "tuner": [tuner_holding_match(eng, float(f)) for f in freqs_mhz],
             "solve_ms": solve_ms,
         }
+        if port_sites is not None and grad_knobs:
+            from ..port_sites import engine_kwargs, place_loads_exactly
+            from .optimize import _with_knob
+
+            def at(name, value):
+                r = dict(req)
+                _with_knob(r, name, value)
+                b = _solve_builder(r)
+                _apply_plane(b, r)
+                return _make_momwire_engine(
+                    r, place_loads_exactly(b), cancel=cancel, **engine_kwargs()
+                )
+
+            out["dzs"] = port_sites.gradients(at, grad_knobs)
+        return out
 
     # Static fields served by /examples. Built-ins prime hints() now (eager,
     # unchanged behaviour); user designs ship provisional values — overrides if

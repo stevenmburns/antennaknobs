@@ -139,6 +139,9 @@ class PortSitesSession:
         self.max_entries = int(max_entries)
         self.max_bytes = int(max_bytes)
         self.counts = {"fast": 0, "first": 0, "rebuild": 0, "built": 0}
+        # Knob gradients served by `gradients`, no solve each.
+        self.n_gradients = 0
+        self._last: dict | None = None
         self.declined: Counter = Counter()
         self._cache: OrderedDict = OrderedDict()
         self._moving: int | None = None
@@ -151,6 +154,7 @@ class PortSitesSession:
 
     def sweep(self, eng, freqs) -> np.ndarray:
         freqs = [float(f) for f in freqs]
+        self._last = None
         why = self._ineligible(eng)
         if why is not None:
             return self._rebuild(eng, freqs, why)
@@ -195,17 +199,92 @@ class PortSitesSession:
             return self._rebuild(eng, freqs, f"momwire refused: {exc}")
         x = float(kwargs["feeds"][moving][1])
         zs = np.empty((len(freqs), eng._reducer.n_driven), dtype=np.complex128)
+        sites = []
         for row, (key, wl, f) in enumerate(zip(keys, wls, freqs, strict=True)):
             eng._raise_if_cancelled()
             ps = built.get(key)
             if ps is None:
                 self._cache.move_to_end(key)
                 ps = self._cache[key]
+            sites.append(ps)
             zs[row] = self._z_at(eng, ps, moving, x, wl, f)
         for key, ps in built.items():
             self._put(key, ps)
         self.counts["first" if missing else "fast"] += 1
+        self._last = {
+            "n": n,
+            "moving": moving,
+            "base": base,
+            "x": x,
+            "sites": sites,
+            "wls": wls,
+            "freqs": freqs,
+        }
         return zs
+
+    def ready(self) -> bool:
+        """Whether a trial can be served (and differentiated) from the cache:
+        the moving port is known."""
+        return self._moving is not None
+
+    def gradients(self, at, knobs, rel: float = 1e-6) -> dict:
+        """``{knob: (n_freqs, n_driven) dZ/dknob}`` at the trial `sweep` just
+        served, for each knob of ``knobs`` (``{name: value}``) that moves
+        only the cached port's position and the network; no solve.
+
+        ``at(name, value)`` is an engine (unsolved) with that knob at
+        ``value`` and every other knob at the trial's. Each knob is stepped by
+        ``rel`` of its value either side. When the engines either side keep
+        the trial's base (the solver's inputs less the moving port's
+        arclength), the knob reaches Z only through that arclength x and the
+        network the reducer stamps, so
+
+            dZ/dk = d/dk R_k(Y(x(k))),   Y(x(k ± d)) = Y(x) ± d · x'(k) · dY/dx,
+
+        with dY/dx exact (`PortSites.dy_dx`), x'(k) the arclength's central
+        difference (exact for a percentage of a fixed wire, x = pct/100 · L),
+        and R_k± the two engines' own reducers: a central difference in the
+        knob of a solve-free function, O(d^2). A knob whose either side moves
+        the base (a geometry knob) is left out: the caller differentiates it
+        by a solve. Empty when the trial was not served from a PortSites."""
+        last = getattr(self, "_last", None)
+        if last is None:
+            return {}
+        out = {}
+        moving = last["moving"]
+        for name, v in knobs.items():
+            v = float(v)
+            d = rel * max(abs(v), 1e-3)
+            sides = []
+            for s in (1.0, -1.0):
+                e = at(name, v + s * d)
+                if self._ineligible(e) is not None:
+                    break
+                solver = e._make_solver(wavelength=last["wls"][0])
+                cls, kw = solver._ak_construct
+                del solver
+                if (
+                    len(kw["feeds"]) != last["n"]
+                    or _sig(cls, kw, moving) != last["base"]
+                ):
+                    break
+                sides.append((e, float(kw["feeds"][moving][1])))
+            if len(sides) != 2:
+                continue
+            (ep, xp), (em, xm) = sides
+            dxdk = (xp - xm) / (2.0 * d)
+            rows = []
+            for ps, wl, f in zip(
+                last["sites"], last["wls"], last["freqs"], strict=True
+            ):
+                y = ps.y([last["x"]])
+                dy = ps.dy_dx([last["x"]])[0] * (d * dxdk)
+                zp = self._z_from_y(ep, y + dy, moving, wl, f)
+                zm = self._z_from_y(em, y - dy, moving, wl, f)
+                rows.append((np.asarray(zp) - np.asarray(zm)) / (2.0 * d))
+            out[name] = np.array(rows, dtype=np.complex128)
+        self.n_gradients += len(out)
+        return out
 
     def summary(self) -> dict:
         """The run's tally: trials served from the cache (``fast``), trials
@@ -217,6 +296,7 @@ class PortSitesSession:
             "first": self.counts["first"],
             "rebuild": self.counts["rebuild"],
             "built": self.counts["built"],
+            "gradients": self.n_gradients,
             "declined": dict(self.declined),
             "cached_bytes": self._bytes,
         }
@@ -307,14 +387,18 @@ class PortSitesSession:
             _k, old = self._cache.popitem(last=False)
             self._bytes -= old.nbytes
 
-    @staticmethod
-    def _z_at(eng, ps, moving, x, wl, f):
+    @classmethod
+    def _z_at(cls, eng, ps, moving, x, wl, f):
         """The driven ports' Z at frequency ``f`` with the moving port at
         arclength ``x``: Y in the engine's port order, contracted and reduced
         by the trial's own reducer, as `MomwireEngine.impedance_sweep` does."""
+        return cls._z_from_y(eng, ps.y([x]), moving, wl, f)
+
+    @staticmethod
+    def _z_from_y(eng, y, moving, wl, f):
+        """`_z_at` from a PortSites-ordered Y already in hand."""
         from .network_reduce import poison_singular_sample
 
-        y = ps.y([x])
         # PortSites orders [the other ports..., the moved port]; the engine's
         # order has the moved port at its feed index.
         n = y.shape[0]
