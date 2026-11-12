@@ -19,6 +19,7 @@ and the session's tally. Run on a quiet machine:
     python scratch/port-sites-1915/bench_coil_slide.py
 """
 
+import math
 import time
 from types import MappingProxyType
 
@@ -31,9 +32,11 @@ from antennaknobs.network import Driven, Load, Network, PortOnWire
 from antennaknobs.network import Wire as W
 from antennaknobs.web.optimize_bands import optimize_bands, parse_bands
 
-H = 9.4
-TOP = 12.6
-N_TOP = 41
+H = 7.0
+TOP = 6.0
+N_VERT = 61
+N_TOP = 81
+COIL_H = 5.0e-6
 GROUND = ("finite", 13.0, 0.005)
 BANDS = "5.33,5.36,5.40,5.43"
 START = 37.0
@@ -46,7 +49,7 @@ class CoilL(AntennaBuilder):
 
     def build_wires(self):
         return [
-            W((0.0, 0.0, 0.0), (0.0, 0.0, H), n_seg=31, name="vert"),
+            W((0.0, 0.0, 0.0), (0.0, 0.0, H), n_seg=N_VERT, name="vert"),
             W((0.0, 0.0, H), (TOP, 0.0, H), n_seg=N_TOP, name="top"),
         ]
 
@@ -59,7 +62,7 @@ class CoilL(AntennaBuilder):
                 "feed": PortOnWire("feed", wire="vert", at=0.0),
                 "coil": PortOnWire("coil", wire="top", at=at),
             },
-            branches=[Load(port="coil", r=0.9, l=6.2e-6)],
+            branches=[Load(port="coil", r=0.9, l=COIL_H)],
             sources=[Driven(port="feed")],
         )
 
@@ -75,7 +78,7 @@ def run(label, *, snap=False, whole=False, fast=False):
     t0 = time.perf_counter()
     res = optimize_bands(
         {"coil_pct": START},
-        [{"name": "coil_pct", "min": 15.0, "max": 85.0}],
+        [{"name": "coil_pct", "min": 5.0, "max": 85.0}],
         parse_bands(BANDS),
         sweep_fn=builder_sweep_fn(b, factory, 50.0, port_sites=session),
         max_evals=40,
@@ -86,13 +89,39 @@ def run(label, *, snap=False, whole=False, fast=False):
     print(
         f"{label:8s} trials {res['n_solves']:3d}  total {wall:7.2f} s  "
         f"per trial {1e3 * wall / res['n_solves']:8.2f} ms  "
-        f"coil_pct {pct:.6f} (segment {seg_pos:.3f})  "
+        f"coil_pct {pct:.6f} (segment-centre index {seg_pos:.3f})  "
         f"J {res['objective_before']:.6f} -> {res['objective_after']:.6f}  "
         f"worst SWR {res['worst_swr_after']:.6f}  stuck {res.get('stuck')}"
     )
     if session is not None:
         print("         ", session.summary())
     return res
+
+
+def j_at(pct):
+    """The run's balanced J (w = 0.5) of SWR at ``pct``, whole-wire model."""
+    freqs = [b.freq_mhz for b in parse_bands(BANDS)]
+    b = CoilL(dict(CoilL.default_params, coil_pct=pct))
+    zs = np.asarray(
+        MomwireEngine(b, ground=GROUND, **port_sites.engine_kwargs()).impedance_sweep(
+            freqs
+        )
+    )[:, 0]
+    g = np.abs((zs - 50.0) / (zs + 50.0))
+    swr = (1 + g) / (1 - g)
+    return 0.5 * swr.max() + 0.5 * swr.mean()
+
+
+def neighbours(pct):
+    """J at the continuous answer and at the two segment centres around it."""
+    k = pct / 100.0 * N_TOP + 0.5
+    lo, hi = math.floor(k), math.ceil(k)
+    for label, p in (
+        ("answer", pct),
+        (f"centre {lo}", 100.0 * (lo - 0.5) / N_TOP),
+        (f"centre {hi}", 100.0 * (hi - 0.5) / N_TOP),
+    ):
+        print(f"  {label:10s} {p:9.5f}%  J {j_at(p):.6f}")
 
 
 def oracle(pcts):
@@ -153,4 +182,6 @@ if __name__ == "__main__":
         ("whole", {"whole": True}),
         ("fast", {"fast": True}),
     ):
-        run(label, **kw)
+        res = run(label, **kw)
+        if label == "fast":
+            neighbours(res["params"]["coil_pct"])
