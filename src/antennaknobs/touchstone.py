@@ -180,7 +180,22 @@ class Touchstone:
         )
 
     def y_at(self, f_hz: float) -> np.ndarray:
-        """Admittance matrix (siemens) at ``f_hz`` — what the reducer stamps."""
+        """Admittance matrix (siemens) at ``f_hz`` — what the reducer stamps.
+
+        Kept per frequency on the instance (a copy goes out): an optimize run
+        stamps the same station block at the same band frequencies on every
+        trial, and the conversion is a pure function of the two. A refusal is
+        never kept, so it is raised again at every call."""
+        cache = self.__dict__.setdefault("_y_cache", {})
+        key = float(f_hz)
+        hit = cache.get(key)
+        if hit is None:
+            hit = cache[key] = np.array(self._y_at(f_hz))
+            if len(cache) > 256:
+                cache.pop(next(iter(cache)))
+        return hit.copy()
+
+    def _y_at(self, f_hz: float) -> np.ndarray:
         m = self._interp(f_hz)
         if self.ptype == "Y":
             return m

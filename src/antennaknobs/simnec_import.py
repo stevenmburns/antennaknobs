@@ -1174,6 +1174,15 @@ def _chain_notes(chain) -> tuple[str, ...]:
 _ARCHIVE_CAP = 4 * 1024 * 1024
 
 
+@functools.lru_cache(maxsize=8)
+def _xml_root(text: str):
+    """The ``.ssn``'s XML tree, memoised on its text: a knob re-parse reads
+    the same document again (its overrides apply to the script, not the
+    XML). Read-only by convention: nothing here edits a parsed tree. A
+    malformed document raises ``ET.ParseError`` every time, as before."""
+    return ET.fromstring(text)
+
+
 @functools.lru_cache(maxsize=32)
 def _inflate_stored(blob: str) -> tuple[bytes, bool]:
     """A FILEARCHIVE copy's bytes (base64, then gzip), inflated to at most
@@ -1198,7 +1207,7 @@ def _with_archive(text: str, files, name: str):
     is what makes the circuit whole. A copy that does not decode, or inflates
     past `_ARCHIVE_CAP`, refuses by name."""
     try:
-        root = ET.fromstring(text)
+        root = _xml_root(text)
     except ET.ParseError:
         return files, lambda chain: ()
     stored: dict[str, tuple[str, str]] = {}
@@ -4491,7 +4500,7 @@ def _nec_block(text: str, name: str):
     ``(type, params, element)``, and the index of the one NETWORK element
     whose script holds the NEC2 block. Refuses a file with none or several."""
     try:
-        root = ET.fromstring(text)
+        root = _xml_root(text)
     except ET.ParseError as e:
         # A .ssn is SimNEC's saved circuit, an XML document. Text that does
         # not even start as XML is not a malformed circuit but some other
@@ -5007,7 +5016,7 @@ def parse_ssn_station(text: str, *, name: str = "SimNEC circuit", files=None):
     path beside the circuit (`read_ssn_station` supplies it); a file SimNEC
     stored in the ``.ssn`` itself is the fallback (AK#2215)."""
     try:
-        root = ET.fromstring(text)
+        root = _xml_root(text)
     except ET.ParseError as e:
         raise ValueError(f"{name}: not well-formed .ssn XML ({e})") from None
     files, stored_note = _with_archive(text, files, name)
