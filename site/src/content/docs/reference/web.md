@@ -136,14 +136,14 @@ take the server from everyone else:
 | Segments (after `GM` / `GR` / `GX` copies, and at any knob value) | 3000 |
 | Wires | 200 |
 | One solve (a live solve, a sweep point, an optimizer step) | 60 s |
-| One several-band optimize run | 120 s |
+| One several-band optimize run | 900 s |
 | One sweep (frequency, knob, density or held) | 120 s |
 | Opened-deck solves at once, across all visitors | 1 |
 | New decks opened per minute, per visitor | 10 |
 
 A deck over a structure limit is refused when it opens, naming the card that
 crossed it. A solve that runs past 60 s is stopped and says so. A several-band
-optimize run that reaches 120 s stops and keeps the best point it has solved,
+optimize run that reaches 900 s stops and keeps the best point it has solved,
 saying so under its table. A sweep that reaches 120 s stops at its next point
 and keeps the points it drew, saying *stopped at the time limit (120 s):
 partial*. While another

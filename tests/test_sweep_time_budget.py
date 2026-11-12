@@ -55,6 +55,17 @@ def test_the_default_budget_is_120_s_and_env_overridable(monkeypatch):
     importlib.reload(cost)
 
 
+def test_the_default_optimize_budget_is_900_s_and_env_overridable(monkeypatch):
+    # 120 s until 2026-11-11: too short for a 5-band SimNEC design at a few
+    # seconds a trial on the hosted machine's two cores.
+    monkeypatch.delenv("ANTENNAKNOBS_MAX_OPT_SECONDS", raising=False)
+    assert importlib.reload(cost).MAX_OPT_SECONDS == 900
+    monkeypatch.setenv("ANTENNAKNOBS_MAX_OPT_SECONDS", "7")
+    assert importlib.reload(cost).MAX_OPT_SECONDS == 7
+    monkeypatch.delenv("ANTENNAKNOBS_MAX_OPT_SECONDS")
+    importlib.reload(cost)
+
+
 def _count_solves(monkeypatch) -> list:
     calls: list = []
 
