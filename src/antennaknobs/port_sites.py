@@ -111,7 +111,18 @@ class PortSitesSession:
     ``max_bytes`` bound the cached (base, band) entries, least recently used
     first."""
 
-    def __init__(self, max_entries: int = 64, max_bytes: int = 256 * 2**20) -> None:
+    def __init__(
+        self,
+        max_entries: int = 64,
+        max_bytes: int = 256 * 2**20,
+        build_new_bases: bool = True,
+    ) -> None:
+        # ``build_new_bases=False`` rebuilds a base the run has not solved
+        # before and builds its PortSites only when it comes round again:
+        # cheaper where most new bases never recur (a geometry knob's probes),
+        # dearer where they do. Kept for measuring the two against each other.
+        self.build_new_bases = bool(build_new_bases)
+        self._bases_seen: set = set()
         self.max_entries = int(max_entries)
         self.max_bytes = int(max_bytes)
         self.counts = {"fast": 0, "first": 0, "rebuild": 0, "built": 0}
@@ -144,6 +155,10 @@ class PortSitesSession:
                     "no earlier trial differs from this one in one port's position only",
                 )
             self._moving = moving
+            # The bases the run already solved, with the moving port out.
+            self._bases_seen.update(
+                h[2][moving] for h in self._history[:-1] if h[0] == n
+            )
             self._history.clear()
         base = _sig(cls, kwargs, moving)
         if base is None:
@@ -153,6 +168,10 @@ class PortSitesSession:
         missing = [
             (k, wl) for k, wl in zip(keys, wls, strict=True) if k not in self._cache
         ]
+        if missing and not self.build_new_bases and base not in self._bases_seen:
+            self._bases_seen.add(base)
+            return self._rebuild(eng, freqs, "a base this run had not solved before")
+        self._bases_seen.add(base)
         built = {}
         try:
             for key, wl in missing:

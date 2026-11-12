@@ -313,6 +313,35 @@ def test_slsqp_probes_from_a_base_find_the_position_and_reuse_it(forbid_port_sit
 
 
 @needs_port_sites
+def test_the_repeat_policy_rebuilds_a_new_base_and_builds_it_on_return(
+    forbid_port_sites,
+):
+    """``build_new_bases=False``: a base the run has not solved is rebuilt,
+    and built when it comes round again; base 0 counts as solved by the
+    trials before the moving port was found."""
+    b0 = {"foot_z": 0.4, "coil_pct": 30.0}
+    b1 = {"foot_z": 0.45, "coil_pct": 30.0}
+    seq = [
+        ("rebuild", b0),
+        ("first", {**b0, "coil_pct": 35.0}),  # base 0 solved by trial 1
+        ("rebuild", b1),  # new base: rebuilt
+        ("first", {**b1, "coil_pct": 36.0}),  # came round: built
+        ("fast", {**b1, "coil_pct": 37.0}),
+        ("fast", {**b0, "coil_pct": 38.0}),
+    ]
+    s = port_sites.PortSitesSession(build_new_bases=False)
+    for want, params in seq:
+        before = dict(s.counts)
+        zs = s.sweep(
+            MomwireEngine(_builder(**params), **port_sites.engine_kwargs()), FREQS
+        )
+        moved = [k for k in ("fast", "first", "rebuild") if s.counts[k] != before[k]]
+        assert moved == [want], (want, params, s.summary())
+        assert _rel(zs, _rebuild(forbid_port_sites, **params)) <= RTOL
+    assert s.declined["a base this run had not solved before"] == 1
+
+
+@needs_port_sites
 def test_no_base_is_both_rebuilt_and_built(monkeypatch, forbid_port_sites):
     """A three-knob optimize run (geometry, position, network): builds never
     exceed the distinct (base, band) pairs, no key is built twice, and every
