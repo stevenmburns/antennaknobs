@@ -13,11 +13,14 @@ the wall time of each is printed beside its report.
 
 import contextlib
 import io
+import sys
 import time
 
 from bench_coil_slide import BANDS, CoilL
 
-from antennaknobs import cli
+import antennaknobs.cli  # noqa: F401 — the module; the package re-exports its cli()
+
+cli = sys.modules["antennaknobs.cli"]
 
 SPEC = "invented.coil_l"
 

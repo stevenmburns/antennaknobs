@@ -105,11 +105,13 @@ def run(label, *, snap=False, whole=False, fast=False):
     return res
 
 
-def run3(label, *, fast=False):
+def run3(label, *, fast=False, build_new_bases=True):
     """The flat three-knob run: a geometry knob (the vertical's height), the
     coil's position and a network value (its inductance), whole-wire model."""
     b = CoilL(dict(CoilL.default_params))
-    session = port_sites.PortSitesSession() if fast else None
+    session = (
+        port_sites.PortSitesSession(build_new_bases=build_new_bases) if fast else None
+    )
     kw = {} if fast else port_sites.engine_kwargs()
 
     def factory(builder, **extra):
@@ -230,3 +232,4 @@ if __name__ == "__main__":
     print("optimize, three knobs (geometry, position, network):")
     run3("whole")
     run3("fast", fast=True)
+    run3("repeat", fast=True, build_new_bases=False)
