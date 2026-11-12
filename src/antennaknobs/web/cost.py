@@ -58,9 +58,12 @@ MAX_OPT_EVALS = _env_int("ANTENNAKNOBS_MAX_OPT_EVALS", 500)
 MAX_MAP_POINTS = _env_int("ANTENNAKNOBS_MAX_MAP_POINTS", 1000)
 # Hosted wall-time budget for one multi-band optimize run, in seconds: past
 # it the run answers with the best point solved so far. UR0GT's three-band
-# run takes ~30 s on performance-2x; a design a hundred times slower per
-# solve would otherwise hold the machine's one deck slot for an hour.
-MAX_OPT_SECONDS = _env_int("ANTENNAKNOBS_MAX_OPT_SECONDS", 120)
+# run takes ~30 s on performance-2x; a 5-band SimNEC end-fed at ~3-4 s a
+# trial needs ~200 trials, so 900 s (Steve, 2026-11-11; it was 120 s). An
+# opened deck's run holds the machine's one deck slot for that long, so
+# other visitors' decks answer busy meanwhile; a design a hundred times
+# slower per solve would otherwise hold it for an hour.
+MAX_OPT_SECONDS = _env_int("ANTENNAKNOBS_MAX_OPT_SECONDS", 900)
 # Hosted wall-time budget for one sweep (a frequency sweep, a knob or density
 # sweep, a held sweep, a map), in seconds: past it the run stops at its next
 # point and closes with what it solved, labelled ``stopped: "time"``. The
