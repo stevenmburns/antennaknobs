@@ -21,6 +21,7 @@ Only 1- and 2-port ``S`` / ``Y`` / ``Z`` files are supported (the VNA case);
 
 from __future__ import annotations
 
+import functools
 import logging
 from dataclasses import dataclass
 
@@ -249,6 +250,28 @@ def _nports_from_name(name: str) -> int:
 
 
 def parse_touchstone(
+    text: str, *, nports: int | None = None, name: str = ""
+) -> Touchstone:
+    """Parse Touchstone ``text`` into a :class:`Touchstone`, memoised on the
+    exact text, port count and name (`_parse_touchstone`).
+
+    A station file's ``.s2p`` blocks are re-read on every rebuild of its
+    network, once per knob setting of an optimize run, from the same bytes;
+    the parse is a pure function of them. The arrays of the one shared
+    result are read-only, so no caller can change another's copy.
+    """
+    return _parse_touchstone(text, nports, name)
+
+
+@functools.lru_cache(maxsize=32)
+def _parse_touchstone(text: str, nports: int | None, name: str) -> Touchstone:
+    ts = _parse_touchstone_uncached(text, nports=nports, name=name)
+    ts.freqs.flags.writeable = False
+    ts.params.flags.writeable = False
+    return ts
+
+
+def _parse_touchstone_uncached(
     text: str, *, nports: int | None = None, name: str = ""
 ) -> Touchstone:
     """Parse Touchstone ``text`` into a :class:`Touchstone`.

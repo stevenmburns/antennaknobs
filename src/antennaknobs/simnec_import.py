@@ -1174,6 +1174,20 @@ def _chain_notes(chain) -> tuple[str, ...]:
 _ARCHIVE_CAP = 4 * 1024 * 1024
 
 
+@functools.lru_cache(maxsize=32)
+def _inflate_stored(blob: str) -> tuple[bytes, bool]:
+    """A FILEARCHIVE copy's bytes (base64, then gzip), inflated to at most
+    `_ARCHIVE_CAP` + 1 bytes, and whether more were left: memoised on the
+    stored text, which every re-parse of one file reads again. The cap is
+    applied here, so a bomb inflates no further than before; the caller
+    refuses when the result passes the room the file has left."""
+    raw = "".join(blob.split())
+    raw = base64.b64decode(raw + "=" * (-len(raw) % 4), validate=True)
+    inflate = zlib.decompressobj(16 + zlib.MAX_WBITS)
+    data = inflate.decompress(raw, _ARCHIVE_CAP + 1)
+    return data, len(data) > _ARCHIVE_CAP or bool(inflate.unconsumed_tail)
+
+
 def _with_archive(text: str, files, name: str):
     """``(files, notes)``: a reader for the files a circuit element names
     that falls back to the copy SimNEC stores in the ``.ssn`` itself
@@ -1203,17 +1217,14 @@ def _with_archive(text: str, files, name: str):
         if hit is None:
             return None
         full, blob = hit
+        room = _ARCHIVE_CAP - inflated[0]
         try:
-            raw = "".join(blob.split())
-            raw = base64.b64decode(raw + "=" * (-len(raw) % 4), validate=True)
-            inflate = zlib.decompressobj(16 + zlib.MAX_WBITS)
-            room = _ARCHIVE_CAP - inflated[0]
-            data = inflate.decompress(raw, room + 1)
+            data, past_cap = _inflate_stored(blob)
         except (binascii.Error, zlib.error, ValueError) as e:
             raise ValueError(
                 f"{name}: the copy of {full!r} stored in the file cannot be read ({e})"
             ) from None
-        if len(data) > room or inflate.unconsumed_tail:
+        if past_cap or len(data) > room:
             raise ValueError(
                 f"{name}: the files stored in it come to over {_ARCHIVE_CAP} bytes "
                 f"once {full!r} is inflated"

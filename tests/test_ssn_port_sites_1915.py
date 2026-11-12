@@ -350,3 +350,52 @@ def test_a_cached_trial_builds_no_solver_and_parses_once(design, monkeypatch):
     monkeypatch.setattr(BSplineSolver, "__init__", real_init)
     ref = _z(_b(design, True, **{**p, "par_Cap_Pct": 47.3}))
     assert float(np.max(np.abs(zs - ref) / np.abs(ref))) <= RTOL
+
+
+@needs_port_sites
+def test_the_station_deck_s_cached_trials_match_and_reread_nothing(monkeypatch):
+    """The deck in its station (two stored .s2p blocks, two coax runs, seven
+    wires): a cached trial matches the whole-wire rebuild through the whole
+    chain, builds no solver, and inflates and parses no .s2p again."""
+    from momwire import BSplineSolver
+
+    import antennaknobs.simnec_import as si
+    import antennaknobs.touchstone as ts
+    from antennaknobs.band_opt import builder_sweep_fn
+
+    station = builder_from_text("invented_station.ssn", STATION_TEXT)
+    s = port_sites.PortSitesSession()
+    sweep = builder_sweep_fn(
+        station(dict(station.default_params)), MomwireEngine, 50.0, port_sites=s
+    )
+    p = {"par_H_len": LEN, "par_Cap_F": 83.0}
+    for pct in (30.0, 31.0, 32.0):
+        sweep({**p, "par_Cap_Pct": pct}, FREQS)
+    assert s.ready()
+
+    solvers = [0]
+    real_init = BSplineSolver.__init__
+
+    def init(self, *a, **k):
+        solvers[0] += 1
+        return real_init(self, *a, **k)
+
+    monkeypatch.setattr(BSplineSolver, "__init__", init)
+    misses = (
+        si._inflate_stored.cache_info().misses,
+        ts._parse_touchstone.cache_info().misses,
+    )
+    got = {pct: sweep({**p, "par_Cap_Pct": pct}, FREQS)["zs"] for pct in PCTS}
+    assert s.counts["fast"] >= len(PCTS)
+    assert solvers[0] == 0
+    assert (
+        si._inflate_stored.cache_info().misses,
+        ts._parse_touchstone.cache_info().misses,
+    ) == misses
+    monkeypatch.setattr(BSplineSolver, "__init__", real_init)
+    for pct, zs in got.items():
+        b = port_sites.place_loads_exactly(
+            station({**station.default_params, **p, "par_Cap_Pct": pct})
+        )
+        ref = _z(b)
+        assert float(np.max(np.abs(zs - ref) / np.abs(ref))) <= RTOL

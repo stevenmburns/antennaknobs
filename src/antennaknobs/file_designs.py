@@ -360,7 +360,30 @@ def _topology(deck) -> dict:
     Contacts are compared EXACTLY: `parse_nec` has already snapped every end
     NEC would connect onto one shared coordinate (`_snap_nec_connections`),
     and interior boundaries use the snap's own formula, bit for bit."""
-    wires = deck.wires
+    contacts, overlaps, plane = _topology_of_wires(tuple(deck.wires), bool(deck.ground))
+    return {
+        "wires": len(deck.wires),
+        "contacts": contacts,
+        "overlaps": dict(overlaps),
+        "plane": None if plane is None else dict(plane),
+        "feeds": tuple((f.wire, f.edge, f.current) for f in deck.feeds),
+        # The wires the loads sit on, as a multiset: which wire each load
+        # is on is the topology, their order in the deck is not. A knob
+        # moving a SimNEC NECSource load between a segment centre (an LD
+        # card, read with the deck) and a knot or a place between sites
+        # (added after it) reorders the list without moving any load.
+        "loads": tuple(sorted(ld.wire for ld in deck.loads)),
+        "lines": tuple((t.wire_a, t.wire_b) for t in (*deck.tls, *deck.nts)),
+        "virtual": (deck.virtual_anchors, deck.virtual_segment_wires),
+    }
+
+
+@functools.lru_cache(maxsize=64)
+def _topology_of_wires(wires: tuple, grounded: bool):
+    """`_topology`'s wire part (contacts, overlaps, plane) for the wires
+    ``wires``: a function of them and whether the deck has a ground alone,
+    memoised for the knob re-parses that leave the wires where they were.
+    Read-only: `_overlaps` and the plane map are copied out."""
     at: dict[tuple, list] = {}
     for i, w in enumerate(wires):
         at.setdefault(w.p1, []).append((i, 1))
@@ -379,27 +402,13 @@ def _topology(deck) -> dict:
                 if end[0] != j:
                     contacts.add((end, (j, 0)))
     plane = None
-    if deck.ground:
+    if grounded:
         plane = {}
         for i, w in enumerate(wires):
             tol = _NEC_SMIN * math.dist(w.p1, w.p2) / max(int(w.n_seg), 1)
             for e, p in ((1, w.p1), (2, w.p2)):
                 plane[(i, e)] = 0 if abs(p[2]) <= tol else (1 if p[2] > 0 else -1)
-    return {
-        "wires": len(wires),
-        "contacts": frozenset(contacts),
-        "overlaps": _overlaps(wires),
-        "plane": plane,
-        "feeds": tuple((f.wire, f.edge, f.current) for f in deck.feeds),
-        # The wires the loads sit on, as a multiset: which wire each load
-        # is on is the topology, their order in the deck is not. A knob
-        # moving a SimNEC NECSource load between a segment centre (an LD
-        # card, read with the deck) and a knot or a place between sites
-        # (added after it) reorders the list without moving any load.
-        "loads": tuple(sorted(ld.wire for ld in deck.loads)),
-        "lines": tuple((t.wire_a, t.wire_b) for t in (*deck.tls, *deck.nts)),
-        "virtual": (deck.virtual_anchors, deck.virtual_segment_wires),
-    }
+    return frozenset(contacts), _overlaps(wires), plane
 
 
 def _topology_change(old: dict, new: dict, deck) -> str | None:

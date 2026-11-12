@@ -466,6 +466,36 @@ def _geometry_key(wires) -> tuple:
 
 
 @lru_cache(maxsize=64)
+def _lone_wire_ends_of(wires: tuple) -> frozenset[tuple[int, int]]:
+    """`NecDeck._lone_wire_ends` for the wires ``wires`` (a function of them
+    alone, memoised as `_junction_cuts_of` is)."""
+
+    def tol(w):
+        return _NEC_SMIN * math.dist(w.p1, w.p2) / max(int(w.n_seg), 1)
+
+    # Every authored wire end, keyed so an end is never compared to itself.
+    ends = [
+        (i, knot, end)
+        for i, w in enumerate(wires)
+        for knot, end in ((0, w.p1), (int(w.n_seg), w.p2))
+    ]
+    out = set()
+    for i, knot, end in ends:
+        t = tol(wires[i])
+        shared = any(
+            all(
+                abs(float(o[k]) - float(end[k])) <= max(t, tol(wires[j]))
+                for k in range(3)
+            )
+            for j, jk, o in ends
+            if (j, jk) != (i, knot)
+        )
+        if not shared:
+            out.add((i, knot))
+    return frozenset(out)
+
+
+@lru_cache(maxsize=64)
 def _junction_cuts_of(geom: tuple) -> dict[int, frozenset[int]]:
     """`NecDeck._junction_cuts` for `_geometry_key` ``geom``: a function of the
     geometry alone, so every deck a knob re-evaluates to the same wires (a
@@ -1573,30 +1603,7 @@ class NecDeck:
         it is the row momwire refuses by design (`_lone_end_refusal`)."""
         if not self.network_mode:
             return frozenset()
-
-        def tol(w):
-            return _NEC_SMIN * math.dist(w.p1, w.p2) / max(int(w.n_seg), 1)
-
-        # Every authored wire end, keyed so an end is never compared to itself.
-        ends = [
-            (i, knot, end)
-            for i, w in enumerate(self.wires)
-            for knot, end in ((0, w.p1), (int(w.n_seg), w.p2))
-        ]
-        out = set()
-        for i, knot, end in ends:
-            t = tol(self.wires[i])
-            shared = any(
-                all(
-                    abs(float(o[k]) - float(end[k])) <= max(t, tol(self.wires[j]))
-                    for k in range(3)
-                )
-                for j, jk, o in ends
-                if (j, jk) != (i, knot)
-            )
-            if not shared:
-                out.add((i, knot))
-        return frozenset(out)
+        return _lone_wire_ends_of(tuple(self.wires))
 
     def _lone_end_refusal(self) -> str | None:
         """Why a knot source on this deck cannot be served, or None (AK#1598).
