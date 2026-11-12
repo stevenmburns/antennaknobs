@@ -20,8 +20,10 @@ the antenna's port Y comes from the cache.
 Validity is read off the solver's construction inputs, never off knob names:
 the key is momwire's construction kwargs (`engines.momwire._z_fill_key`, the
 digest the Z cache trusts) with the moving port's arclength taken out and its
-wire kept in. A trial whose inputs differ anywhere else is solved by the
-ordinary rebuild, and the reason is counted (`summary`), as momwire's own
+wire kept in. A trial whose base is not cached builds that base's PortSites
+as its own solve; a trial the path cannot serve at all (the wrong basis, no
+network, the moving port not yet identified, a momwire refusal) is solved by
+the ordinary rebuild, and the reason is counted (`summary`), as momwire's own
 ``pair_reuse`` declines are reported.
 
 The fast path needs the moving wire to stay ONE wire. By default the momwire
@@ -51,6 +53,9 @@ SEED_ENV = "ANTENNAKNOBS_PORT_SITES"
 #: The reason a trial is solved by a rebuild because this momwire has no
 #: ``port_sites``. Tests skip on the same probe.
 NO_PORT_SITES = "the installed momwire has no BSplineSolver.port_sites (momwire#1915)"
+
+# Trials remembered while the moving port is still unknown.
+_HISTORY = 64
 
 
 def available() -> bool:
@@ -90,18 +95,32 @@ class PortSitesSession:
     """One optimize run's cache of `PortSites`, and its tally.
 
     ``sweep(eng, freqs)`` returns what ``eng.impedance_sweep(freqs)`` would
-    (``(n_freqs, n_driven)``), from the cache when the trial differs from a
-    cached one only in one port's arclength on one wire, else from that very
-    call. ``max_entries`` bounds the cached (geometry, frequency) entries,
-    least recently used first."""
+    (``(n_freqs, n_driven)``).
 
-    def __init__(self, max_entries: int = 16) -> None:
+    Until the moving port is known every trial is a rebuild, and each one's
+    per-port base digests are remembered. The first trial whose digest with
+    port i taken out matches ANY earlier trial's, at a different arclength
+    on that port, fixes i as the moving port: a finite-difference probe that
+    stepped the position from a base the run solved earlier does, whatever
+    was solved in between.
+
+    From then on a trial is answered from the cache when its base (the
+    digest without port i) is cached, and otherwise by building that base's
+    `PortSites` per band and answering from it: the build IS the trial's
+    solve, never a rebuild followed by a build. ``max_entries`` and
+    ``max_bytes`` bound the cached (base, band) entries, least recently used
+    first."""
+
+    def __init__(self, max_entries: int = 64, max_bytes: int = 256 * 2**20) -> None:
         self.max_entries = int(max_entries)
-        self.counts = {"fast": 0, "rebuild": 0, "built": 0}
+        self.max_bytes = int(max_bytes)
+        self.counts = {"fast": 0, "first": 0, "rebuild": 0, "built": 0}
         self.declined: Counter = Counter()
         self._cache: OrderedDict = OrderedDict()
         self._moving: int | None = None
-        self._prev: tuple | None = None
+        # (n_feeds, per-feed arclengths, per-feed base digests) per trial
+        # solved before the moving port was known.
+        self._history: list[tuple] = []
         self._bytes = 0
 
     # -- the one entry point ------------------------------------------------
@@ -115,49 +134,55 @@ class PortSitesSession:
         cls, kwargs = solver._ak_construct
         del solver
         n = len(kwargs["feeds"])
-        full = _sig(cls, kwargs)
-        if full is None:
-            return self._rebuild(eng, freqs, "the solver's inputs do not digest")
-        prev, self._prev = self._prev, (full, n, cls, kwargs)
         moving = self._moving
         if moving is None or moving >= n:
-            moving = self._find_moving(prev, full, n, cls, kwargs)
+            moving = self._find_moving(cls, kwargs)
             if moving is None:
                 return self._rebuild(
-                    eng, freqs, "no trial yet differs from the last in one port only"
+                    eng,
+                    freqs,
+                    "no earlier trial differs from this one in one port's position only",
                 )
             self._moving = moving
+            self._history.clear()
         base = _sig(cls, kwargs, moving)
+        if base is None:
+            return self._rebuild(eng, freqs, "the solver's inputs do not digest")
         wls = [eng._wavelength_for(f) for f in freqs]
         keys = [(base, float(wl)) for wl in wls]
-        if not all(k in self._cache for k in keys):
-            seen = prev is not None and prev[1] == n and _sig(prev[2], prev[3], moving)
-            if seen != base:
-                return self._rebuild(
-                    eng, freqs, "knobs other than the port's position moved"
-                )
-            try:
-                for key, wl in zip(keys, wls, strict=True):
-                    if key not in self._cache:
-                        self._put(key, self._build(cls, kwargs, moving, wl))
-            except ValueError as exc:
-                # momwire's refusal, by name: a non-point feed, smoothing, the
-                # sector route, enrichment "auto", a dropped duplicate wire.
-                return self._rebuild(eng, freqs, f"momwire refused: {exc}")
+        missing = [
+            (k, wl) for k, wl in zip(keys, wls, strict=True) if k not in self._cache
+        ]
+        built = {}
+        try:
+            for key, wl in missing:
+                built[key] = self._build(cls, kwargs, moving, wl)
+        except ValueError as exc:
+            # momwire's refusal, by name: a non-point feed, smoothing, the
+            # sector route, enrichment "auto", a dropped duplicate wire.
+            return self._rebuild(eng, freqs, f"momwire refused: {exc}")
         x = float(kwargs["feeds"][moving][1])
         zs = np.empty((len(freqs), eng._reducer.n_driven), dtype=np.complex128)
         for row, (key, wl, f) in enumerate(zip(keys, wls, freqs, strict=True)):
             eng._raise_if_cancelled()
-            self._cache.move_to_end(key)
-            zs[row] = self._z_at(eng, self._cache[key], moving, x, wl, f)
-        self.counts["fast"] += 1
+            ps = built.get(key)
+            if ps is None:
+                self._cache.move_to_end(key)
+                ps = self._cache[key]
+            zs[row] = self._z_at(eng, ps, moving, x, wl, f)
+        for key, ps in built.items():
+            self._put(key, ps)
+        self.counts["first" if missing else "fast"] += 1
         return zs
 
     def summary(self) -> dict:
-        """The run's tally: trials served fast, rebuilt, PortSites built, the
-        reasons a trial was rebuilt (with counts), and the bytes held."""
+        """The run's tally: trials served from the cache (``fast``), trials
+        answered by building their base's PortSites (``first``), trials
+        rebuilt, PortSites built (one per base and band), the reasons a trial
+        was rebuilt (with counts), and the bytes held."""
         return {
             "fast": self.counts["fast"],
+            "first": self.counts["first"],
             "rebuild": self.counts["rebuild"],
             "built": self.counts["built"],
             "declined": dict(self.declined),
@@ -198,18 +223,38 @@ class PortSitesSession:
         self.declined[why] += 1
         return np.asarray(eng.impedance_sweep(list(freqs)), dtype=np.complex128)
 
-    @staticmethod
-    def _find_moving(prev, full, n, cls, kwargs) -> int | None:
-        """The one feed whose arclength alone moved since ``prev``, or None."""
-        if prev is None or prev[1] != n or prev[0] == full:
-            return None
-        hits = [
-            i
-            for i in range(n)
-            if kwargs["feeds"][i][0] == prev[3]["feeds"][i][0]
-            and _sig(cls, kwargs, i) == _sig(prev[2], prev[3], i)
-        ]
-        return hits[0] if len(hits) == 1 else None
+    def _find_moving(self, cls, kwargs) -> int | None:
+        """The feed whose arclength alone differs between this trial and some
+        earlier one, or None; this trial joins the history either way.
+
+        Feed i's base digest keeps its wire and every other input, so an
+        equal digest at a different arclength on i is exactly "only port i
+        moved along its wire". At most one feed can match a given earlier
+        trial: if i's digests agree, every other feed's digest still carries
+        i's differing arclength."""
+        feeds = kwargs["feeds"]
+        n = len(feeds)
+        arcs = tuple(float(f[1]) for f in feeds)
+        sigs = tuple(_sig(cls, kwargs, i) for i in range(n))
+        hit = None
+        for hn, harcs, hsigs in self._history:
+            if hn != n:
+                continue
+            hit = next(
+                (
+                    i
+                    for i in range(n)
+                    if sigs[i] is not None
+                    and sigs[i] == hsigs[i]
+                    and arcs[i] != harcs[i]
+                ),
+                None,
+            )
+            if hit is not None:
+                break
+        self._history.append((n, arcs, sigs))
+        del self._history[:-_HISTORY]
+        return hit
 
     def _build(self, cls, kwargs, moving, wl):
         """A `PortSites` on the moving port's wire, solved with every other
@@ -222,9 +267,11 @@ class PortSitesSession:
         return ps
 
     def _put(self, key, ps) -> None:
+        if ps.nbytes > self.max_bytes:
+            return
         self._cache[key] = ps
         self._bytes += ps.nbytes
-        while len(self._cache) > self.max_entries:
+        while len(self._cache) > self.max_entries or self._bytes > self.max_bytes:
             _k, old = self._cache.popitem(last=False)
             self._bytes -= old.nbytes
 

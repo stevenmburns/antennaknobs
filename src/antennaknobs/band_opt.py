@@ -181,8 +181,9 @@ def port_sites_line(ps: Mapping) -> str:
     """The port-sites tally of a run (`port_sites.PortSitesSession.summary`)."""
     why = "; ".join(f"{n}x {r}" for r, n in sorted(ps.get("declined", {}).items()))
     return (
-        f"port sites: {ps['fast']} trials from the cache, {ps['rebuild']} "
-        f"rebuilt, {ps['built']} factorisations" + (f" (rebuilt: {why})" if why else "")
+        f"port sites: {ps['fast']} trials from the cache, {ps.get('first', 0)} "
+        f"answered by a new factorisation, {ps['rebuild']} rebuilt, "
+        f"{ps['built']} factorisations" + (f" (rebuilt: {why})" if why else "")
     )
 
 

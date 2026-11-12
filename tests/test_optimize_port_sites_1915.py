@@ -50,12 +50,13 @@ class _CoilL(AntennaBuilder):
             "coil_m": None,
             "coil_uh": 4.7,
             "line_m": 6.4,
+            "foot_z": 0.4,
         }
     )
 
     def build_wires(self):
         return [
-            W((0.0, 0.0, 0.4), (0.0, 0.0, H), n_seg=17, name="vert"),
+            W((0.0, 0.0, self.foot_z), (0.0, 0.0, H), n_seg=17, name="vert"),
             W((0.0, 0.0, H), (TOP, 0.0, H), n_seg=23, name="top"),
         ]
 
@@ -110,11 +111,16 @@ def _rebuild(state, **params):
         state["forbid"] = False
 
 
+def _served(session) -> int:
+    """Trials answered by PortSites: from the cache, or by building their base."""
+    return session.counts["fast"] + session.counts["first"]
+
+
 def _fast(session, state, **params):
     eng = MomwireEngine(_builder(**params), **port_sites.engine_kwargs())
-    before = session.counts["fast"]
+    before = _served(session)
     zs = session.sweep(eng, FREQS)
-    return zs, session.counts["fast"] > before
+    return zs, _served(session) > before
 
 
 def _rel(a, b):
@@ -134,8 +140,9 @@ def test_fast_path_matches_the_rebuild_at_off_knot_percentages(forbid_port_sites
         assert fast, s.summary()
         worst = max(worst, _rel(zs, _rebuild(forbid_port_sites, coil_pct=pct)))
     assert worst <= RTOL, worst
-    # One factorisation per band, built once, served four times.
-    assert s.counts == {"fast": 4, "rebuild": 1, "built": len(FREQS)}
+    # One factorisation per band, built by the second trial as its own solve
+    # (no rebuild beside it), then served three more times.
+    assert s.counts == {"fast": 3, "first": 1, "rebuild": 1, "built": len(FREQS)}
     assert forbid_port_sites["calls"] == len(FREQS)
 
 
@@ -161,7 +168,7 @@ def test_the_position_is_read_and_from_the_wire_start(forbid_port_sites):
     _fast(s, forbid_port_sites, coil_pct=50.0)
     near, _ = _fast(s, forbid_port_sites, coil_pct=17.3)
     far, fast = _fast(s, forbid_port_sites, coil_pct=82.7)
-    assert fast and s.counts["fast"] == 2
+    assert fast and _served(s) == 2
     z_near = _rebuild(forbid_port_sites, coil_pct=17.3)
     z_far = _rebuild(forbid_port_sites, coil_pct=82.7)
     assert _rel(z_near, z_far) > 1e-3
@@ -170,16 +177,16 @@ def test_the_position_is_read_and_from_the_wire_start(forbid_port_sites):
 
 
 @needs_port_sites
-def test_another_knob_moving_rebuilds_and_says_why(forbid_port_sites):
-    """A trial that moved a knob besides the position is a rebuild, counted
-    under its reason; the network-only knob (the line) keeps the fast path,
-    because the antenna's solver inputs did not move."""
+def test_another_knob_moving_builds_its_own_base(forbid_port_sites):
+    """The network-only knob (the line) keeps the cached base, because the
+    antenna's solver inputs did not move; a geometry knob gives a new base,
+    which the trial builds as its own solve, and the oracle still holds."""
     s = port_sites.PortSitesSession()
     _fast(s, forbid_port_sites, coil_pct=30.0)
     _fast(s, forbid_port_sites, coil_pct=40.0)
-    assert s.counts["fast"] == 1
+    assert s.counts["first"] == 1 and s.counts["fast"] == 0
     zs, fast = _fast(s, forbid_port_sites, coil_pct=45.0, line_m=7.9)
-    assert fast  # the line is the reducer's, not the antenna's
+    assert fast and s.counts["fast"] == 1  # the line is the reducer's
     assert _rel(zs, _rebuild(forbid_port_sites, coil_pct=45.0, line_m=7.9)) <= RTOL
 
     class _Taller(_CoilL):
@@ -187,13 +194,20 @@ def test_another_knob_moving_rebuilds_and_says_why(forbid_port_sites):
             w = super().build_wires()
             return [w[0]._replace(p0=(0.0, 0.0, 0.3)), w[1]]
 
-    eng = MomwireEngine(
-        _Taller(dict(_CoilL.default_params, coil_pct=45.0)),
-        **port_sites.engine_kwargs(),
-    )
-    s.sweep(eng, FREQS)
-    assert s.counts["rebuild"] == 2
-    assert s.declined["knobs other than the port's position moved"] == 1
+    def taller():
+        return MomwireEngine(
+            _Taller(dict(_CoilL.default_params, coil_pct=45.0)),
+            **port_sites.engine_kwargs(),
+        )
+
+    zs = s.sweep(taller(), FREQS)
+    assert s.counts == {"fast": 1, "first": 2, "rebuild": 1, "built": 2 * len(FREQS)}
+    forbid_port_sites["forbid"] = True
+    try:
+        ref = np.asarray(taller().impedance_sweep(FREQS))
+    finally:
+        forbid_port_sites["forbid"] = False
+    assert _rel(zs, ref) <= RTOL
 
 
 @needs_port_sites
@@ -252,7 +266,87 @@ def test_optimize_bands_takes_the_fast_path_and_counts_it(forbid_port_sites):
     )
     assert s.counts["fast"] >= 5, s.summary()
     assert s.counts["fast"] > s.counts["rebuild"]
-    assert res["n_solves"] == s.counts["fast"] + s.counts["rebuild"]
+    assert res["n_solves"] == _served(s) + s.counts["rebuild"]
+
+
+@needs_port_sites
+def test_slsqp_probes_from_a_base_find_the_position_and_reuse_it(forbid_port_sites):
+    """A finite-difference stencil steps each knob from a common base, so no
+    two consecutive trials differ in the position alone. The geometry knob
+    (``foot_z``), the position (``coil_pct``) and a network value
+    (``line_m``) are probed from base 0, then from base 1, then base 1 and a
+    base-0 probe come round again. The position probe of base 0 fixes the
+    moving port against base 0 (two trials back); after that every trial is
+    answered by PortSites, and every one matches its own rebuild."""
+    b0 = {"foot_z": 0.4, "coil_pct": 30.0, "line_m": 6.4}
+    b1 = {"foot_z": 0.42, "coil_pct": 33.0, "line_m": 6.45}
+    steps = {"foot_z": 0.01, "coil_pct": 0.5, "line_m": 0.1}
+
+    def probe(base, knob):
+        return {**base, knob: base[knob] + steps[knob]}
+
+    seq = [
+        ("rebuild", b0),
+        ("rebuild", probe(b0, "foot_z")),
+        ("first", probe(b0, "coil_pct")),
+        ("fast", probe(b0, "line_m")),
+        ("first", b1),
+        ("first", probe(b1, "foot_z")),
+        ("fast", probe(b1, "coil_pct")),
+        ("fast", probe(b1, "line_m")),
+        ("fast", b1),
+        ("fast", {**b0, "coil_pct": 41.7}),
+    ]
+    s = port_sites.PortSitesSession()
+    worst = 0.0
+    for want, params in seq:
+        before = dict(s.counts)
+        zs = s.sweep(
+            MomwireEngine(_builder(**params), **port_sites.engine_kwargs()), FREQS
+        )
+        moved = [k for k in ("fast", "first", "rebuild") if s.counts[k] != before[k]]
+        assert moved == [want], (want, params, s.summary())
+        worst = max(worst, _rel(zs, _rebuild(forbid_port_sites, **params)))
+    assert worst <= RTOL, worst
+    # Three antenna bases (b0, b1, b1 + foot), one factorisation per band each.
+    assert s.counts["built"] == 3 * len(FREQS)
+
+
+@needs_port_sites
+def test_no_base_is_both_rebuilt_and_built(monkeypatch, forbid_port_sites):
+    """A three-knob optimize run (geometry, position, network): builds never
+    exceed the distinct (base, band) pairs, no key is built twice, and every
+    rebuild is a trial from before the moving port was known, so a trial is
+    never rebuilt AND built."""
+    from antennaknobs.web.optimize_bands import optimize_bands, parse_bands
+
+    built = []
+    real = port_sites.PortSitesSession._build
+
+    def spy(self, cls, kwargs, moving, wl):
+        built.append((port_sites._sig(cls, kwargs, moving), float(wl)))
+        return real(self, cls, kwargs, moving, wl)
+
+    monkeypatch.setattr(port_sites.PortSitesSession, "_build", spy)
+    s = port_sites.PortSitesSession()
+    res = optimize_bands(
+        {"foot_z": 0.4, "coil_pct": 30.0, "line_m": 6.4},
+        [
+            {"name": "foot_z", "min": 0.2, "max": 0.8},
+            {"name": "coil_pct", "min": 10.0, "max": 90.0},
+            {"name": "line_m", "min": 4.0, "max": 9.0},
+        ],
+        parse_bands(",".join(str(f) for f in FREQS)),
+        sweep_fn=builder_sweep_fn(_builder(), MomwireEngine, 50.0, port_sites=s),
+        max_evals=24,
+    )
+    assert len(built) == len(set(built)) == s.counts["built"]
+    assert s.counts["built"] == len(FREQS) * s.counts["first"]
+    assert set(s.declined) == {
+        "no earlier trial differs from this one in one port's position only"
+    }
+    assert res["n_solves"] == _served(s) + s.counts["rebuild"]
+    assert s.counts["fast"] > 0 and s.counts["rebuild"] <= 3, s.summary()
 
 
 def test_off_unless_asked(monkeypatch):
@@ -357,7 +451,12 @@ def test_a_moving_port_ahead_of_the_others_and_walked_backwards(
             forbid_port_sites["forbid"] = False
         worst = max(worst, _rel(zs, ref))
     assert s._moving == 0
-    assert s.counts == {"fast": len(PCTS), "rebuild": 1, "built": len(FREQS)}
+    assert s.counts == {
+        "fast": len(PCTS) - 1,
+        "first": 1,
+        "rebuild": 1,
+        "built": len(FREQS),
+    }
     assert worst <= RTOL, worst
 
 
@@ -377,11 +476,11 @@ def test_the_workbench_seam_serves_moved_coils_from_the_cache(forbid_port_sites)
     s = port_sites.PortSitesSession()
     ex.momwire_bands({"coil_pct": 30.0}, FREQS, port_sites=s)
     out = ex.momwire_bands({"coil_pct": 61.3}, FREQS, port_sites=s)
-    assert s.counts["fast"] == 1
+    assert s.counts["first"] == 1
     forbid_port_sites["forbid"] = True
     ref_s = port_sites.PortSitesSession()
     ref = ex.momwire_bands({"coil_pct": 61.3}, FREQS, port_sites=ref_s)
-    assert ref_s.counts == {"fast": 0, "rebuild": 1, "built": 0}
+    assert ref_s.counts == {"fast": 0, "first": 0, "rebuild": 1, "built": 0}
     assert _rel(np.asarray(out["zs"]), np.asarray(ref["zs"])) <= RTOL
 
 
