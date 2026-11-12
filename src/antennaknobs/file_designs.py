@@ -707,11 +707,17 @@ class _SyKnobs:
         object, untouched, otherwise."""
         if not getattr(builder, "exact_load_places", False):
             return parsed
+        # One placed copy per parse (the `_parse` cache hands back the same
+        # object for the same values), so `build_wires` and `build_network`
+        # of one trial share its translation instead of each redoing it.
+        last = getattr(self, "_placed_last", None)
+        if last is not None and last[0] is parsed:
+            return last[1]
         deck = self.deck_of(parsed)
         placed = dataclasses.replace(deck, exact_load_places=True)
-        if parsed is deck:
-            return placed
-        return dataclasses.replace(parsed, deck=placed)
+        out = placed if parsed is deck else dataclasses.replace(parsed, deck=placed)
+        self._placed_last = (parsed, out)
+        return out
 
     def _checked(self, symvals, check=True):
         parsed = self.reparse(

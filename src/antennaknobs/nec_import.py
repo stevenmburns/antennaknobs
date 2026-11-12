@@ -93,7 +93,7 @@ import math
 import re
 from collections.abc import Collection, Mapping
 from dataclasses import dataclass, replace
-from functools import cached_property
+from functools import cached_property, lru_cache
 from itertools import pairwise
 
 from . import network as _net
@@ -457,6 +457,53 @@ def _knot_point(w, k: int) -> tuple:
     piece end emitted there are the same place."""
     t = k / w.n_seg
     return tuple(a + (b - a) * t for a, b in zip(w.p1, w.p2, strict=True))
+
+
+def _geometry_key(wires) -> tuple:
+    """The exact inputs `_junction_cuts` and `_knot_nodes` read off a wire
+    list: each wire's segment count and end points, bit for bit."""
+    return tuple((w.n_seg, tuple(w.p1), tuple(w.p2)) for w in wires)
+
+
+@lru_cache(maxsize=64)
+def _junction_cuts_of(geom: tuple) -> dict[int, frozenset[int]]:
+    """`NecDeck._junction_cuts` for `_geometry_key` ``geom``: a function of the
+    geometry alone, so every deck a knob re-evaluates to the same wires (a
+    position or a component value moved) shares one walk of its knots, which
+    was most of a re-parse on a long jammed wire. Read-only: callers copy."""
+    owners: dict[tuple, set[int]] = {}
+    for i, (n, p1, p2) in enumerate(geom):
+        for k in range(n + 1):
+            owners.setdefault(_node_key(_knot_point_of(p1, p2, n, k)), set()).add(i)
+    cuts: dict[int, frozenset[int]] = {}
+    for i, (n, p1, p2) in enumerate(geom):
+        shared = {
+            k
+            for k in range(1, n)
+            if len(owners[_node_key(_knot_point_of(p1, p2, n, k))]) > 1
+        }
+        if shared:
+            cuts[i] = frozenset(shared)
+    return cuts
+
+
+@lru_cache(maxsize=64)
+def _knot_nodes_of(geom: tuple, skip: frozenset) -> dict:
+    """`NecDeck._knot_nodes` for `_geometry_key` ``geom`` less the wires in
+    ``skip`` (the virtual anchors). Read-only: callers copy."""
+    out: dict[tuple, list[tuple[int, int]]] = {}
+    for i, (n, p1, p2) in enumerate(geom):
+        if i in skip:
+            continue
+        for k in range(n + 1):
+            out.setdefault(_node_key(_knot_point_of(p1, p2, n, k)), []).append((i, k))
+    return {key: tuple(v) for key, v in out.items()}
+
+
+def _knot_point_of(p1, p2, n: int, k: int) -> tuple:
+    """`_knot_point` on the raw fields: the same expression, the same bits."""
+    t = k / n
+    return tuple(a + (b - a) * t for a, b in zip(p1, p2, strict=True))
 
 
 def _emitted_pieces(n: int, cuts, segs, claims) -> list[tuple[int, int]]:
@@ -2299,13 +2346,9 @@ class NecDeck:
         wires `wire_tuples` emits. The same 1e-9 bucket `_junction_cuts`
         groups by — that is the only notion of coincidence the emitted
         geometry has, and it is not bitwise equality (see `_node_key`)."""
-        out: dict[tuple, list[tuple[int, int]]] = {}
-        for i, w in enumerate(self.wires):
-            if i in self.virtual_anchors:
-                continue
-            for k in range(w.n_seg + 1):
-                out.setdefault(_node_key(_knot_point(w, k)), []).append((i, k))
-        return {key: tuple(v) for key, v in out.items()}
+        return dict(
+            _knot_nodes_of(_geometry_key(self.wires), frozenset(self.virtual_anchors))
+        )
 
     @cached_property
     def _junction_cuts(self) -> dict[int, frozenset[int]]:
@@ -2321,20 +2364,7 @@ class NecDeck:
         graph. The split is lossless: same segments, same boundaries, and
         the KCL junction at the shared node is exactly NEC's connection.
         """
-        owners: dict[tuple, set[int]] = {}
-        for i, w in enumerate(self.wires):
-            for k in range(w.n_seg + 1):
-                owners.setdefault(_node_key(_knot_point(w, k)), set()).add(i)
-        cuts: dict[int, frozenset[int]] = {}
-        for i, w in enumerate(self.wires):
-            shared = {
-                k
-                for k in range(1, w.n_seg)
-                if len(owners[_node_key(_knot_point(w, k))]) > 1
-            }
-            if shared:
-                cuts[i] = frozenset(shared)
-        return cuts
+        return dict(_junction_cuts_of(_geometry_key(self.wires)))
 
     def wire_tuples(self, specs: bool = False):
         """The deck as ``build_wires()`` tuples.
@@ -4079,6 +4109,39 @@ def _gc(card, wires, *, nec45=False):
 
 
 def _snap_nec_connections(wires):
+    """`_snap_wire_ends`, memoised on the wires' exact values: a knob that
+    moves no wire (a load's place, a component value) re-parses to the same
+    wires, and the snap is a pure function of them. The moved ends are
+    replayed onto ``wires`` in place, as the snap itself writes them."""
+    key = tuple(
+        (tag, n_seg, tuple(p1), tuple(p2), rad) for tag, n_seg, p1, p2, rad in wires
+    )
+    moves = _SNAP_MEMO.get(key)
+    if moves is None:
+        before = [(w[2], w[3]) for w in wires]
+        _snap_wire_ends(wires)
+        moves = tuple(
+            (
+                None if w[2] is b1 else tuple(w[2]),
+                None if w[3] is b2 else tuple(w[3]),
+            )
+            for w, (b1, b2) in zip(wires, before, strict=True)
+        )
+        if len(_SNAP_MEMO) >= 64:
+            _SNAP_MEMO.pop(next(iter(_SNAP_MEMO)))
+        _SNAP_MEMO[key] = moves
+        return
+    for w, (m1, m2) in zip(wires, moves, strict=True):
+        if m1 is not None:
+            w[2] = list(m1)
+        if m2 is not None:
+            w[3] = list(m2)
+
+
+_SNAP_MEMO: dict[tuple, tuple] = {}
+
+
+def _snap_wire_ends(wires):
     """Snap wire ends that NEC considers connected onto exact shared
     coordinates, in place.
 

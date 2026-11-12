@@ -137,6 +137,7 @@ from __future__ import annotations
 
 import base64
 import binascii
+import functools
 import math
 import re
 import xml.etree.ElementTree as ET
@@ -3104,6 +3105,18 @@ def _nblock_element(stmt: str) -> tuple[str, str, str] | None:
 
 
 def _script_units(text: str, where: str):
+    """`_script_units_of`, a fresh list each call: the units are a function
+    of the script's text alone, which a slider value never changes, so a
+    re-parse at a new knob value reads them from the memo."""
+    return list(_script_units_of(text, where))
+
+
+@functools.lru_cache(maxsize=32)
+def _script_units_of(text: str, where: str) -> tuple:
+    return tuple(_script_units_uncached(text, where))
+
+
+def _script_units_uncached(text: str, where: str):
     """The NEC-portal script as ``(kind, text, line, comment)`` units, in order
     (AK#2204): ``"card"`` for each card line of a ``NEC2 … NECEND`` block,
     ``"name"`` for a line that is only a ``//`` comment (the first names the
