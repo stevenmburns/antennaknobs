@@ -105,7 +105,7 @@ def run(label, *, snap=False, whole=False, fast=False):
     return res
 
 
-def run3(label, *, fast=False, build_new_bases=True):
+def run3(label, *, fast=False, build_new_bases=True, grads=True, max_evals=60):
     """The flat three-knob run: a geometry knob (the vertical's height), the
     coil's position and a network value (its inductance), whole-wire model."""
     b = CoilL(dict(CoilL.default_params))
@@ -117,6 +117,14 @@ def run3(label, *, fast=False, build_new_bases=True):
     def factory(builder, **extra):
         return MomwireEngine(builder, ground=GROUND, **{**kw, **extra})
 
+    sweep = builder_sweep_fn(b, factory, 50.0, port_sites=session)
+    if not grads:
+        # The same cache, without the knob gradients: every knob probed.
+        inner = sweep
+
+        def sweep(req, freqs):
+            return inner(req, freqs)
+
     t0 = time.perf_counter()
     res = optimize_bands(
         {"h": H, "coil_pct": START, "coil_uh": COIL_H * 1e6},
@@ -126,8 +134,8 @@ def run3(label, *, fast=False, build_new_bases=True):
             {"name": "coil_uh", "min": 3.0, "max": 7.0},
         ],
         parse_bands(BANDS),
-        sweep_fn=builder_sweep_fn(b, factory, 50.0, port_sites=session),
-        max_evals=60,
+        sweep_fn=sweep,
+        max_evals=max_evals,
     )
     wall = time.perf_counter() - t0
     p = res["params"]
@@ -138,7 +146,7 @@ def run3(label, *, fast=False, build_new_bases=True):
         f"J {res['objective_before']:.6f} -> {res['objective_after']:.6f}"
     )
     if session is not None:
-        print("         ", session.summary())
+        print("         ", session.summary(), res.get("gradients"))
     return res
 
 
@@ -230,6 +238,9 @@ if __name__ == "__main__":
         if label == "fast":
             neighbours(res["params"]["coil_pct"])
     print("optimize, three knobs (geometry, position, network):")
-    run3("whole")
-    run3("fast", fast=True)
-    run3("repeat", fast=True, build_new_bases=False)
+    for evals in (60, 150):
+        print(f"  budget {evals}:")
+        run3("whole", max_evals=evals)
+        run3("probes", fast=True, grads=False, max_evals=evals)
+        run3("grads", fast=True, max_evals=evals)
+        run3("repeat", fast=True, build_new_bases=False, max_evals=evals)
