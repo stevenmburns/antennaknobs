@@ -828,6 +828,12 @@ class NecDeck:
     # the count as written: no parity bump, and a port that is not on a site
     # of that count splits the wire at the port (AK#1511) rather than moving.
     pinned_wires: frozenset[int] = frozenset()
+    # Opt-in (the optimizer's port-sites path): on a wire that keeps the #824
+    # cut spelling (`_vertex_wires`), carry each load at its exact place
+    # along its piece instead of cutting its segment out as a 1-segment
+    # piece, so a load's position moves continuously on a mesh that does not
+    # move with it (`_floated_loads`). Off: the spelling every import has.
+    exact_load_places: bool = False
     # The FR card's grid (AK#1682), for the app's sweep: ``("lin", step MHz)``
     # for a linear FR, ``("log", total points)`` for a multiplicative one --
     # the card's own NFRQ, which the log grid hits exactly.
@@ -2172,6 +2178,105 @@ class NecDeck:
     def _vertex_hosts(self) -> dict[tuple[int, int], tuple[int, int, str]]:
         return self._vertex_hosting[0]
 
+    def _floated_port(self, wi: int, pname: str):
+        """The PortOnWire for a load `_floated_loads` carries at its place."""
+        piece, at = self._floated_loads[wi]["ports"][pname]
+        return _net.PortOnWire(pname, wire=None if piece == pname else piece, at=at)
+
+    @cached_property
+    def _floated_loads(self) -> dict[int, dict]:
+        """``exact_load_places``: wire index -> ``{"segs", "cuts", "pieces",
+        "ports"}`` for the loads carried at their exact place on a
+        `_vertex_wires` wire, instead of on a 1-segment piece of their own.
+
+        A load floats when its segment's port is its own (no source, line or
+        NT end shares it). Its place is its percentage (``at``), else its
+        segment's centre. The wire is cut where it always is (junctions,
+        claimed knots) and also one segment in from every claimed knot, on
+        the claim's side, so a claim's piece is never a load's: the cuts do
+        not depend on where the loads sit, which is what keeps the mesh still
+        while a position knob moves. A load that would land on a claim's
+        piece, or on a cut, keeps the 1-segment spelling.
+
+        ``segs``: the segments no longer cut out. ``cuts``: the extra knots.
+        ``pieces``: ``{(first knot, last knot): piece name}``. ``ports``:
+        ``{port name: (piece name, at along the piece)}``."""
+        if not (self.exact_load_places and self.network_mode):
+            return {}
+        shared: set[tuple[int, int]] = set()
+        for f in self.feeds:
+            if not f.edge:
+                shared.add((f.wire, f.seg))
+        for t in (*self.tls, *self.nts):
+            if not t.edge_a:
+                shared.add((t.wire_a, t.seg_a))
+            if not t.edge_b:
+                shared.add((t.wire_b, t.seg_b))
+        plan = self._port_plan
+        claims_on: dict[int, list[tuple[int, str]]] = {}
+        for hw, hk, he in self._vertex_hosts.values():
+            claims_on.setdefault(hw, []).append((hk, he))
+        out: dict[int, dict] = {}
+        for k, ld in enumerate(self.loads, 1):
+            wi = ld.wire
+            if (
+                ld.edge
+                or wi not in self._vertex_wires
+                or wi in self.virtual_anchors
+                or (wi, ld.seg) in shared
+                or plan.get((wi, ld.seg)) != f"load{k}"
+            ):
+                continue
+            n = self.wires[wi].n_seg
+            entry = out.get(wi)
+            if entry is None:
+                claims = claims_on.get(wi, [])
+                cuts = set()
+                for kn, end in claims:
+                    side = kn - 1 if end == "p1" else kn + 1
+                    if 0 < side < n:
+                        cuts.add(side)
+                bounds = sorted(
+                    {0, n}
+                    | set(self._junction_cuts.get(wi, frozenset()))
+                    | {kn for kn, _e in claims}
+                    | cuts
+                )
+                hosted = {
+                    (a, b)
+                    for a, b in pairwise(bounds)
+                    for kn, end in claims
+                    if (end == "p0" and kn == a) or (end == "p1" and kn == b)
+                }
+                entry = out[wi] = {
+                    "segs": set(),
+                    "cuts": frozenset(cuts),
+                    "pieces": {},
+                    "ports": {},
+                    "_bounds": bounds,
+                    "_hosted": hosted,
+                    "_on": {},
+                }
+            x = (ld.at * n) if ld.at is not None else ld.seg - 0.5
+            bounds = entry["_bounds"]
+            piece = next(
+                ((a, b) for a, b in pairwise(bounds) if a + 1e-9 < x < b - 1e-9), None
+            )
+            if piece is None or piece in entry["_hosted"]:
+                continue
+            entry["segs"].add(ld.seg)
+            entry["_on"].setdefault(piece, []).append((f"load{k}", x))
+        for wi, entry in list(out.items()):
+            for (a, b), on in entry.pop("_on").items():
+                name = on[0][0] if len(on) == 1 else f"w{self.wires[wi].tag}@{a}"
+                entry["pieces"][(a, b)] = name
+                for pname, x in on:
+                    entry["ports"][pname] = (name, (x - a) / (b - a))
+            del entry["_bounds"], entry["_hosted"]
+            if not entry["segs"]:
+                del out[wi]
+        return out
+
     @cached_property
     def _vertex_plan(self) -> dict[tuple[int, int], tuple[str, str]]:
         """(wire index, local knot 0..n_seg) → (port name, "p0"|"p1") for
@@ -2333,6 +2438,12 @@ class NecDeck:
                 continue
             per = marks.get(i, {})
             cutset = self._junction_cuts.get(i, frozenset())
+            floated = self._floated_loads.get(i)
+            if floated is not None:
+                # `exact_load_places`: the floated loads are not cut out; the
+                # piece each lands on carries it at its place (network()).
+                per = {s: m for s, m in per.items() if s not in floated["segs"]}
+                cutset = cutset | floated["cuts"]
             # Knot sources (issue #824): wire pieces are cut at each claimed
             # interior knot, and the piece whose authored end lands ON the
             # knot carries the port name — network() then hosts a
@@ -2370,10 +2481,16 @@ class NecDeck:
                         )
                         emit(p_a, p_b, b - a, None, name, spec)
                 continue
-            if not per and not cutset and not vper:
+            if not per and not cutset and not vper and floated is None:
                 emit(w.p1, w.p2, n, None, spec=spec)
                 continue
-            if not cutset and not vper and len(per) == 1 and n % 2 == 1:
+            if (
+                not cutset
+                and not vper
+                and floated is None
+                and len(per) == 1
+                and n % 2 == 1
+            ):
                 (seg, (ex, pname)) = next(iter(per.items()))
                 if seg == (n + 1) // 2:
                     # Marked at the wire's middle segment — the engine's
@@ -2421,12 +2538,18 @@ class NecDeck:
                     ex, pname = mark
                     emit(point(a), point(b), 1, ex, pname, spec)
                 else:
+                    host = (floated or {}).get("pieces", {}).get((a, b))
+                    if host is not None and vclaims:
+                        raise AssertionError(
+                            f"wire {i + 1}: a floated load's piece {a}..{b} "
+                            "also hosts a knot claim"
+                        )
                     emit(
                         point(a),
                         point(b),
                         count,
                         None,
-                        vclaims[0][0] if vclaims else None,
+                        vclaims[0][0] if vclaims else host,
                         spec,
                     )
         return tups
@@ -2460,12 +2583,15 @@ class NecDeck:
         # A port on a virtualized wire — a #427 TL anchor, or one of the
         # segments of an AK#1577 EZNEC virtual wire — is a pure circuit node
         # (PortVirtual), no geometry; every other port is on a real wire.
+        floated = self._floated_loads
         ports = {
             pname: (
                 _net.PortVirtual(pname)
                 if wi in self.virtual_anchors
                 else self._site_port(wi, pname)
                 if wi in self._site_plan
+                else self._floated_port(wi, pname)
+                if pname in floated.get(wi, {}).get("ports", {})
                 else _net.PortOnWire(pname)
             )
             for (wi, _seg), pname in plan.items()

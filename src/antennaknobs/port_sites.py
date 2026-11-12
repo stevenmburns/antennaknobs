@@ -77,6 +77,19 @@ def engine_kwargs() -> dict:
     return {"whole_wire_ports": True}
 
 
+def place_loads_exactly(builder):
+    """Ask ``builder`` (a file design) to carry each load at its exact place
+    along its wire (`NecDeck.exact_load_places`), and return it.
+
+    A deck's load on a wire that keeps the cut spelling (a SimNEC NECSource
+    on a wire fed at its end, say) is otherwise cut out as a one-segment
+    piece of its own, so a position knob only moves it segment by segment
+    and its slope reads zero. Set outside the builder's params, so nothing
+    the CLI prints or a study keeps carries it. A catalog design ignores it."""
+    object.__setattr__(builder, "exact_load_places", True)
+    return builder
+
+
 def _sig(cls, kwargs, moving=None):
     """`_z_fill_key` of ``kwargs`` less the wavelength, with feed ``moving``
     (if any) reduced to its wire: equal digests mean equal solver inputs

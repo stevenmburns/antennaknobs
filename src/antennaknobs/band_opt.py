@@ -135,9 +135,9 @@ def builder_sweep_fn(
             eng = factory(builder)
             zs = eng.impedance_sweep(list(freqs))
         else:
-            from .port_sites import engine_kwargs
+            from .port_sites import engine_kwargs, place_loads_exactly
 
-            eng = factory(builder, **engine_kwargs())
+            eng = factory(place_loads_exactly(builder), **engine_kwargs())
             zs = port_sites.sweep(eng, list(freqs))
         tuner = [tuner_holding_match(eng, float(f)) for f in freqs]
         del eng

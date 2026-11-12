@@ -53,6 +53,7 @@ should tune.
 
 from __future__ import annotations
 
+import dataclasses
 import functools
 import math
 import re
@@ -692,11 +693,25 @@ class _SyKnobs:
 
     def deck_for(self, builder):
         """The NEC deck at ``builder``'s knob values (see `parsed_for`)."""
-        return self.deck_of(self.parsed_for(builder))
+        return self.deck_of(self._placed(self.parsed_for(builder), builder))
 
     def network_for(self, builder):
         """The design's network at ``builder``'s knob values."""
-        return self.parsed_for(builder).network()
+        return self._placed(self.parsed_for(builder), builder).network()
+
+    def _placed(self, parsed, builder):
+        """``parsed`` with its deck's ``exact_load_places`` on when the
+        builder asks (``builder.exact_load_places``, the optimizer's opt-in
+        port-sites path): each load on a cut-spelling wire is then carried at
+        its exact place, so a position knob moves it continuously. The same
+        object, untouched, otherwise."""
+        if not getattr(builder, "exact_load_places", False):
+            return parsed
+        deck = self.deck_of(parsed)
+        placed = dataclasses.replace(deck, exact_load_places=True)
+        if parsed is deck:
+            return placed
+        return dataclasses.replace(parsed, deck=placed)
 
     def _checked(self, symvals, check=True):
         parsed = self.reparse(

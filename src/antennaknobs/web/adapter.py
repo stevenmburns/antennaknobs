@@ -5946,9 +5946,11 @@ def _make_example(name: str, cls, *, defer_hints: bool = False) -> AntennaExampl
             t0 = time.perf_counter()
             zs = np.asarray(eng.impedance_sweep(list(freqs_mhz)), dtype=np.complex128)
         else:
-            from ..port_sites import engine_kwargs
+            from ..port_sites import engine_kwargs, place_loads_exactly
 
-            eng = _make_momwire_engine(req, builder, cancel=cancel, **engine_kwargs())
+            eng = _make_momwire_engine(
+                req, place_loads_exactly(builder), cancel=cancel, **engine_kwargs()
+            )
             t0 = time.perf_counter()
             zs = port_sites.sweep(eng, list(freqs_mhz))
         solve_ms = (time.perf_counter() - t0) * 1e3
