@@ -1343,9 +1343,18 @@ class MomwireEngine(SimulationEngine):
         exact_kernel=None,
         pair_reuse=None,
         features=None,
+        whole_wire_ports=False,
         cancel=None,
     ):
         """
+        whole_wire_ports:
+          Keep a wire whole at a positioned port that is not a site of its
+          own count, the port at its exact arclength on that mesh, instead of
+          splitting the wire there (AK#1519). Off by default; the
+          optimizer's opt-in port-sites path (`antennaknobs.port_sites`)
+          builds its engines with it, so a load moved along the wire keeps
+          one mesh.
+
         features:
           ``{name: bool}`` for momwire's pass-through features
           (`FEATURE_SWITCHES`), off by default. An unset or None entry reads
@@ -1529,7 +1538,9 @@ class MomwireEngine(SimulationEngine):
         # knot the pieces share through a series node gap, as NEC-5 does.
         # Only a wire whose ports are not all sites of its own count is split
         # (`_coerce_wire_tuples`). "any" parity keeps every wire whole.
-        self.splits_wire_at_feed = self.segment_parity in ("odd", "even")
+        self.splits_wire_at_feed = (
+            self.segment_parity in ("odd", "even") and not whole_wire_ports
+        )
 
         # build_wires() must run before build_tls() — a build_tls design may
         # populate self.tls inside build_wires() (the legacy path, exercised by
