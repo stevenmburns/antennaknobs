@@ -279,6 +279,88 @@ def test_without_a_session_the_sweep_is_the_engines_own(monkeypatch):
     np.testing.assert_array_equal(out["zs"], ref)
 
 
+_JOIN, _FAR, _FOOT = (0.0, 0.0, H), (TOP, 0.0, H), (0.0, 0.0, 0.4)
+
+
+class _CoilFirst(_CoilL):
+    """The coil is the FIRST of three ports (coil, feed, a fixed trap), so the
+    cached Y's moved row must be put back in front; ``top_rev`` / ``vert_rev``
+    choose each wire's authored direction, so the moving port's walk sign
+    differs from the feed's (issue #580)."""
+
+    top_rev = False
+    vert_rev = True
+    link = False
+
+    def build_wires(self):
+        top = (_FAR, _JOIN) if self.top_rev else (_JOIN, _FAR)
+        vert = (_JOIN, _FOOT) if self.vert_rev else (_FOOT, _JOIN)
+        return [W(*top, n_seg=23, name="top"), W(*vert, n_seg=17, name="vert")]
+
+    def build_network(self):
+        return Network(
+            ports={
+                "coil": PortOnWire("coil", wire="top", at=self.coil_at()),
+                "feed": PortOnWire("feed", wire="vert"),
+                "trap": PortOnWire("trap", wire="vert", at=13.5 / 17),
+                "rig": PortVirtual("rig"),
+            },
+            branches=[
+                Load(port="coil", r=1.3, l=self.coil_uh * 1e-6),
+                Load(port="trap", r=0.4, l=1.1e-6),
+                TL("rig", "feed", z0=50.0, length=self.line_m, vf=0.66),
+            ]
+            # A line from the moving port to the trap's: a branch across two
+            # antenna ports, the one place a port's walk sign shows in Z.
+            + ([TL("coil", "trap", z0=300.0, length=2.3)] if self.link else []),
+            sources=[Driven(port="rig")],
+        )
+
+
+@needs_port_sites
+@pytest.mark.parametrize(
+    ("top_rev", "vert_rev", "coil_dir", "link"),
+    [(False, True, -1, False), (True, False, 1, False), (False, True, -1, True)],
+)
+def test_a_moving_port_ahead_of_the_others_and_walked_backwards(
+    forbid_port_sites, top_rev, vert_rev, coil_dir, link
+):
+    """The oracle on a design whose moving port is feed 0 of 3, walked against
+    (or with) its authored direction while the feed wire is walked the other
+    way: the reorder and the walk signs are both exercised. With ``link`` a
+    line joins the moving port to the trap's, which turns a dropped walk sign
+    into a wrong Z (a one-port load is blind to it)."""
+    cls = type(
+        "_Variant",
+        (_CoilFirst,),
+        {"top_rev": top_rev, "vert_rev": vert_rev, "link": link},
+    )
+
+    def eng(pct):
+        return MomwireEngine(
+            cls(dict(_CoilL.default_params, coil_pct=pct)),
+            **port_sites.engine_kwargs(),
+        )
+
+    e = eng(30.0)
+    assert e._feed_names == ["coil", "feed", "trap"]
+    assert e._feed_dirs[0] == coil_dir and e._feed_dirs[1] == -coil_dir
+    s = port_sites.PortSitesSession()
+    s.sweep(e, FREQS)
+    worst = 0.0
+    for pct in PCTS:
+        zs = s.sweep(eng(pct), FREQS)
+        forbid_port_sites["forbid"] = True
+        try:
+            ref = np.asarray(eng(pct).impedance_sweep(FREQS))
+        finally:
+            forbid_port_sites["forbid"] = False
+        worst = max(worst, _rel(zs, ref))
+    assert s._moving == 0
+    assert s.counts == {"fast": len(PCTS), "rebuild": 1, "built": len(FREQS)}
+    assert worst <= RTOL, worst
+
+
 def _example():
     import antennaknobs.web.examples  # noqa: F401 — the registry first; it imports the adapter
     from antennaknobs.web.adapter import _make_example

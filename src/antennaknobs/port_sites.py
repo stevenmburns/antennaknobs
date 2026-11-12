@@ -180,7 +180,11 @@ class PortSitesSession:
             )
         if getattr(eng, "_network", None) is None:
             return "the design has no circuit network for a moved port to carry"
-        if getattr(eng, "_feed_W", None) is not None:
+        w = getattr(eng, "_feed_W", None)
+        if w is not None and w.shape[0] != w.shape[1]:
+            # A square W is the walk-sign diagonal (issue #580), one solver
+            # feed per port, which `_contract_y` applies to the cached Y as
+            # it does to a rebuild's; only a sub-feed expansion is refused.
             return "a distributed (finite-gap) port"
         if getattr(eng, "_split_wires", None):
             return (
