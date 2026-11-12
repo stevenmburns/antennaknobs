@@ -44,13 +44,20 @@ START = 37.0
 
 class CoilL(AntennaBuilder):
     default_params = MappingProxyType(
-        {"freq": 5.38, "design_freq": 5.38, "coil_pct": START, "snap": False}
+        {
+            "freq": 5.38,
+            "design_freq": 5.38,
+            "coil_pct": START,
+            "snap": False,
+            "h": H,
+            "coil_uh": COIL_H * 1e6,
+        }
     )
 
     def build_wires(self):
         return [
-            W((0.0, 0.0, 0.0), (0.0, 0.0, H), n_seg=N_VERT, name="vert"),
-            W((0.0, 0.0, H), (TOP, 0.0, H), n_seg=N_TOP, name="top"),
+            W((0.0, 0.0, 0.0), (0.0, 0.0, self.h), n_seg=N_VERT, name="vert"),
+            W((0.0, 0.0, self.h), (TOP, 0.0, self.h), n_seg=N_TOP, name="top"),
         ]
 
     def build_network(self):
@@ -62,7 +69,7 @@ class CoilL(AntennaBuilder):
                 "feed": PortOnWire("feed", wire="vert", at=0.0),
                 "coil": PortOnWire("coil", wire="top", at=at),
             },
-            branches=[Load(port="coil", r=0.9, l=COIL_H)],
+            branches=[Load(port="coil", r=0.9, l=self.coil_uh * 1e-6)],
             sources=[Driven(port="feed")],
         )
 
@@ -92,6 +99,41 @@ def run(label, *, snap=False, whole=False, fast=False):
         f"coil_pct {pct:.6f} (segment-centre index {seg_pos:.3f})  "
         f"J {res['objective_before']:.6f} -> {res['objective_after']:.6f}  "
         f"worst SWR {res['worst_swr_after']:.6f}  stuck {res.get('stuck')}"
+    )
+    if session is not None:
+        print("         ", session.summary())
+    return res
+
+
+def run3(label, *, fast=False):
+    """The flat three-knob run: a geometry knob (the vertical's height), the
+    coil's position and a network value (its inductance), whole-wire model."""
+    b = CoilL(dict(CoilL.default_params))
+    session = port_sites.PortSitesSession() if fast else None
+    kw = {} if fast else port_sites.engine_kwargs()
+
+    def factory(builder, **extra):
+        return MomwireEngine(builder, ground=GROUND, **{**kw, **extra})
+
+    t0 = time.perf_counter()
+    res = optimize_bands(
+        {"h": H, "coil_pct": START, "coil_uh": COIL_H * 1e6},
+        [
+            {"name": "h", "min": 6.5, "max": 7.5},
+            {"name": "coil_pct", "min": 5.0, "max": 85.0},
+            {"name": "coil_uh", "min": 3.0, "max": 7.0},
+        ],
+        parse_bands(BANDS),
+        sweep_fn=builder_sweep_fn(b, factory, 50.0, port_sites=session),
+        max_evals=60,
+    )
+    wall = time.perf_counter() - t0
+    p = res["params"]
+    print(
+        f"{label:8s} trials {res['n_solves']:3d}  total {wall:7.2f} s  "
+        f"per trial {1e3 * wall / res['n_solves']:8.2f} ms  "
+        f"h {p['h']:.5f} coil_pct {p['coil_pct']:.5f} coil_uh {p['coil_uh']:.5f}  "
+        f"J {res['objective_before']:.6f} -> {res['objective_after']:.6f}"
     )
     if session is not None:
         print("         ", session.summary())
@@ -185,3 +227,6 @@ if __name__ == "__main__":
         res = run(label, **kw)
         if label == "fast":
             neighbours(res["params"]["coil_pct"])
+    print("optimize, three knobs (geometry, position, network):")
+    run3("whole")
+    run3("fast", fast=True)
