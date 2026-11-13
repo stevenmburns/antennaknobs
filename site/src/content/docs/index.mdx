@@ -29,37 +29,26 @@ import { Card, CardGrid, LinkCard } from "@astrojs/starlight/components";
 {/* What's-new box: refresh as part of the release ritual (bump the version,
     swap the highlights) — a stale "new" box is worse than none. */}
 
-<Card title="New in v0.118.1" icon="star">
-  **Longer optimize runs on the hosted app, and a trial count.** A
-  several-band optimize run on the hosted simulator may now run 15 minutes
-  (it was 2), enough for a 5-band SimNEC design at a few seconds a trial.
-  The result now says how many trials the run took and how long, beside its
-  table, and `optimize --bands` prints the time in its header.
+<Card title="New in v0.119.0" icon="star">
+  **Faster solves on momwire 0.91.0.** The NEC-4.2-style sinusoidal engine
+  (`nec42-sinusoidal`) can now reuse repeated geometry: tick **reuse repeated
+  geometry** on its tab and each repeated pair of segments is filled once. On
+  W8IO's 4,392-segment ELT whip that takes a 13-frequency run from 18 s to
+  13 s. It is off by default and moves results by rounding only. Every
+  momwire solve also skips its condition estimate unless the factors look
+  suspect, which saves about a second on that deck.
 
-  From v0.118.0:
+  **A clamped `.ssn` knob stays a knob.** A SimNEC script line such as
+  `P = Max(Min(P, 90), 10);` used to turn `P` into an output and refuse the
+  file. It now stays an input, with the clamp applied to whatever you set.
 
+  **Advisories show once, with a count.** A warning repeated many times now
+  shows once with "(×N)", and a long list folds behind one line, as does the
+  list of NEC directives not applied.
 
-  **The optimizer searches where the answer can be.** A knob that places
-  something along a wire in an opened SimNEC file (a load's or a source's
-  percent position) now searches the whole wire, 0–100 %, instead of ±20 % of
-  where it starts, which could leave the best position outside the box. A
-  range the `.ssn` file declares for a parameter now bounds the search; a
-  generic wide limit such as ±10k leaves the default range alone.
-
-  **It says when a knob is stuck.** When a knob never moves, the results say
-  why: its slope read zero, which usually means a load that snaps from segment
-  to segment, or it stayed put while the others moved.
-
-  **Choose how the bands are combined.** `optimize --bands` takes
-  `--objective-form`: the balanced worst-plus-mean blend (still the default),
-  `softmax` (a smooth worst case), or `clipped_sum` with `--target`, where a
-  band already better than the target stops counting.
-
-  **SimNEC pass-throughs import as plain wire.** A SimNEC block that only
-  passes the signal through now imports as an ideal zero-impedance link,
-  `Through`, drawn as bare wire on the schematic, instead of a hidden 1:1
-  transformer. A station chain on an EZNEC-style current-source feed now hangs
-  on the real feed point.
+  **An optimize run survives a design switch.** Switching to another design
+  or tab no longer cancels a running optimize: it keeps going and its result
+  lands on its own design when you come back.
 </Card>
 
 ## The whole pitch, in one line

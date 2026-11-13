@@ -1789,6 +1789,11 @@ once and copies it. It checks every claimed pair against its own geometry
 first, so a pair that does not really repeat is simply filled. Results move
 by rounding only (about 1e-15 relative).
 
+Since momwire 0.91.0 the same box is on the `nec42-sinusoidal` tab, where
+momwire's point-matched fill reuses each repeated segment pair (momwire#1911;
+declared drift 3e-12). On W8IO's 4,392-segment ELT whip, 13 frequencies on 8
+threads, it took the run from about 18 s to 13 s.
+
 Over Sommerfeld ground, a copy also has to keep its heights. Directors at one
 height qualify; a vertical stack of identical dipoles does not. On a laptop,
 one thread, a whole solve of a 20-director Yagi, finding the pairs included,
