@@ -133,6 +133,9 @@ def test_a_switched_jamsegments_count_is_read_as_a_hand_edit_is():
     assert _moved(decimal, dcl_n=7.5) == hand().build_wires()
     with pytest.raises(ValueError, match="asks for 14.8 segments"):
         _moved(decimal, dcl_n=7.4)
+    # So the menu never offers the box on a JamSegments count.
+    whole = builder_from_text("t.ssn", text)
+    assert "whole_numbers" not in whole.default_params["ui_params"]["dcl_n"]
 
 
 # --------------------------------------------------------------------------
