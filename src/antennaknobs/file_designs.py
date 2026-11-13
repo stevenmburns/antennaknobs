@@ -53,6 +53,7 @@ should tune.
 
 from __future__ import annotations
 
+import dataclasses
 import functools
 import math
 import re
@@ -565,9 +566,20 @@ class _SyKnobs:
     """
 
     def __init__(
-        self, stem, reparse, symbols, imported, *, deck_of=None, dialect=_SY_DIALECT
+        self,
+        stem,
+        reparse,
+        symbols,
+        imported,
+        *,
+        deck_of=None,
+        dialect=_SY_DIALECT,
+        switchable=frozenset(),
     ):
         self.stem, self.reparse, self.dialect = stem, reparse, dialect
+        # The params of the knobs the import made whole-number, switched to
+        # decimals or not (`_read_as_decimal`): the ones the app may switch.
+        self.switchable = frozenset(switchable)
         self.deck_of = deck_of or (lambda parsed: parsed)
         self.symbols = tuple(s for s in symbols if s.kind == "knob")
         self.defaults = tuple(s.default for s in self.symbols)
@@ -590,16 +602,22 @@ class _SyKnobs:
         """``(knobs, note)``: ``(None, None)`` when the file has no knob. The
         knobs are dropped, with a note, if the file at their defaults is not
         the file as imported -- never a knob that moves the design before
-        anyone touches it."""
+        anyone touches it.
+
+        ``decimal`` names knobs (by param) the import made whole-number that
+        the reader asked for in decimals (AK#2297, `_read_as_decimal`); a
+        name that is not one is refused by name, never dropped."""
         dialect = kw.get("dialect", _SY_DIALECT)
+        decimal = kw.pop("decimal", ())
         try:
             symbols = classify()
         except ValueError:
-            return None, None
+            symbols = ()
+        symbols, switchable = _read_as_decimal(symbols, decimal, dialect["file"], stem)
         if not any(s.kind == "knob" for s in symbols):
             return None, None
         try:
-            knobs = cls(stem, reparse, symbols, imported, **kw)
+            knobs = cls(stem, reparse, symbols, imported, switchable=switchable, **kw)
             same = knobs.parsed == imported
         except ValueError:
             same = False
@@ -613,12 +631,21 @@ class _SyKnobs:
 
     @classmethod
     def for_deck(
-        cls, path: Path, text: str, refine: int, deck, freq, limits=None, dialect=None
+        cls,
+        path: Path,
+        text: str,
+        refine: int,
+        deck,
+        freq,
+        limits=None,
+        dialect=None,
+        decimal=(),
     ):
         """A ``.nec`` deck's SY knobs (AK#1705). ``limits`` bounds every
         re-parse as it bounded the import: a knob that grows the
         structure past them is refused like any other value that breaks it.
-        ``dialect`` is the import's: every re-parse reads the deck as it did."""
+        ``dialect`` is the import's: every re-parse reads the deck as it did.
+        ``decimal`` is `_for`'s."""
 
         def reparse(overrides):
             return parse_nec(
@@ -631,16 +658,22 @@ class _SyKnobs:
             ).refined(refine)
 
         return cls._for(
-            path.stem, reparse, lambda: classify_sy(text, name=path.name), deck, freq
+            path.stem,
+            reparse,
+            lambda: classify_sy(text, name=path.name),
+            deck,
+            freq,
+            decimal=decimal,
         )
 
     @classmethod
-    def for_circuit(cls, path: Path, text: str, circuit, freq, limits=None):
+    def for_circuit(cls, path: Path, text: str, circuit, freq, limits=None, decimal=()):
         """A ``.ssn`` circuit's dcl knobs (AK#1714), element-parameter
         knobs (AK#1716), and its station chain's component values
         (`_station_symbols`). A station knob's ``name`` is its
         ``label.param`` key, which no dcl name can spell, so one override
-        map carries both and `_ssn_reparse` splits it."""
+        map carries both and `_ssn_reparse` splits it. ``decimal`` is
+        `_for`'s."""
         try:
             symbols = classify_dcl(text, name=path.name)
         except ValueError:
@@ -654,6 +687,7 @@ class _SyKnobs:
             freq,
             deck_of=lambda c: c.deck,
             dialect=_ssn_dialect(symbols),
+            decimal=decimal,
         )
 
     # -- values ------------------------------------------------------------
@@ -778,6 +812,10 @@ class _SyKnobs:
                 # A JamSegments count: the file's density knob, which a
                 # convergence analysis sweeps (AK#1757).
                 meta["role"] = "density"
+            if s.param in self.switchable:
+                # The import's whole-number guess, which the reader may
+                # overrule from the knob's menu (AK#2297).
+                meta["whole_numbers"] = s.integer
             ui[s.param] = meta
         return ui
 
@@ -837,6 +875,43 @@ class _SyKnobs:
         return " ".join(parts)
 
 
+def _read_as_decimal(symbols, decimal, file: str, stem: str):
+    """``(symbols, switchable)``: ``symbols`` with each knob ``decimal`` names
+    (by param) read as a decimal knob, and the params of every knob the
+    import made whole-number. A switched knob's value is no longer rounded
+    (`SySymbol.symbol_value`), so a segment count it sets follows it as a
+    fractional symbol's does; its default is the same number as a float,
+    so the file at its defaults is the file as imported. A name that is no
+    whole-number knob is refused by name: dropping it would open a design
+    the link does not describe."""
+    knobs = {s.param: s for s in symbols if s.kind == "knob"}
+    for name in decimal:
+        s = knobs.get(name)
+        if s is None:
+            raise ValueError(
+                f"{stem}: decimal_knobs asks for {name} in decimals, and this "
+                f"{file} has no knob {name!r}"
+            )
+        if not s.integer:
+            raise ValueError(
+                f"{stem}: decimal_knobs asks for {name} in decimals, and it "
+                "already takes them: only a whole-number knob switches"
+            )
+    switchable = frozenset(p for p, s in knobs.items() if s.integer)
+    if not decimal:
+        return tuple(symbols), switchable
+    chosen = set(decimal)
+    return (
+        tuple(
+            dataclasses.replace(s, integer=False, default=float(s.default))
+            if s.kind == "knob" and s.param in chosen
+            else s
+            for s in symbols
+        ),
+        switchable,
+    )
+
+
 class _DeckAtParams:
     """``file_deck_parsed`` for a design with knobs: the deck as imported on
     the class, the deck at the instance's knob values on an instance."""
@@ -848,13 +923,15 @@ class _DeckAtParams:
         return self.deck if obj is None else self.knobs.deck_for(obj)
 
 
-def _nec_builder(path: Path, text: str, refine: int = 1, limits=None, dialect=None):
+def _nec_builder(
+    path: Path, text: str, refine: int = 1, limits=None, dialect=None, decimal=()
+):
     deck = parse_nec(
         text, name=path.name, network=True, limits=limits, dialect=dialect
     ).refined(refine)
     freq, meas_range, freq_note = _seed_freq(deck.freq_mhz)
     knobs, knob_note = _SyKnobs.for_deck(
-        path, text, refine, deck, freq, limits, dialect
+        path, text, refine, deck, freq, limits, dialect, decimal
     )
     return _make_builder(
         path.stem,
@@ -1004,7 +1081,9 @@ def _ssn_reparse(text: str, name: str, overrides, limits=None):
     return _ssn_circuit(text, name, dcl or None, limits).with_station_values(station)
 
 
-def _ssn_builder(path: Path, text: str, refine: int = 1, limits=None, dialect=None):
+def _ssn_builder(
+    path: Path, text: str, refine: int = 1, limits=None, dialect=None, decimal=()
+):
     if dialect is not None:
         raise ValueError(
             f"{path.name}: the NEC dialect is chosen for a .nec deck; a SimNEC "
@@ -1025,7 +1104,7 @@ def _ssn_builder(path: Path, text: str, refine: int = 1, limits=None, dialect=No
         freq, _, freq_note = _seed_freq(deck.freq_mhz)
     meas_range = circuit.sweep or deck.freq_mhz
     sweep_grid = circuit.sweep_grid if circuit.sweep else deck.freq_grid
-    knobs, knob_note = _SyKnobs.for_circuit(path, text, circuit, freq, limits)
+    knobs, knob_note = _SyKnobs.for_circuit(path, text, circuit, freq, limits, decimal)
     # SimNEC solves a Generator MHz list at its last value and marks every
     # one on its charts: the design opens at that last one (`freq`), and
     # offers each as a band.
@@ -1202,14 +1281,36 @@ def read_design_text(path: Path) -> str:
     return path.read_text(encoding="utf-8", errors="replace")
 
 
-def builder_from_file(spec: str, refine: int = 1, dialect: str | None = None):
+# The loaders whose files have knobs to read as decimals (AK#2297).
+_KNOB_LOADERS = (_nec_builder, _ssn_builder)
+
+
+def _decimal_kw(loader, path: Path, decimal_knobs) -> dict:
+    """The loader's ``decimal`` argument: the names, sorted and once each, or
+    nothing for none. A file with no knobs refuses any name."""
+    names = tuple(sorted(set(decimal_knobs or ())))
+    if not names:
+        return {}
+    if loader not in _KNOB_LOADERS:
+        raise ValueError(
+            f"{path.stem}: decimal_knobs asks for {', '.join(names)} in "
+            f"decimals, and a {path.suffix.lower()} file has no knobs"
+        )
+    return {"decimal": names}
+
+
+def builder_from_file(
+    spec: str, refine: int = 1, dialect: str | None = None, decimal_knobs=()
+):
     """The builder class for an ``@``-spec path (the leading ``@`` already
     stripped): dispatch on the extension, parse once, and synthesize the
     design. Raises ``SystemExit`` with a clear message for a missing file or
     an unsupported extension (matching ``get_builder``'s unknown-builder
     behavior); parse errors propagate as ``ValueError`` so the real cause —
     file, line, card — reaches the user. ``dialect`` ("nec2" / "nec5", None to
-    detect) overrides a ``.nec`` deck's detected dialect (`parse_nec`)."""
+    detect) overrides a ``.nec`` deck's detected dialect (`parse_nec`).
+    ``decimal_knobs`` names knobs the import made whole-number to read as
+    decimals instead (AK#2297, `_read_as_decimal`)."""
     path = Path(spec).expanduser()
     loader = _LOADERS.get(path.suffix.lower())
     if loader is None:
@@ -1221,11 +1322,23 @@ def builder_from_file(spec: str, refine: int = 1, dialect: str | None = None):
     if not path.is_file():
         raise SystemExit(f"@{spec}: no such file")
     text = read_design_text(path)
-    return loader(path, text, refine=refine, dialect=dialect)
+    return loader(
+        path,
+        text,
+        refine=refine,
+        dialect=dialect,
+        **_decimal_kw(loader, path, decimal_knobs),
+    )
 
 
 def builder_from_text(
-    name: str, text: str, *, limits=None, dialect=None, accept_guesses=None
+    name: str,
+    text: str,
+    *,
+    limits=None,
+    dialect=None,
+    accept_guesses=None,
+    decimal_knobs=(),
 ):
     """The builder class for a design file's TEXT, named ``name``:
     the hosted workbench's opened decks, which never touch the disk.
@@ -1236,7 +1349,8 @@ def builder_from_text(
     no path in it is ever read. ``limits`` (`nec_import.GeometryLimits`)
     bounds the import and every knob re-parse; ``dialect`` is
     `builder_from_file`'s. ``accept_guesses`` (an ``.ez`` only; None: the
-    environment's) takes the readings the ``.ez`` format leaves undefined."""
+    environment's) takes the readings the ``.ez`` format leaves undefined.
+    ``decimal_knobs`` is `builder_from_file`'s."""
     path = Path(Path(name).name)
     loader = _LOADERS.get(path.suffix.lower())
     if loader is None:
@@ -1245,8 +1359,9 @@ def builder_from_text(
             f"{path.suffix.lower() or '(none)'!r} -- opens "
             f"{' / '.join(sorted(_LOADERS))} antenna files"
         )
+    decimal = _decimal_kw(loader, path, decimal_knobs)
     if loader is _ez_builder:
         return loader(
             path, text, limits=limits, dialect=dialect, accept_guesses=accept_guesses
         )
-    return loader(path, text, limits=limits, dialect=dialect)
+    return loader(path, text, limits=limits, dialect=dialect, **decimal)

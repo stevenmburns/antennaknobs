@@ -375,12 +375,19 @@ def _open_deck(payload, ip: str) -> tuple[str, bool, str | None, str | None]:
     name, text = _decks.decode_payload(payload, _DECK_SETTINGS)
     dialect = _decks.payload_dialect(payload)
     guesses = _decks.payload_accept_guesses(payload)
+    decimal = _decks.payload_decimal_knobs(payload)
     analyses, refusal = _link_analyses(payload)
     # AK#2045: the link's knob ranges, read strictly; the ones that read are
     # part of the key, whatever the deck then says of their names.
     ranges, ranges_syntax = _decks.payload_ranges(payload)
     key = _decks.deck_key(
-        name, text, dialect, None if analyses is None else analyses[0], ranges, guesses
+        name,
+        text,
+        dialect,
+        None if analyses is None else analyses[0],
+        ranges,
+        guesses,
+        decimal,
     )
     if key in _DECK_STORE and key in EXAMPLES:
         _DECK_STORE.get(key)  # touch: recently used
@@ -393,7 +400,7 @@ def _open_deck(payload, ip: str) -> tuple[str, bool, str | None, str | None]:
             status=429,
             deck_status="rate",
         )
-    key, new = _DECK_STORE.open(name, text, dialect, analyses, ranges, guesses)
+    key, new = _DECK_STORE.open(name, text, dialect, analyses, ranges, guesses, decimal)
     return key, new, refusal, _ranges_refusal(ranges_syntax, key)
 
 
@@ -5239,6 +5246,7 @@ def _serialize_schema_item(item) -> dict:
         "auto_range": item.auto_range,
         "role": item.role,
         "sweep": item.sweep,
+        "whole_numbers": item.whole_numbers,
     }
 
 
@@ -5419,7 +5427,12 @@ async def deck_open_endpoint(req: dict, request: Request):
     become those knobs' min/max (`decks.with_ranges`), so a hold on a deck's
     SY knob has a range to search, and are part of the key. One that does
     not read, or names no knob of the deck, is left out and named in
-    ``ranges_refusal`` (None for none); the deck opens either way."""
+    ``ranges_refusal`` (None for none); the deck opens either way.
+
+    ``decimal_knobs`` (optional, AK#2297) is a list of knob names the import
+    made whole-number, to read as decimals instead (the knob menu's Whole
+    numbers box; the link's ``decimal=``). Part of the key; a name that is
+    no whole-number knob of the deck refuses the open, by name (422)."""
     ip = _decks.client_ip(
         {k.lower(): v for k, v in request.headers.items()},
         request.client.host if request.client else None,
