@@ -12,6 +12,7 @@ export function KnobOptMenu({
   onSweep,
   onBuildMap,
   onBuildHold,
+  onWholeNumbers,
 }: {
   menu: { name: string; x: number; y: number };
   spec: SchemaParamSpec | undefined;
@@ -26,6 +27,10 @@ export function KnobOptMenu({
    *  another, and this knob swept with another held at a target. */
   onBuildMap?: () => void;
   onBuildHold?: () => void;
+  /** Given (AK#2297: a knob an imported file made whole-number, whose
+   *  `whole_numbers` says which way it is read now), the menu offers the
+   *  Whole numbers box; the session re-opens the deck the other way. */
+  onWholeNumbers?: (whole: boolean) => void;
 }) {
   const name = menu.name;
   const s = spec;
@@ -120,6 +125,19 @@ export function KnobOptMenu({
             onChange={(v) => set({ step: v })}
           />
         </div>
+        {onWholeNumbers && (
+          <label
+            className="knob-menu-vary"
+            title="The import read this symbol as a whole number because only segment counts and other integer fields use it. Untick to take decimal values: the turn step then applies, and a count it sets follows it as the file's own value would."
+          >
+            <input
+              type="checkbox"
+              checked={s?.whole_numbers === true}
+              onChange={(e) => onWholeNumbers(e.target.checked)}
+            />
+            Whole numbers
+          </label>
+        )}
       </div>
     </>
   );

@@ -26,6 +26,11 @@
 // they are part of the key too. The knob values are the panel's, not the
 // deck's, and never ride here.
 //
+// So do the knobs the reader switched from whole numbers to decimals
+// (AK#2297, `decimal_knobs`, the link's `&decimal=`): the import's
+// whole-number reading of a symbol is a guess, and only the server can read
+// the deck the other way.
+//
 // React-free, so the link grammar and the store are tested alone.
 
 import type { ExampleDescriptor } from "./params";
@@ -59,6 +64,9 @@ export type DeckPayload = {
   /** An .ez opened with the readings its format leaves undefined (AK#2173:
    *  the refusal's "Open with this reading"); part of the deck's key. */
   accept_guesses?: boolean;
+  /** Knobs the import made whole-number, read as decimals instead (AK#2297:
+   *  the knob menu's Whole numbers box), sorted; part of the deck's key. */
+  decimal_knobs?: string[];
 };
 
 /** What /deck says the deck was read as, and why. */
@@ -90,7 +98,8 @@ export const isDeck = (g: unknown): g is string =>
  *  alike. Browsers never expose the folder, so the name is all there is. */
 export const deckTitle = (d: DeckPayload): string =>
   (d.dialect ? `${d.name}, read as ${DIALECT_LABEL[d.dialect]}` : d.name) +
-  (d.accept_guesses ? ", with the readings taken" : "");
+  (d.accept_guesses ? ", with the readings taken" : "") +
+  (d.decimal_knobs?.length ? `, ${d.decimal_knobs.join(", ")} in decimals` : "");
 
 /** The hover for a picker entry: an opened deck's `deckTitle`, nothing for a
  *  catalog or user design. */
@@ -303,7 +312,17 @@ export function deckPayload(d: DeckPayload): DeckPayload {
     ...(d.analyses ? { analyses: d.analyses } : {}),
     ...(d.ranges ? { ranges: d.ranges } : {}),
     ...(d.accept_guesses ? { accept_guesses: true } : {}),
+    ...(d.decimal_knobs?.length ? { decimal_knobs: [...d.decimal_knobs] } : {}),
   };
+}
+
+/** `list` with `name` read as decimals (`decimal`) or as whole numbers,
+ *  sorted and once each, as the server keys it. */
+export function withDecimalKnob(list: readonly string[] | undefined, name: string, decimal: boolean): string[] {
+  const out = new Set(list ?? []);
+  if (decimal) out.add(name);
+  else out.delete(name);
+  return [...out].sort();
 }
 
 /** `body` with its design's deck added as `_deck`, when it names an opened

@@ -21,6 +21,9 @@
 //   &readings=1                           an .ez opened with the readings its
 //                                         format leaves undefined (AK#2173),
 //                                         part of the deck's key
+//   &decimal=<knob>,…                     the deck's whole-number knobs read
+//                                         as decimals (AK#2297), part of the
+//                                         deck's key
 //   &analyses=<z>                         analyses for the deck or design
 //                                         (AK#2045): the stylized Python a
 //                                         design's build_analyses() returns,
@@ -373,6 +376,7 @@ export const LINK_PARAMS = [
   "name",
   "dialect",
   "readings",
+  "decimal",
   "analyses",
   "knobs",
   "family",
@@ -401,6 +405,10 @@ export function parseDeepLink(search: string): DeepLink | null {
   const z = param(q, "deck");
   // A dialect the workbench does not know is dropped: the deck opens detected.
   const dialect = param(q, "dialect");
+  const decimal = (param(q, "decimal") ?? "")
+    .split(",")
+    .map((n) => n.trim())
+    .filter((n) => n !== "");
   const analyses = param(q, "analyses");
   const rawFamily = param(q, "family");
   const family = rawFamily === null ? null : parseFamily(rawFamily);
@@ -431,6 +439,7 @@ export function parseDeepLink(search: string): DeepLink | null {
             name: param(q, "name") ?? "deck.nec",
             ...(isDialect(dialect) ? { dialect } : {}),
             ...(param(q, "readings") === "1" ? { accept_guesses: true } : {}),
+            ...(decimal.length > 0 ? { decimal_knobs: [...new Set(decimal)].sort() } : {}),
             ...(analyses !== null ? { analyses } : {}),
             ...(ranges ? { ranges } : {}),
           },
@@ -588,6 +597,7 @@ export function linkSearch(search: string, state: LinkState): string {
     q.set("name", state.deck.name);
     if (state.deck.dialect) q.set("dialect", state.deck.dialect);
     if (state.deck.accept_guesses) q.set("readings", "1");
+    if (state.deck.decimal_knobs?.length) q.set("decimal", state.deck.decimal_knobs.join(","));
     if (state.deck.analyses) q.set("analyses", state.deck.analyses);
   } else {
     q.set("design", state.variant ? `${state.design}:${state.variant}` : state.design);
