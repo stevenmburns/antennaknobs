@@ -126,6 +126,9 @@ def test_the_kwarg_tuples_match_what_the_server_measured():
         "height_sheet_recal",
         "crossing_table",
         "crossing_above_rule",
+        # momwire#1898 (0.91.0): KCL elimination before the factor, a
+        # registry pass-through feature (AK#2233).
+        "kcl_nullspace",
     ]
     assert _ts_tuple(src, "RAZOR_KWARGS") == live["razor-2p"]
     # The NEC-4.2 row exists only where $NEC42_EXE resolves, so it is asked for.
