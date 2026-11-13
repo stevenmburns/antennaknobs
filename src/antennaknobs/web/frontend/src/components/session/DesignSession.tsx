@@ -351,6 +351,7 @@ import {
   isDeck,
   openDeck,
   openDeckFile,
+  withDecimalKnob,
   type DeckPayload,
   type Dialect,
 } from "../../lib/decks";
@@ -3609,7 +3610,32 @@ function DesignSessionBody({
       ...(d.analyses ? { analyses: d.analyses } : {}),
       ...(d.ranges ? { ranges: d.ranges } : {}),
       ...(d.accept_guesses ? { accept_guesses: true } : {}),
+      ...(d.decimal_knobs?.length ? { decimal_knobs: d.decimal_knobs } : {}),
     }).then((o) => setGeometry(o.key), deckRefused);
+  };
+  // The knob menu's Whole numbers box (AK#2297): the import's whole-number
+  // reading of a knob is a guess the server makes, so overruling it re-opens
+  // the deck with the knob in `decimal_knobs` (another key, and the link
+  // follows it, `&decimal=`). The panel's knob values carry over; a knob
+  // going back to whole numbers takes the nearest one.
+  const setWholeNumbers = (name: string, whole: boolean) => {
+    const d = isDeck(geometry) ? deckFor(geometry) : undefined;
+    if (!d) return;
+    setDeckError(null);
+    setDeckRetry(null);
+    const values: ParamValueBag = { ...currentValues };
+    const v = values[name];
+    if (whole && typeof v === "number") values[name] = Math.round(v);
+    const decimal = withDecimalKnob(d.decimal_knobs, name, !whole);
+    const payload = deckPayload(d);
+    delete payload.decimal_knobs;
+    openDeck({ ...payload, ...(decimal.length ? { decimal_knobs: decimal } : {}) }).then((o) => {
+      setParamValues((prev) => ({
+        ...prev,
+        [o.key]: { ...seedDefaults(o.example.param_schema), ...values },
+      }));
+      setGeometry(o.key);
+    }, deckRefused);
   };
   // The chart is where an analysis or a view lands, and listing the
   // design's analyses waits for it to be on screen (useDesignAnalyses).
@@ -4103,6 +4129,14 @@ function DesignSessionBody({
             ko={knobOptFor(knobMenu.name)}
             onPatch={(patch) => updateKnobOpt(knobMenu.name, patch)}
             onClose={() => setKnobMenu(null)}
+            {...(isDeck(geometry) && typeof findKnobSpec(currentSchema, knobMenu.name)?.whole_numbers === "boolean"
+              ? {
+                  onWholeNumbers: (whole: boolean) => {
+                    setKnobMenu(null);
+                    setWholeNumbers(knobMenu.name, whole);
+                  },
+                }
+              : {})}
             {...(zparamKnobs.some((k) => k.name === knobMenu.name)
               ? { onSweep: () => sweepKnob(knobMenu.name) }
               : {})}

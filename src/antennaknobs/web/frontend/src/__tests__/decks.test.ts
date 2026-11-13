@@ -11,6 +11,7 @@ import {
   openDeckFile,
   readDesignFile,
   rememberDeck,
+  withDecimalKnob,
   withDeck,
   withDeckBody,
   type OpenedDeck,
@@ -144,6 +145,37 @@ describe("the link carries the deck", () => {
       geometry: KEY,
       _deck: { name: "my dipole.nec", z: "abc", dialect: "nec2" },
     });
+  });
+
+  it("writes &decimal= beside the deck for knobs read as decimals, and reads it back (AK#2297)", () => {
+    const s = linkSearch("?decimal=stale", {
+      design: KEY,
+      variant: null,
+      analysis: null,
+      view: null,
+      deck: { ...deck("abc_-123"), decimal_knobs: ["sy_a", "sy_n"] },
+    });
+    expect(new URLSearchParams(s).get("decimal")).toBe("sy_a,sy_n");
+    expect(parseDeepLink(s)!.deck).toEqual({ z: "abc_-123", name: "my dipole.nec", decimal_knobs: ["sy_a", "sy_n"] });
+    // Read sorted and once each, as the server keys it; none writes none.
+    expect(parseDeepLink("?deck=abc&name=a.nec&decimal=sy_n,sy_a,sy_n")!.deck?.decimal_knobs).toEqual(["sy_a", "sy_n"]);
+    const bare = linkSearch("?decimal=stale", { design: KEY, variant: null, analysis: null, view: null, deck: deck("abc") });
+    expect(new URLSearchParams(bare).get("decimal")).toBeNull();
+  });
+
+  it("every request for a deck with knobs read as decimals carries them", () => {
+    rememberDeck({ ...deck("abc"), decimal_knobs: ["sy_n"] });
+    expect(withDeck({ geometry: KEY })).toEqual({
+      geometry: KEY,
+      _deck: { name: "my dipole.nec", z: "abc", decimal_knobs: ["sy_n"] },
+    });
+  });
+
+  it("switching a knob adds or removes it, sorted and once each", () => {
+    expect(withDecimalKnob(undefined, "sy_n", true)).toEqual(["sy_n"]);
+    expect(withDecimalKnob(["sy_n"], "sy_a", true)).toEqual(["sy_a", "sy_n"]);
+    expect(withDecimalKnob(["sy_a", "sy_n"], "sy_n", true)).toEqual(["sy_a", "sy_n"]);
+    expect(withDecimalKnob(["sy_a", "sy_n"], "sy_a", false)).toEqual(["sy_n"]);
   });
 
   it("parses a deck link", () => {

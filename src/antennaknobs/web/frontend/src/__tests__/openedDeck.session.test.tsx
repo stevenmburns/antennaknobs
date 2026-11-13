@@ -330,3 +330,114 @@ describe("the dialect an opened deck is read in", () => {
     expect(select.value).toBe("nec5");
   });
 });
+
+describe("a deck knob's Whole numbers box (AK#2297)", () => {
+  const DECIMAL_KEY = "deck.decimaldecim";
+  const knob = (whole: boolean | null | undefined, extra: Record<string, unknown> = {}) => ({
+    name: "sy_n",
+    label: "n",
+    default: whole === false ? 7.0 : 7,
+    kind: whole === false ? "float" : "int",
+    min: 4,
+    max: 11,
+    step: whole === false ? 0.001 : 1,
+    precision: whole === false ? 3 : 0,
+    unit: null,
+    visible_when: null,
+    auto_range: true,
+    ...(whole === undefined ? {} : { whole_numbers: whole }),
+    ...extra,
+  });
+  const half = {
+    name: "sy_half",
+    label: "half",
+    default: 5.1,
+    kind: "float",
+    min: 2.55,
+    max: 7.65,
+    step: 0.001,
+    precision: 3,
+    unit: null,
+    visible_when: null,
+    auto_range: true,
+    whole_numbers: null,
+  };
+  function mountSwitch(url = "/") {
+    const opened: Body[] = [];
+    mountDesignSession({
+      url,
+      examples: [HARNESS_EXAMPLE],
+      routes: {
+        "/deck": (_u: string, init?: RequestInit) => {
+          const body = JSON.parse(String(init?.body ?? "{}")) as Body;
+          opened.push(body);
+          const decimal = Array.isArray(body.decimal_knobs) && body.decimal_knobs.includes("sy_n");
+          const key = decimal ? DECIMAL_KEY : KEY;
+          return json({
+            key,
+            example: { ...DECK_EXAMPLE, name: key, param_schema: [knob(!decimal), half] },
+            limits: {},
+          });
+        },
+        "/geometry": () => json({ wires: [] }),
+      },
+    });
+    return opened;
+  }
+  const menuBox = () => screen.queryByRole("checkbox", { name: "Whole numbers" }) as HTMLInputElement | null;
+
+  it("is offered only on a switchable knob, and toggling it re-opens the deck with the list", async () => {
+    const opened = mountSwitch();
+    await sessionReady(document.body);
+    openFile(DECK_TEXT);
+    await waitFor(() => expect(ready()).toMatch(/^deck\.0123456789ab#/), { timeout: 5000 });
+    // A real knob the import never made whole-number: no box.
+    fireEvent.contextMenu(await screen.findByRole("slider", { name: "half" }, { timeout: 5000 }));
+    expect(screen.getByText("Turn step")).toBeTruthy();
+    expect(menuBox()).toBeNull();
+    fireEvent.click(document.body.querySelector(".knob-menu-backdrop") as HTMLElement);
+    // A knob moved off its default keeps its value through the re-open.
+    fireEvent.keyDown(screen.getByRole("slider", { name: "half" }), { key: "ArrowUp" });
+    await waitFor(() => expect(sent.some((m) => m.geometry === KEY && m.sy_half !== 5.1)).toBe(true), {
+      timeout: 5000,
+    });
+    const moved = sent.filter((m) => m.geometry === KEY).at(-1)!.sy_half;
+    // The whole-number knob: ticked; unticking sends the list.
+    fireEvent.contextMenu(screen.getByRole("slider", { name: "n" }));
+    expect(menuBox()!.checked).toBe(true);
+    fireEvent.click(menuBox()!);
+    await waitFor(() => expect(ready()).toMatch(/^deck\.decimaldecim#/), { timeout: 5000 });
+    expect(opened[1]).toEqual({ name: "mydeck.nec", z: opened[0].z, decimal_knobs: ["sy_n"] });
+    await waitFor(() => expect(query().get("decimal")).toBe("sy_n"), { timeout: 5000 });
+    await waitFor(() => expect(sent.some((m) => m.geometry === DECIMAL_KEY)).toBe(true), { timeout: 5000 });
+    expect(sent.find((m) => m.geometry === DECIMAL_KEY)?._deck).toEqual(opened[1]);
+    expect(sent.find((m) => m.geometry === DECIMAL_KEY)?.sy_half).toBe(moved);
+    // And back: the box is unticked now, ticking it drops the list.
+    fireEvent.contextMenu(screen.getByRole("slider", { name: "n" }));
+    expect(menuBox()!.checked).toBe(false);
+    fireEvent.click(menuBox()!);
+    await waitFor(() => expect(ready()).toMatch(/^deck\.0123456789ab#/), { timeout: 5000 });
+    expect(opened[2]).toEqual({ name: "mydeck.nec", z: opened[0].z });
+    await waitFor(() => expect(query().get("decimal")).toBeNull(), { timeout: 5000 });
+  });
+
+  it("a link with &decimal= opens the deck with the knob read as decimals", async () => {
+    const z = await compressDeck(DECK_TEXT);
+    const opened = mountSwitch(`/?deck=${z}&name=mydeck.nec&decimal=sy_n`);
+    await sessionReady(document.body);
+    await waitFor(() => expect(ready()).toMatch(/^deck\.decimaldecim#/), { timeout: 5000 });
+    expect(opened[0]).toEqual({ name: "mydeck.nec", z, decimal_knobs: ["sy_n"] });
+  });
+
+  it("a catalog design's int param is not offered the box", async () => {
+    const catalog: ExampleDescriptor = {
+      ...HARNESS_EXAMPLE,
+      param_schema: [knob(undefined, { name: "n_dir", label: "n_dir" })],
+    } as ExampleDescriptor;
+    mountDesignSession({ url: "/", examples: [catalog] });
+    await sessionReady(document.body);
+    fireEvent.contextMenu(await screen.findByRole("slider", { name: "n_dir" }, { timeout: 5000 }));
+    expect(screen.getByText("Turn step")).toBeTruthy();
+    expect(menuBox()).toBeNull();
+  });
+});

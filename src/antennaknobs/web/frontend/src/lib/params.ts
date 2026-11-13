@@ -52,6 +52,11 @@ export type SchemaParamSpec = {
    *  / points / log, already checked by the server. Absent or null: the
    *  slider's range in KNOB_POINTS linear points. */
   sweep?: KnobSweepHint | null;
+  /** An imported file's knob whose whole-number reading the reader may
+   *  switch (AK#2297): true while it takes whole numbers, false once read as
+   *  decimals (the deck's `decimal_knobs`). Absent or null for every other
+   *  knob, a catalog design's own int params included. */
+  whole_numbers?: boolean | null;
 };
 
 export type KnobSweepHint = {
