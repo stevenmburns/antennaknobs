@@ -860,8 +860,9 @@ def _offers_rotational_symmetry(spec) -> bool:
     momwire even though the two classes inherit `BSplineSolver.__init__`
     unchanged and would otherwise silently ACCEPT the constructor kwarg —
     `_make_momwire_engine` reads this same function to keep it off their
-    wire for exactly that reason. Only `BSplineSolver` itself declares
-    `("dense", "sector")`.
+    wire for exactly that reason. `BSplineSolver` declares
+    `("dense", "sector")`, and so does the point-matched `SinusoidalSolver`
+    since momwire 0.91.0 (momwire#1912).
     """
     axes = _backend_axes(spec)
     if not axes:
@@ -890,9 +891,11 @@ def _offers_pair_reuse(spec) -> bool:
     A live probe of the installed momwire's constructor, on
     `_offers_exact_kernel`'s precedent: a momwire predating it (the
     submodule pointer and the PyPI pin until 0.87.0) answers False for
-    every backend, so nothing is offered and nothing is sent. Only the
-    B-spline class takes it, at every degree; the H-matrix and array
-    subclasses do not."""
+    every backend, so nothing is offered and nothing is sent. The B-spline
+    class takes it at every degree, and the point-matched sinusoidal class
+    since momwire 0.91.0 (momwire#1911, which finds its own classes, so the
+    engine's hint only switches it on); the H-matrix and array subclasses
+    do not."""
     return spec.kind == "momwire" and _takes_pair_reuse(spec.solver)
 
 

@@ -31,6 +31,7 @@ TABS = {
     "height_sheet_recal": ("bspline", "razor-2p"),
     "crossing_table": ("bspline", "razor-2p"),
     "crossing_above_rule": ("bspline",),
+    "kcl_nullspace": ("bspline",),
 }
 
 
