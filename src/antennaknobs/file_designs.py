@@ -812,9 +812,11 @@ class _SyKnobs:
                 # A JamSegments count: the file's density knob, which a
                 # convergence analysis sweeps (AK#1757).
                 meta["role"] = "density"
-            if s.param in self.switchable:
+            if s.param in self.switchable and not s.segment_count:
                 # The import's whole-number guess, which the reader may
-                # overrule from the knob's menu (AK#2297).
+                # overrule from the knob's menu (AK#2297). Not on a
+                # JamSegments count: SimNEC takes only a whole count there,
+                # so decimals would only meet its refusal.
                 meta["whole_numbers"] = s.integer
             ui[s.param] = meta
         return ui
