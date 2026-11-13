@@ -94,6 +94,7 @@ def deck_key(
     analyses: str | None = None,
     ranges: dict[str, tuple[float, float]] | None = None,
     accept_guesses: bool = False,
+    decimal_knobs: tuple[str, ...] = (),
 ) -> str:
     """The design key for a deck: its file name and text, hashed. The name is
     in the hash because it is the design's label, so the same text opened
@@ -116,7 +117,12 @@ def deck_key(
 
     ``accept_guesses`` (AK#2173): an ``.ez`` opened with the readings its
     format leaves undefined is another design from the same file refused, so
-    it is in the key; False hashes as before."""
+    it is in the key; False hashes as before.
+
+    ``decimal_knobs`` (AK#2297, `payload_decimal_knobs`): the knobs read as
+    decimals rather than the whole numbers the import made them, so the
+    same deck with and without the switch is two designs; empty hashes as
+    before."""
     tail = "" if dialect is None else f"\0{dialect}"
     if analyses is not None:
         # After the dialect, behind a marker no dialect spells.
@@ -125,6 +131,8 @@ def deck_key(
         tail += f"\0ranges\0{ranges_text(ranges)}"
     if accept_guesses:
         tail += "\0accept_guesses"
+    if decimal_knobs:
+        tail += f"\0decimal\0{','.join(decimal_knobs)}"
     h = hashlib.sha256(f"{name}\0{text}{tail}".encode("utf-8", "surrogatepass"))
     return f"{_PREFIX}{h.hexdigest()[:12]}"
 
@@ -304,6 +312,25 @@ def payload_accept_guesses(payload) -> bool:
     if not isinstance(payload, dict) or payload.get("accept_guesses") is not True:
         return False
     return PurePath(str(payload.get("name", ""))).suffix.lower() == ".ez"
+
+
+def payload_decimal_knobs(payload) -> tuple[str, ...]:
+    """The knobs a deck payload asks to read as decimals (``decimal_knobs``,
+    AK#2297: a list of knob names, which the import made whole-number),
+    sorted and once each so one choice is one key; ``()`` for none. Anything
+    but a list of names is refused by name here; whether each names a
+    whole-number knob of the deck only the import can say
+    (`file_designs._read_as_decimal`)."""
+    if not isinstance(payload, dict):
+        return ()
+    raw = payload.get("decimal_knobs")
+    if raw is None:
+        return ()
+    if not isinstance(raw, list) or not all(
+        isinstance(n, str) and n.strip() for n in raw
+    ):
+        raise DeckError(f"decimal_knobs must be a list of knob names, not {raw!r}")
+    return tuple(sorted({n.strip() for n in raw}))
 
 
 def payload_dialect(payload) -> str | None:
@@ -832,6 +859,7 @@ class DeckStore:
         analyses: tuple[str, tuple] | None = None,
         ranges: dict[str, tuple[float, float]] | None = None,
         accept_guesses: bool = False,
+        decimal_knobs: tuple[str, ...] = (),
     ) -> tuple[str, bool]:
         """Parse and register a deck; ``(key, new)``. A deck already open is
         only touched. Parse errors and limit refusals raise `DeckError`.
@@ -845,7 +873,10 @@ class DeckStore:
         of the deck is left out and named (`range_refusals`).
         ``accept_guesses`` (`payload_accept_guesses`) takes an ``.ez``'s
         undefined readings, part of the key; a refusal the reading would
-        lift says so (``deck_status`` "undefined", ``reading``)."""
+        lift says so (``deck_status`` "undefined", ``reading``).
+        ``decimal_knobs`` (`payload_decimal_knobs`) reads those whole-number
+        knobs as decimals, part of the key; a name that is no whole-number
+        knob of the deck is refused by name."""
         from antennaknobs.ez_import import EzUndefined
         from antennaknobs.file_designs import builder_from_text
         from antennaknobs.nec_import import GeometryLimitError
@@ -857,11 +888,18 @@ class DeckStore:
             None if analyses is None else analyses[0],
             ranges,
             accept_guesses,
+            decimal_knobs,
         )
         if self.get(key) is not None:
             return key, False
         try:
             if PurePath(name).suffix.lower() == ".py":
+                if decimal_knobs:
+                    raise DeckError(
+                        f"{name}: decimal_knobs is for an imported file's "
+                        "knobs; a design's own whole-number params are its "
+                        "author's choice"
+                    )
                 cls = self._sandboxed(name, text)
             else:
                 cls = builder_from_text(
@@ -870,6 +908,7 @@ class DeckStore:
                     limits=self.limits(),
                     dialect=dialect,
                     accept_guesses=accept_guesses,
+                    decimal_knobs=decimal_knobs,
                 )
             cls, refused = with_ranges(cls, ranges or {})
             cls()  # default_params construct, as user designs are checked

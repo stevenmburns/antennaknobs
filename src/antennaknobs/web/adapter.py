@@ -1988,6 +1988,8 @@ def _auto_paramspec(name: str, default: Any, override: dict | None) -> ParamSpec
     role = role_raw if isinstance(role_raw, str) else None
     # A knob's sweep hint (AK#1975), checked against its range below.
     sweep_raw = override.pop("sweep", None)
+    whole_raw = override.pop("whole_numbers", None)
+    whole_numbers = whole_raw if isinstance(whole_raw, bool) else None
 
     if isinstance(default, bool):
         kind = override.pop("kind", "bool")
@@ -2083,6 +2085,7 @@ def _auto_paramspec(name: str, default: Any, override: dict | None) -> ParamSpec
             description=description,
             auto_range=auto_range,
             role=role,
+            whole_numbers=whole_numbers,
         )
         spec_kwargs["sweep"] = sanitize_sweep_hint(
             sweep_raw, spec_kwargs["min"], spec_kwargs["max"]

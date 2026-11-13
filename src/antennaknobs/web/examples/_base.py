@@ -150,6 +150,11 @@ class ParamSpec:
     # after `knob_sweep.sanitize_sweep_hint`: any of lo / hi / points / log.
     # None: the generic default (the slider's range, 11 linear points).
     sweep: Optional[dict] = None
+    # An imported file's knob whose whole-number reading the reader may
+    # switch (AK#2297): True while it takes whole numbers, False once
+    # switched to decimals. None for every other knob -- a design's own int
+    # param is whole by the design's choice, not by an import's guess.
+    whole_numbers: Optional[bool] = None
 
 
 @dataclass(frozen=True)
