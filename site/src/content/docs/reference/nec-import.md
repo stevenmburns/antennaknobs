@@ -390,8 +390,10 @@ defaulting to the deck's value. Its label is the `SY` card's trailing
 symbols and whose comment splits on commas into as many pieces labels them
 one each. A knob written with a unit symbol reads in that unit (`1.5*mm` is a
 1.5 mm knob); otherwise values are in the deck's own units, and its `GS` scale
-still applies. A constant that lands directly in an integer field — a
-segment count, a tag — is an integer knob.
+still applies. A whole-valued constant that only integer fields read — a
+segment count, a tag — is an integer knob. One a real field also reads (a
+length that also sets a segment count, `lencp*8` and `-lencp`) is a decimal
+knob, and the count it sets is rounded to the nearest whole number.
 
 Every other symbol follows the knobs: the design re-reads the deck from the
 current knob values on every build, so a derived symbol (`z=len*cos(ang/2)`)
