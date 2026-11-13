@@ -79,6 +79,7 @@ def test_the_baseline_is_not_empty_and_covers_every_kwarg():
         "height_sheet_recal",
         "crossing_table",
         "crossing_above_rule",
+        "kcl_nullspace",
     } == set(_HOSTED_MODEL_OPTIONS)
     assert set(_HOSTED_MODEL_OPTIONS) == set(_OPTION_SPECS)
     assert len(BASELINE) == 14
@@ -196,7 +197,7 @@ def test_the_catalogue_serves_every_option_and_is_json():
 
     served = model_option_specs()
     assert set(served) == set(_OPTION_SPECS)
-    assert len(served) == 24  # + PyNEC's fill_reuse
+    assert len(served) == 25  # + PyNEC's fill_reuse, momwire 0.91.0's kcl_nullspace
     assert json.loads(json.dumps(served)) == served
 
 

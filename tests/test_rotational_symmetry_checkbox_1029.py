@@ -45,13 +45,14 @@ from antennaknobs.web.adapter import (
 # value, whatever momwire is on the path: HMatrixSolver and ArrayBlockSolver
 # declare a DIFFERENT `solve_strategy` than BSplineSolver
 # (`{"aca"}` / `{"element-block"}` vs `{"dense", "sector"}`), and every other
-# momwire row is `("dense",)` only. So this list is true under the submodule
+# row here is `("dense",)` only. So this list is true under the submodule
 # pointer AND under a momwire that has landed #1029 — unlike bspline itself,
-# whose answer depends on which momwire is on the path.
+# whose answer depends on which momwire is on the path. The point-matched
+# sinusoidal class left this list at momwire 0.91.0, which gave it the
+# sector route too (momwire#1912).
 NEVER_OFFERS = (
     "hmatrix",
     "arrayblock",
-    "sinusoidal",
     "sinusoidal-galerkin",
     "razor-2p",
     "pulse",
@@ -98,6 +99,7 @@ def test_every_other_served_spec_keeps_its_description_field_and_it_is_usually_n
             "height_sheet_recal",
             "crossing_table",
             "crossing_above_rule",
+            "kcl_nullspace",
         ):
             assert row["description"] is None
 

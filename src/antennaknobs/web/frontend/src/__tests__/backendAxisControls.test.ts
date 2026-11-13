@@ -201,10 +201,12 @@ describe("axisControls over the SERVED roster — the per-tab lists, pinned", ()
     // `feed_model` joined the b-spline family when momwire#891 corrected a
     // row that declared the axis single-valued while the constructor
     // defaulted to the other value. `sinusoidal` keeps a single value because
-    // it genuinely REFUSES the point gap (momwire#212).
-    sinusoidal: ["kernel"],
+    // it genuinely REFUSES the point gap (momwire#212). `solve_strategy`
+    // joined it with momwire 0.91.0, whose point-matched class gained the
+    // sector route too (momwire#1912).
+    sinusoidal: ["kernel", "solve_strategy"],
     "sinusoidal-galerkin": ["feed_model", "kernel"],
-    // `solve_strategy` joined for bspline ALONE with momwire 0.60.0 (#1029):
+    // `solve_strategy` joined for bspline with momwire 0.60.0 (#1029):
     // the sector route makes the axis multi-valued ("dense" | "sector") on
     // the one backend that declares it. It reaches the panel as the
     // `rotational_symmetry` checkbox through the generic renderer, not as

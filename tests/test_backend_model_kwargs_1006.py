@@ -84,6 +84,7 @@ SAMPLE = {
     "height_sheet_recal": False,
     "crossing_table": False,
     "crossing_above_rule": False,
+    "kcl_nullspace": False,
 }
 
 MOMWIRE = [b for b in _BACKENDS if b.kind == "momwire" and b.solver is not None]

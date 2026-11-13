@@ -190,6 +190,8 @@ describe.each(BSPLINE_FAMILY)("%s — the panel the schema draws", (name) => {
             "shared near-ground tables (faster)",
             "table for wires crossing the ground (faster, approximate)",
             "lighter above-ground rule at a crossing (faster)",
+            // ADDED with momwire 0.91.0 (#1898), from its registry.
+            "eliminate junction constraints (faster)",
           ]
         : []),
     ]);
@@ -337,6 +339,8 @@ describe.each(BSPLINE_FAMILY)("%s — the panel the schema draws", (name) => {
             "shared near-ground tables (faster)",
             "table for wires crossing the ground (faster, approximate)",
             "lighter above-ground rule at a crossing (faster)",
+            // ADDED with momwire 0.91.0 (#1898), from its registry.
+            "eliminate junction constraints (faster)",
           ]
         : []),
       // ADDED DELIBERATELY, and it is why this list is asserted rather than

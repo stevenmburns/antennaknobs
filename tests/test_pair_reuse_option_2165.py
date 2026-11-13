@@ -3,8 +3,9 @@
 Offered by capability, the way the exact ring kernel and the sector route
 are: the server probes the installed momwire's constructor and lists
 `pair_reuse` in a backend's `model_kwargs` only where its solver takes it.
-The B-spline tab at any degree does; razor, sinusoidal, pulse, H-matrix and
-the array tab do not. The pane renders the served bool spec as a generic
+The B-spline tab at any degree does, and the point-matched sinusoidal tab
+since momwire 0.91.0 (momwire#1911); razor, pulse, H-matrix and the array
+tab do not. The pane renders the served bool spec as a generic
 checkbox. On a momwire that predates it (0.86.0, the pin until 0.87.0)
 nothing is offered and nothing is sent, which is what the solving checks
 here skip on.
@@ -36,7 +37,9 @@ def test_offered_only_where_the_solver_takes_it():
         assert adapter._offers_pair_reuse(b) == (
             b.kind == "momwire" and _takes_pair_reuse(b.solver)
         ), b.name
-    for name in ("razor-2p", "sinusoidal", "hmatrix", "arrayblock"):
+    # The point-matched sinusoidal class takes it too since momwire 0.91.0
+    # (momwire#1911), so it is not in this list.
+    for name in ("razor-2p", "hmatrix", "arrayblock"):
         b = adapter._BACKENDS_BY_NAME.get(name)
         if b is not None:
             assert not adapter._offers_pair_reuse(b), name
@@ -63,11 +66,11 @@ def test_the_adapter_passes_the_choice_to_the_engine(asked, monkeypatch):
 def test_another_tab_drops_it():
     """A hand-made local request to a tab that does not offer it changes
     nothing: the value is dropped, never forwarded to a constructor."""
-    b = adapter._BACKENDS_BY_NAME.get("sinusoidal")
+    b = adapter._BACKENDS_BY_NAME.get("razor-2p")
     if b is None:
-        pytest.skip("no sinusoidal backend")
+        pytest.skip("no razor-2p backend")
     eng = adapter._make_momwire_engine(
-        {"momwire_model": "sinusoidal", "model_options": {"pair_reuse": True}},
+        {"momwire_model": "razor-2p", "model_options": {"pair_reuse": True}},
         fed_yagi(2),
     )
     assert eng._pair_reuse is False

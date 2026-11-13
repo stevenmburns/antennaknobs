@@ -37,20 +37,26 @@ describe("modelOptionsForRequest", () => {
     // ADDED with momwire 0.88.0 (#1847, #1849): the two buried-fill switches
     // the sinusoidal solver takes, `false` by default; each only removes
     // work, and on, moves Z only in the last digits.
+    // ADDED with momwire 0.91.0 (#1911, #1912): fill reuse and the sector
+    // route, `false` by default.
     expect(Object.keys(result).sort()).toEqual([
       "n_qp_const",
+      "pair_reuse",
       "point_cplx_staged",
+      "rotational_symmetry",
       "transmitted_anchors",
     ]);
     expect(result).toEqual({
       n_qp_const: 7,
+      rotational_symmetry: false,
+      pair_reuse: false,
       transmitted_anchors: false,
       point_cplx_staged: false,
     });
     expect(result).not.toHaveProperty("feed_model");
   });
 
-  it("bspline sends the eighteen b-spline kwargs, feed_model among them", () => {
+  it("bspline sends the nineteen b-spline kwargs, feed_model among them", () => {
     const model = {
       degree: 1,
       n_qp_pair: 5,
@@ -82,16 +88,20 @@ describe("modelOptionsForRequest", () => {
         // tests/test_feed_model_exposure_1006.py.
         "feed_model",
         "feed_smoothing_factor",
+        // ADDED with momwire 0.91.0 (#1898): junction constraints eliminated
+        // before the factor; `false` by default, and on it moves Z only in
+        // the last digits.
+        "kcl_nullspace",
         "n_qp_pair",
         "n_qp_sing",
         "n_qp_source",
         // ADDED with momwire 0.87.0 (#1809): the repeated-geometry fill
-        // switch, on bspline alone; `false` by default, and on it moves Z
+        // switch (on sinusoidal too since 0.91.0); `false` by default, and on it moves Z
         // only in the last digits (tests/test_pair_reuse_hint_2165.py).
         "pair_reuse",
-        // ADDED with momwire 0.60.0 (#1029): bspline alone carries the sector
-        // route flag; it is on the wire as `false` by default and moves no
-        // number when off (pinned in tests/test_rotational_symmetry_*_1029.py).
+        // ADDED with momwire 0.60.0 (#1029): the sector route flag (sinusoidal
+        // carries it too since 0.91.0); it is on the wire as `false` by
+        // default and moves no number when off (pinned in tests/test_rotational_symmetry_*_1029.py).
         "rotational_symmetry",
         "tikhonov_lambda",
         // ADDED with momwire 0.88.0 (#1847): buried transmitted tables shared
@@ -126,6 +136,7 @@ describe("modelOptionsForRequest", () => {
       height_sheet_recal: false,
       crossing_table: false,
       crossing_above_rule: false,
+      kcl_nullspace: false,
     });
     // Not set in the model literal above, so it carries the SERVED default —
     // which is the value this family was already solving with.
@@ -197,9 +208,11 @@ describe("modelOptionsForRequest", () => {
       '"feed_smoothing_factor":null,"use_singular_enrichment":false,' +
       '"enrichment_variant":"raw","tikhonov_lambda":0.1,' +
       '"auto_tap_ratio_threshold":0.3,"n_qp_sing":32,"enrichment_min_k":3}';
-    // The two buried-fill switches joined with momwire 0.88.0 (#1847, #1849).
+    // The two buried-fill switches joined with momwire 0.88.0 (#1847, #1849);
+    // the sector route and fill reuse with 0.91.0 (#1912, #1911).
     expect(stock("sinusoidal")).toBe(
-      '{"n_qp_const":8,"transmitted_anchors":false,"point_cplx_staged":false}',
+      '{"n_qp_const":8,"rotational_symmetry":false,"pair_reuse":false,' +
+        '"transmitted_anchors":false,"point_cplx_staged":false}',
     );
     // "point" since momwire#654 made it the solver's default — the wire
     // format still carries the value explicitly, so a request says which
@@ -209,13 +222,14 @@ describe("modelOptionsForRequest", () => {
     );
     // bspline alone carries `rotational_symmetry` (#1029, momwire 0.60.0),
     // `pair_reuse` (#1809, momwire 0.87.0), `transmitted_anchors`
-    // (#1847, momwire 0.88.0) and the four EFHW levers (#1860, 0.89.0);
+    // (#1847, momwire 0.88.0), the four EFHW levers (#1860, 0.89.0) and
+    // `kcl_nullspace` (#1898, 0.91.0);
     // the accelerators' stock payload is exactly the family's, unchanged.
     expect(stock("bspline")).toBe(
       BSPLINE_JSON.slice(0, -1) +
         ',"rotational_symmetry":false,"pair_reuse":false,"transmitted_anchors":false' +
         ',"factored_columns":false,"height_sheet_recal":false,"crossing_table":false' +
-        ',"crossing_above_rule":false}',
+        ',"crossing_above_rule":false,"kcl_nullspace":false}',
     );
     expect(stock("hmatrix")).toBe(BSPLINE_JSON);
     expect(stock("arrayblock")).toBe(BSPLINE_JSON);

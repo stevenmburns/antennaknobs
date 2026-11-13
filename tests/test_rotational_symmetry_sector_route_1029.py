@@ -82,13 +82,15 @@ def _engine(design, *, rotational_symmetry, backend="bspline", **overrides):
         return _make_momwire_engine(req, builder)
 
 
-def test_the_roster_offers_it_on_bspline_only():
+def test_the_roster_offers_it_on_bspline_and_sinusoidal_only():
+    # The sinusoidal class gained the sector route at momwire 0.91.0
+    # (momwire#1912); the roster follows from the probe, so on an older
+    # momwire it is bspline alone.
     rows = {r["name"]: r for r in backend_roster(have_pynec=True, have_nec5=True)}
     assert "rotational_symmetry" in rows["bspline"]["model_kwargs"]
     for name in (
         "hmatrix",
         "arrayblock",
-        "sinusoidal",
         "sinusoidal-galerkin",
         "razor-2p",
         "pulse",

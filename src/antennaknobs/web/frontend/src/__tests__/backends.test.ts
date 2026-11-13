@@ -79,10 +79,13 @@ describe("defaultOptsFor", () => {
     // kwarg and refuses the value "point" (momwire#212), so the server does
     // not EXPOSE it here. Its Galerkin sibling does — asserted below.
     // The two buried-fill switches joined with momwire 0.88.0 (#1847, #1849),
-    // off by default.
+    // off by default. The sector route and fill reuse joined with momwire
+    // 0.91.0 (#1912, #1911), off by default too.
     expect(opts.model).toEqual({
       n_qp_const: 8,
       extended_kernel: false,
+      rotational_symmetry: false,
+      pair_reuse: false,
       transmitted_anchors: false,
       point_cplx_staged: false,
     });
