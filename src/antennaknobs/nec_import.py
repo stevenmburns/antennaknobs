@@ -3337,8 +3337,11 @@ class SySymbol:
 
     For a knob, ``default`` is its value in knob units: the literal before
     the unit symbol when there is one (``unit`` names it, ``unit_factor``
-    converts), an ``int`` when the symbol lands directly in an integer card
-    field and its value is whole (``integer``), else the evaluated value.
+    converts), an ``int`` when the symbol lands directly in integer card
+    fields only and its value is whole (``integer``), else the evaluated
+    value. A symbol a real field also reads (a length that sets a segment
+    count too) is a real knob: its segment count follows it the way a
+    fractional symbol's does.
     ``label`` is the SY card's trailing ``'`` comment.
 
     A ``.ssn``'s dcl constants are classified by the same rules
@@ -3486,6 +3489,10 @@ def classify_sy(text: str, *, name: str = "NEC deck") -> tuple[SySymbol, ...]:
     recs: dict[str, dict] = {}
     direct: dict[str, set[str]] = {}
     int_use: set[str] = set()
+    # Symbols a real (non-integer) card field reads: a symbol read by both
+    # kinds is a length that also sets a segment count (``lencp*8`` and
+    # ``-lencp`` on one GW card) and stays a real-valued knob (AK#2295).
+    real_use: set[str] = set()
     gs_scale: set[str] = set()
     for line_no, raw in _logical_lines(text):
         stripped = raw.strip()
@@ -3541,6 +3548,8 @@ def classify_sy(text: str, *, name: str = "NEC deck") -> tuple[SySymbol, ...]:
                 direct.setdefault(ref, set()).add(mnemonic)
                 if k in int_fields:
                     int_use.add(ref)
+                else:
+                    real_use.add(ref)
                 if mnemonic == "GS" and k == 2:
                     gs_scale.add(ref)
 
@@ -3588,7 +3597,9 @@ def classify_sy(text: str, *, name: str = "NEC deck") -> tuple[SySymbol, ...]:
                     unit, factor = _SY_UNIT_LABELS[u], _SY_CONSTANTS[u]
                     default = float(toks[0][1])
             if default is None:
-                integer = key in int_use and float(value).is_integer()
+                integer = (
+                    key in int_use and key not in real_use and float(value).is_integer()
+                )
                 default = int(value) if integer else float(value)
         out.append(
             SySymbol(

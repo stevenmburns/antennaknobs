@@ -2941,12 +2941,13 @@ def _classify(
     rebuilds (`_SY_REBUILT_CARDS`); one that names another is derived; one
     that reaches only FR is a frequency constant; one that sets the GS scale
     is a unit selector; the rest are inert. An integer knob is one that lands
-    directly in an integer card field with a whole value, or is named in a
-    JamSegments count, which is the GW card's count by another route
-    (AK#1716)."""
+    directly in integer card fields only, with a whole value, or is named in
+    a JamSegments count, which is the GW card's count by another route
+    (AK#1716). One a real field also reads stays real (AK#2295)."""
     values = dcl.values(where)
     direct: dict[str, set[str]] = {}
     int_use: set[str] = set()
+    real_use: set[str] = set()
     gs_scale: set[str] = set()
     for card in dcl.cards:
         if isinstance(card, str):
@@ -2960,6 +2961,8 @@ def _classify(
                 direct.setdefault(n, set()).add(mnemonic)
                 if k in ints:
                     int_use.add(n)
+                else:
+                    real_use.add(n)
                 if mnemonic == "GS" and k == 2:
                     gs_scale.add(n)
     # Names a JamSegments count reads directly: a knob that reaches one sets a
@@ -3010,7 +3013,9 @@ def _classify(
             kind = "frequency" if "FR" in reaches else "inert"
         else:
             kind = "knob"
-            integer = c.name in int_use and value.is_integer()
+            integer = (
+                c.name in int_use and c.name not in real_use and value.is_integer()
+            )
             default = int(value) if integer else value
         unit = factor = None
         if kind == "knob" and not integer:
