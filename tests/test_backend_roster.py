@@ -260,8 +260,10 @@ def test_backend_roster_served_shape(client):
     from antennaknobs.web import nec5_backend
 
     served = client.get("/capabilities").json()["backends"]
-    assert served == _roster(
-        have_pynec=pynec_backend.HAVE_PYNEC, have_nec5=nec5_backend.have_nec5()
+    assert served == backend_roster(
+        have_pynec=pynec_backend.HAVE_PYNEC,
+        have_nec5=nec5_backend.have_nec5(),
+        have_opennec=_server._have_opennec(),
     )
 
 

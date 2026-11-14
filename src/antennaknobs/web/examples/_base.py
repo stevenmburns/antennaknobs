@@ -351,6 +351,10 @@ class AntennaExample:
     extended_kernel_default: bool = False
     pynec_build: Optional[PynecBuildFn] = None
     pynec_solve: Optional[SolveFn] = None
+    #: OpenNEC twins: the pynec pair's contracts on pyopennec (the PyNEC
+    #: engine on another binding). The pattern reuses `pynec_pattern_excite`.
+    opennec_build: Optional[PynecBuildFn] = None
+    opennec_solve: Optional[SolveFn] = None
     #: NEC-5 twins (issue #825): same request/response contracts as the
     #: pynec pair, backed by the user's licensed binary via $NEC5_EXE.
     nec5_solve: Optional[SolveFn] = None
@@ -404,7 +408,7 @@ class AntennaExample:
     # can't be evaluated.
     far_field_metrics: Optional[Callable[[dict], dict]] = None
     # The same metrics on a card-deck engine, `(req, solver)` with solver one
-    # of "pynec" / "nec5" / "nec2" / "nec42" (AK#1894): a cell solved on that
+    # of "pynec" / "opennec" / "nec5" / "nec2" / "nec42" (AK#1894): a cell solved on that
     # engine reads its table off that engine, as the CLI does. None falls
     # back to `far_field_metrics`.
     engine_metrics: Optional[Callable[[dict, str], dict]] = None

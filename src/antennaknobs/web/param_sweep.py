@@ -97,6 +97,8 @@ def _is_delta_gap(req: Mapping, solver_name: str) -> str | None:
         return "NEC-4.2"
     if solver_name == "pynec":
         return "PyNEC"
+    if solver_name == "opennec":
+        return "OpenNEC"
     if solver_name != "momwire":
         return None
     opts = req.get("model_options")
