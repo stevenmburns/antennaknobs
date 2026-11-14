@@ -132,7 +132,7 @@ point — agreement between independent engines is your confidence check.
 --engine momwire:hmatrix         # B-spline + hierarchical-matrix (ACA) acceleration
 --engine momwire:arrayblock      # element-aware block solver for arrays
 --engine pynec                   # NEC2 via PyNEC (needs the optional pynec-accel)
---engine opennec                 # NEC2 via OpenNEC (needs the optional pyopennec, built from source)
+--engine opennec                 # NEC2 via OpenNEC (needs the optional pyopennec, a release wheel)
 --engine momwire:sinusoidal-galerkin            # three-term basis, Galerkin testing
 --engine momwire:sinusoidal-galerkin-converged  # same, with the converged feed model
 --engine momwire:razor-2p      # NEC-5 razor-blade testing on a tent basis, the interactive lane
@@ -197,14 +197,25 @@ the port admittances by the shared network reducer. On one deck it agrees with
 PyNEC to ~1e-3 on impedance (`tests/test_opennec_parity.py` holds them together
 over 14 catalog cases). It is optional exactly as PyNEC is. When pyopennec
 imports, `--engine opennec` and the workbench's **OpenNEC** tab appear. When it
-does not, the engine says which package is missing. pyopennec is not on PyPI
-yet, so build it from source (a C compiler and CMake; OpenBLAS is used when
+does not, the engine says which package is missing. pyopennec is not on
+PyPI; install its release wheel (Linux x86_64 or macOS arm64; on macOS run
+`brew install libomp` first; Windows is unsupported):
+
+```bash
+pip install "pyopennec @ https://github.com/stevenmburns/pyopennec/releases/download/v0.2.0/pyopennec-0.2.0-cp312-abi3-manylinux_2_27_x86_64.manylinux_2_28_x86_64.whl"   # Linux x86_64
+pip install "pyopennec @ https://github.com/stevenmburns/pyopennec/releases/download/v0.2.0/pyopennec-0.2.0-cp312-abi3-macosx_14_0_arm64.whl"   # macOS arm64
+```
+
+Fallback, from source (a C compiler and CMake; OpenBLAS is used when
 `pkg-config` finds it):
 
 ```bash
 git clone --recursive https://github.com/stevenmburns/pyopennec
 pip install ./pyopennec
 ```
+
+It loads in one process with momwire and PyNEC (pyopennec's CI checks that
+they share a single OpenMP runtime).
 
 Known limitations: no fill reuse (pynec-accel's `set_fill_reuse` has no
 counterpart) and no wire-intersection check (OpenNEC makes none). Buried wires

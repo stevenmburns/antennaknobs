@@ -612,8 +612,8 @@ def _engine_unavailable_message(name):
     if name == "opennec":
         return (
             "engine 'opennec' needs the optional pyopennec package, which is "
-            "not installed (not on PyPI yet: pip install "
-            "git+https://github.com/stevenmburns/pyopennec; see the README); "
+            "not installed (install the release wheel from "
+            "https://github.com/stevenmburns/pyopennec/releases; see the README); "
             f"available: {available}"
         )
     if name not in _EXTERNAL_ENGINES:

@@ -277,13 +277,24 @@ reflection-coefficient ground, loads, a TL network, a native NT card,
 multi-port arrays, sweeps and patterns.
 
 It is optional, like PyNEC. It appears only when pyopennec imports, and
-never on the hosted app. pyopennec is not on PyPI yet, so build it from
-source:
+never on the hosted app. pyopennec is not on PyPI; install its release wheel
+(Linux x86_64 or macOS arm64; on macOS run `brew install libomp` first;
+Windows is unsupported):
+
+```bash
+pip install "pyopennec @ https://github.com/stevenmburns/pyopennec/releases/download/v0.2.0/pyopennec-0.2.0-cp312-abi3-manylinux_2_27_x86_64.manylinux_2_28_x86_64.whl"   # Linux x86_64
+pip install "pyopennec @ https://github.com/stevenmburns/pyopennec/releases/download/v0.2.0/pyopennec-0.2.0-cp312-abi3-macosx_14_0_arm64.whl"   # macOS arm64
+```
+
+To build from source instead (a C compiler and CMake):
 
 ```bash
 git clone --recursive https://github.com/stevenmburns/pyopennec
 pip install ./pyopennec
 ```
+
+It loads in one process with momwire and PyNEC; pyopennec's CI checks that
+they share a single OpenMP runtime.
 
 **Known limitations.**
 
