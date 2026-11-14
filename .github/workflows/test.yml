@@ -102,6 +102,23 @@ jobs:
         pip install pynec-accel --no-index \
           --find-links https://github.com/stevenmburns/python-necpp/releases/expanded_assets/v1.7.7
 
+    - name: Install pyopennec from its release wheel
+      # Optional engine, installed here so the opennec tests run instead of
+      # skipping. Pinned to v0.2.0; the Linux x86_64 abi3 wheel vendors
+      # scipy-openblas32 and links OpenMP. Only THIS job gets it: wheel-smoke,
+      # publish and the hosted image stay without it (opennec is optional).
+      run: |
+        pip install -c constraints-ci.txt \
+          "pyopennec @ https://github.com/stevenmburns/pyopennec/releases/download/v0.2.0/pyopennec-0.2.0-cp312-abi3-manylinux_2_27_x86_64.manylinux_2_28_x86_64.whl"
+        python - <<'PY'
+        import pyopennec
+        # A lane that cannot reach the wheel must fail here, not skip the
+        # four opennec test files silently.
+        assert pyopennec.BACKEND == "scipy-openblas32", pyopennec.BACKEND
+        assert pyopennec.OPENMP, "pyopennec built without OpenMP"
+        print("pyopennec", pyopennec.__file__, pyopennec.BACKEND, pyopennec.OPENMP)
+        PY
+
     - name: Install momwire (vendored MoM engine)
       # momwire is still a submodule; its C++ accelerator builds from source here.
       # --no-build-isolation so setup.py sees the numpy + pybind11 installed

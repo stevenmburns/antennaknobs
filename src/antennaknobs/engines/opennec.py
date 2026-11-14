@@ -47,8 +47,8 @@ ground plane refuses as on the NEC-2 lane (`refuse_nec2_geometry`). OpenNEC make
 intersection check, so ``check_intersections`` changes nothing, and
 nec2++'s Sommerfeld defect (#448) is not OpenNEC's.
 
-pyopennec is MIT, like antennaknobs, but it is not on PyPI yet, so it stays an
-OPTIONAL import: absent, the engine still records its cards (the deck writer
+pyopennec is MIT, like antennaknobs, but it is not on PyPI (install its release
+wheel), so it stays an OPTIONAL import: absent, the engine still records its cards (the deck writer
 never needed it) and a solve raises an ImportError naming the package.
 """
 
@@ -69,9 +69,11 @@ from .pynec import PyNECEngine
 
 OPENNEC_MISSING = (
     "pyopennec is not installed: the opennec engine cannot solve without it. "
-    "It is not on PyPI yet; build it from source with `pip install "
-    "git+https://github.com/stevenmburns/pyopennec` (MIT; needs a C compiler, "
-    "CMake and, optionally, OpenBLAS), or solve with momwire."
+    "Install the release wheel (Linux x86_64 or macOS arm64; macOS needs "
+    "`brew install libomp`) from "
+    "https://github.com/stevenmburns/pyopennec/releases, or build it from "
+    "source with `pip install git+https://github.com/stevenmburns/pyopennec`; "
+    "Windows is unsupported. Or solve with momwire."
 )
 
 # NEC's RP marks a direction it has no value for (below the horizon over a
