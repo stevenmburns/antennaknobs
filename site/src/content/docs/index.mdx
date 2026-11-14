@@ -29,7 +29,16 @@ import { Card, CardGrid, LinkCard } from "@astrojs/starlight/components";
 {/* What's-new box: refresh as part of the release ritual (bump the version,
     swap the highlights) — a stale "new" box is worse than none. */}
 
-<Card title="New in v0.120.0" icon="star">
+<Card title="New in v0.120.1" icon="star">
+  **End-fed designs over real ground now give the right impedance.** On the
+  B-spline engine, an end feed (a `PortAtEnd`) on a design where any wire
+  crosses the ground surface, such as a ground stake or a radial that dips into
+  the soil, gave a wildly wrong impedance (hundreds of thousands of ohms
+  reactive) without any warning. momwire 0.92.0 fixes it, and this release
+  picks that up. Designs without a wire through the ground surface are
+  unchanged.
+
+  **Also in v0.120.0:**
   **An OpenNEC engine.** antennaknobs can now solve with
   [OpenNEC](https://github.com/maurymarkowitz/OpenNEC), Maury Markowitz's C
   rewrite of NEC-2, through the new MIT-licensed
