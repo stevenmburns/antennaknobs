@@ -122,6 +122,19 @@ except ImportError:
         return False
 
 
+# OpenNEC through pyopennec: PyNECEngine on another binding (engines/opennec.py).
+# The class imports whether or not pyopennec does; the roster gates on the
+# module, which the server reads per request.
+try:
+    from antennaknobs.engines.opennec import OpenNECEngine
+    from antennaknobs.engines.opennec import takes_fill_reuse as _opennec_fill_reuse
+except ImportError:
+    OpenNECEngine = None
+
+    def _opennec_fill_reuse() -> bool:
+        return False
+
+
 from antennaknobs.engines.momwire import (
     EXACT_KERNEL_CHOICES,
     FEATURE_INFO,
@@ -526,6 +539,16 @@ _BACKENDS: tuple[_BackendSpec, ...] = (
         kind="pynec",
         panel="pynec",
     ),
+    # OpenNEC (a C rewrite of NEC-2 / nec2c) through pyopennec, optional the
+    # same way: served only where pyopennec imports, never hosted. NEC-2's
+    # cards through PyNEC's own API, so it shares PyNEC's panel.
+    _BackendSpec(
+        name="opennec",
+        label="OpenNEC",
+        solver=None,
+        kind="opennec",
+        panel="pynec",
+    ),
     # Licensed, user-supplied binary (issue #825): served only when the
     # machine running the server resolves $NEC5_EXE. The hosted simulator
     # never defines it, so this entry cannot appear hosted (the #824 EULA's
@@ -627,6 +650,7 @@ def backend_roster(
     have_nec5: bool = False,
     have_nec2: bool = False,
     have_nec42: bool = False,
+    have_opennec: bool = False,
 ) -> list[dict]:
     """The self-describing solver catalog served on GET /capabilities.
 
@@ -638,6 +662,7 @@ def backend_roster(
     """
     availability = {
         "pynec": have_pynec,
+        "opennec": have_opennec,
         "nec5": have_nec5,
         "nec2": have_nec2,
         "nec42": have_nec42,
@@ -907,7 +932,10 @@ def _offers_fill_reuse(spec) -> bool:
     `_offers_pair_reuse`'s live probe, of PyNEC rather than momwire: a PyNEC
     predating it (1.7.6, what CI installs today) answers False, so nothing
     is offered and nothing is sent. The NEC-2 tab shares PyNEC's panel but
-    is a subprocess, so it never offers it."""
+    is a subprocess, so it never offers it. The OpenNEC tab asks the same
+    question of pyopennec, which has no such method today."""
+    if spec.kind == "opennec":
+        return _opennec_fill_reuse()
     return spec.kind == "pynec" and takes_fill_reuse()
 
 
@@ -980,6 +1008,20 @@ _PYNEC_BURIED_REFUSAL = (
     "momwire backend for buried decks."
 )
 
+# OpenNEC is NEC-2 again and, measured the same way, behaves as nec2++ does:
+# the buried dipole 5 cm above -> 5 cm below moves |Z| by 11 % (PyNEC 12 %),
+# and nothing is refused (tests/test_opennec_engine.py pins it).
+_OPENNEC_BURIED_REFUSAL = (
+    "OpenNEC cannot model a conductor below the ground plane. NEC-2's "
+    "Sommerfeld-Norton ground is formulated for sources ABOVE the interface "
+    "and has no below-interface case — and OpenNEC does not refuse such a "
+    "deck. It solves it, without warning, as though the wire were still in "
+    "air. Measured on this catalog's buried dipole: moving the wire from 5 cm "
+    "above the interface to 5 cm below moves OpenNEC's impedance by 11%, "
+    "where momwire's buried fill moves it by a factor of 10. Use a momwire "
+    "backend for buried decks."
+)
+
 _NEC2_BURIED_REFUSAL = (
     "NEC-2 has no below-ground medium in its formulation: its ground is a "
     "boundary condition on the fields above the plane. A buried wire is not "
@@ -1010,6 +1052,8 @@ _NETWORK_NEED = "network_reduction"
 
 _WRAPPER_NETWORK_SCOPE = {
     "pynec": (True, None, None),
+    # PyNECEngine's multiport-Y route verbatim: `OpenNECEngine` inherits it.
+    "opennec": (True, None, None),
     "nec5": (True, None, None),
     "nec2": (True, None, None),
     # NEC-2's route verbatim (AK#1603): `NEC42Engine` inherits it.
@@ -1063,9 +1107,14 @@ _NEC2_VERTEX_REFUSAL = (
     "the short-bridge idiom explicitly (antennaknobs#898)."
 )
 
+# OpenNECEngine raises PyNECEngine's refusals; the served sentence names it.
+_OPENNEC_JUNCTION_REFUSAL = _PYNEC_JUNCTION_REFUSAL.replace("PyNEC", "OpenNEC", 1)
+_OPENNEC_VERTEX_REFUSAL = _PYNEC_VERTEX_REFUSAL.replace("PyNEC", "OpenNEC", 1)
+
 _WRAPPER_PORT_SCOPE = {
     "junction_ports": {
         "pynec": (False, _PYNEC_JUNCTION_REFUSAL, "antennaknobs#579"),
+        "opennec": (False, _OPENNEC_JUNCTION_REFUSAL, "antennaknobs#579"),
         "nec2": (False, _NEC2_JUNCTION_REFUSAL, "antennaknobs#579"),
         # NEC-2's writer and NEC-2's sentence: NEC-4.2's deck is that writer's.
         "nec42": (False, _NEC2_JUNCTION_REFUSAL, "antennaknobs#579"),
@@ -1073,6 +1122,7 @@ _WRAPPER_PORT_SCOPE = {
     },
     "node_gaps": {
         "pynec": (False, _PYNEC_VERTEX_REFUSAL, "antennaknobs#898"),
+        "opennec": (False, _OPENNEC_VERTEX_REFUSAL, "antennaknobs#898"),
         "nec2": (False, _NEC2_VERTEX_REFUSAL, "antennaknobs#898"),
         # The same writer again. NEC-4.2's own spelling of a vertex feed is
         # part of its writer, antennaknobs#1803.
@@ -1092,6 +1142,7 @@ _WRAPPER_PORT_SCOPE = {
     #          first on its junction port.
     "distributed_ports": {
         "pynec": (None, None, None),
+        "opennec": (None, None, None),  # PyNEC's code, PyNEC's "not measured"
         "nec2": (None, None, None),
         "nec42": (None, None, None),
         "nec5": (False, "a port is " + DISTRIBUTED_PORT_REFUSAL, "antennaknobs#1410"),
@@ -1100,6 +1151,7 @@ _WRAPPER_PORT_SCOPE = {
 
 _WRAPPER_BURIED_SCOPE = {
     "pynec": (False, _PYNEC_BURIED_REFUSAL, "antennaknobs#1167"),
+    "opennec": (False, _OPENNEC_BURIED_REFUSAL, "antennaknobs#1167"),
     # NEC-5 SERVES buried geometry, measured on the licensed binary
     # (antennaknobs#1025 / #1167), so its row carries no sentence and the
     # frontend renders nothing — the same shape as a momwire that serves.
@@ -1254,7 +1306,7 @@ def _backend_buried_refusal(spec):
 # and NEC-4.2). `test_exact_pattern_capability.py` holds this set equal to the
 # server's external backends, so a new engine cannot serve /pattern without
 # the overlay knowing, or the other way round.
-_EXACT_PATTERN_KINDS = ("pynec", "nec5", "nec2", "nec42")
+_EXACT_PATTERN_KINDS = ("pynec", "opennec", "nec5", "nec2", "nec42")
 
 _EXACT_PATTERN_TERRAIN_REFUSAL = (
     "NEC's RP-card pattern is flat-ground only (no facet model), so the "
@@ -2895,6 +2947,7 @@ def _ground_answers(b: _BackendSpec) -> tuple[dict[str, str], dict[str, str]]:
         return out, {}
     lane = {
         "pynec": (_pynec_ground_spec, _pynec_ground_applied),
+        "opennec": (_pynec_ground_spec, _pynec_ground_applied),
         "nec2": (_pynec_ground_spec, _pynec_ground_applied),
         "nec42": (_pynec_ground_spec, _pynec_ground_applied),
         "nec5": (_nec5_ground_spec, _nec5_ground_applied),
@@ -3321,20 +3374,27 @@ def _make_momwire_engine(req: dict, builder, cancel=None):
     )
 
 
-def _make_pynec_engine(req: dict, builder):
+def _make_pynec_engine(req: dict, builder, *, kind="pynec", engine_cls=None):
     # PyNEC's fill reuse (pynec-accel 1.7.7), `pair_reuse`'s shape: passed
     # named where the installed PyNEC offers it, dropped otherwise. Absent,
     # the engine reads ANTENNAKNOBS_PYNEC_FILL_REUSE; an explicit off wins.
+    # `kind` / `engine_cls` select the OpenNEC lane, which is this one on
+    # another binding (`_make_opennec_engine`).
     fill_reuse = None
     opts = sanitize_model_options(req) or {}
-    if "fill_reuse" in opts and _offers_fill_reuse(_BACKENDS_BY_NAME["pynec"]):
+    if "fill_reuse" in opts and _offers_fill_reuse(_BACKENDS_BY_NAME[kind]):
         fill_reuse = bool(opts["fill_reuse"])
-    return PyNECEngine(
+    return (engine_cls or PyNECEngine)(
         builder,
         ground=_pynec_ground_spec(req),
         wire_radius=_slot_wire_radius(req),
         fill_reuse=fill_reuse,
     )
+
+
+def _make_opennec_engine(req: dict, builder):
+    """The PyNEC lane's engine on pyopennec: same ground, radius and options."""
+    return _make_pynec_engine(req, builder, kind="opennec", engine_cls=OpenNECEngine)
 
 
 # ---------------------------------------------------------------------------
@@ -3844,6 +3904,11 @@ _PYNEC_SEAMS = _SolveSeams(
 )
 
 
+# OpenNEC: the PyNEC seams with the engine swapped. OpenNECEngine is
+# PyNECEngine on another binding, so PyNEC's run, ground constants and drives.
+_OPENNEC_SEAMS = _PYNEC_SEAMS._replace(make_engine=_make_opennec_engine)
+
+
 # The catalog export writes two mesh rungs and two grounds and names them in the
 # deck's header. The download reuses those words so that a download at a catalog
 # point is byte-equal to the file the corpus tool's zip ships (#1389); off the
@@ -3967,6 +4032,7 @@ _NEC5_SEAMS = _SolveSeams(
 # a cell's own engine reads (`engine_metrics`, AK#1894).
 _SEAMS_BY_SOLVER = {
     "pynec": _PYNEC_SEAMS,
+    "opennec": _OPENNEC_SEAMS,
     "nec5": _NEC5_SEAMS,
     "nec2": _NEC2_SEAMS,
     "nec42": _NEC42_SEAMS,
@@ -5340,7 +5406,7 @@ def _make_example(name: str, cls, *, defer_hints: bool = False) -> AntennaExampl
             "preview": True,
         }
 
-    def pynec_build(req: dict) -> dict:
+    def pynec_build(req: dict, make_engine=None) -> dict:
         # web.pynec_backend.pattern() expects this to return a build
         # dict with at least:
         #   context      — a nec_context with geometry built, ground
@@ -5365,7 +5431,7 @@ def _make_example(name: str, cls, *, defer_hints: bool = False) -> AntennaExampl
         # The pattern must be the same solve the impedance readout shows —
         # a picked plane (issue #652 c) moves both together.
         _apply_plane(builder, req)
-        eng = _make_pynec_engine(req, builder)
+        eng = (make_engine or _make_pynec_engine)(req, builder)
         # Find the first excited wire to fill the feed_seg / feed_tag
         # parity fields. PyNECEngine.excitation_pairs is (tag, sub_seg,
         # voltage); take the first.
@@ -5523,6 +5589,12 @@ def _make_example(name: str, cls, *, defer_hints: bool = False) -> AntennaExampl
 
     def pynec_solve(req: dict) -> dict:
         return _engine_solve(req, _PYNEC_SEAMS)
+
+    def opennec_build(req: dict) -> dict:
+        return pynec_build(req, _make_opennec_engine)
+
+    def opennec_solve(req: dict) -> dict:
+        return _engine_solve(req, _OPENNEC_SEAMS)
 
     def nec5_solve(req: dict) -> dict:
         return _engine_solve(req, _NEC5_SEAMS)
@@ -6037,6 +6109,8 @@ def _make_example(name: str, cls, *, defer_hints: bool = False) -> AntennaExampl
         pynec_solve=pynec_solve,
         pynec_build=pynec_build,
         pynec_pattern_excite=pynec_pattern_excite,
+        opennec_solve=opennec_solve,
+        opennec_build=opennec_build,
         nec5_solve=nec5_solve,
         nec5_pattern=nec5_pattern,
         nec2_solve=nec2_solve,

@@ -277,7 +277,7 @@ METRICS_PORT_DEFAULT = 9091
 METRICS_PATH = "/metrics"
 
 _GROUNDS = frozenset({"fast", "sommerfeld", "mininec", "pec", "terrain"})
-_EXTERNAL_ENGINES = frozenset({"pynec", "nec5", "nec2", "nec42"})
+_EXTERNAL_ENGINES = frozenset({"pynec", "opennec", "nec5", "nec2", "nec42"})
 _DECK_DIALECTS = frozenset({"nec2", "nec4", "nec5"})
 
 # Why the server turned a request away (``ak_refusals_total``). Closed: the

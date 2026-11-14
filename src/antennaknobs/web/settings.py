@@ -228,7 +228,12 @@ class Catalog:
 
 
 def catalog(
-    *, have_pynec: bool, have_nec5: bool, have_nec2: bool, have_nec42: bool = False
+    *,
+    have_pynec: bool,
+    have_nec5: bool,
+    have_nec2: bool,
+    have_nec42: bool = False,
+    have_opennec: bool = False,
 ) -> Catalog:
     """The catalog for this request, from the same adapter functions
     ``/capabilities`` serves, so a file can name exactly what the UI offers."""
@@ -249,6 +254,7 @@ def catalog(
         have_nec5=have_nec5,
         have_nec2=have_nec2,
         have_nec42=have_nec42,
+        have_opennec=have_opennec,
     )
     specs = model_option_specs()
     terrains = [p["name"] for p in terrain_presets_schema()]

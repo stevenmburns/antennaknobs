@@ -58,7 +58,14 @@ from . import cost as _cost
 from . import decks as _decks
 from . import hosting as _hosting
 from . import tracker
-from . import nec2_backend, nec42_backend, nec5_backend, pynec_backend, user_designs
+from . import (
+    nec2_backend,
+    nec42_backend,
+    nec5_backend,
+    opennec_backend,
+    pynec_backend,
+    user_designs,
+)
 from .examples import REGISTRY as EXAMPLES
 from .examples import UnknownGeometryError, example_for
 from ..engines._external import cancel_scope as _engine_cancel_scope
@@ -2264,8 +2271,17 @@ def _shed(fn, *args, **kwargs):
 # `is` comparisons because the third entry (#1354) turned the two-way ternary
 # that named the resolved solver into the kind of expression a fourth engine
 # gets wrong.
+def _have_opennec() -> bool:
+    """OpenNEC is served where pyopennec imports, and never on the hosted
+    instance: the image does not install it, and offering an engine there is
+    a decision rather than a side effect of a package being present."""
+    return opennec_backend.HAVE_OPENNEC and not _HOSTED
+
+
 _EXTERNAL_BACKENDS = {
     "pynec": (pynec_backend, lambda: pynec_backend.HAVE_PYNEC),
+    # pyopennec: PyNEC's contract on another binding, local installs only.
+    "opennec": (opennec_backend, lambda: _have_opennec()),
     "nec5": (nec5_backend, nec5_backend.have_nec5),
     "nec2": (nec2_backend, nec2_backend.have_nec2),
     # AK#1603: a licensed binary, present only where $NEC42_EXE resolves.
@@ -4040,7 +4056,8 @@ def _norm_check(req: dict, cancel=None) -> dict:
 async def norm_check_endpoint(req: dict, request: Request):
     """Field-side vs circuit-side gain-norm consistency check for the
     far-field overlay (dwell-triggered). See `_norm_check`."""
-    use_pynec = req.get("solver") == "pynec" and pynec_backend.HAVE_PYNEC
+    # The in-process NEC-2 bindings (PyNEC, OpenNEC) admit as PyNEC does.
+    use_pynec = _external_backend(req) in (pynec_backend, opennec_backend)
     _refuse_or_withhold(_admit(req, kind="norm_check", use_pynec=use_pynec), req)
     session, lane_gen = _lane_key(req)
     try:
@@ -5521,6 +5538,7 @@ def capabilities_endpoint():
 
     have = {
         "have_pynec": pynec_backend.HAVE_PYNEC,
+        "have_opennec": _have_opennec(),
         "have_nec5": nec5_backend.have_nec5(),
         "have_nec2": nec2_backend.have_nec2(),
         "have_nec42": nec42_backend.have_nec42(),
@@ -5586,6 +5604,7 @@ def settings_save_endpoint(req: dict):
 
     cat = ui_settings.catalog(
         have_pynec=pynec_backend.HAVE_PYNEC,
+        have_opennec=_have_opennec(),
         have_nec5=nec5_backend.have_nec5(),
         have_nec2=nec2_backend.have_nec2(),
         have_nec42=nec42_backend.have_nec42(),

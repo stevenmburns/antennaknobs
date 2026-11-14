@@ -118,7 +118,13 @@ def pattern(req: dict) -> dict:
     ex = example_for(geometry)
     if ex.pynec_build is None:
         raise ValueError(f"PyNEC pattern not implemented for geometry {ex.name!r}")
-    b = ex.pynec_build(req)
+    return pattern_from_build(req, ex, ex.pynec_build(req))
+
+
+def pattern_from_build(req: dict, ex, b: dict) -> dict:
+    """`pattern`'s body on an already-built context — shared with the OpenNEC
+    backend, whose build is the same dict on pyopennec's context."""
+    geometry = req.get("geometry", next(iter(EXAMPLES)))
     c = b["context"]
     meas_freq_mhz = float(
         req.get("measurement_freq_mhz", req.get("design_freq_mhz", 14.3))
@@ -192,10 +198,15 @@ def _sweep_at(req: dict, freq_mhz: float) -> complex:
     Returns the primary feed's Z for back-compat. Multi-feed callers that
     need per-feed data should use `_sweep_at_multifeed`.
     """
+    return _sweep_point(solve, req, freq_mhz)
+
+
+def _sweep_point(solve_fn, req: dict, freq_mhz: float) -> complex:
+    """`_sweep_at` through ``solve_fn`` (this module's, or OpenNEC's)."""
     req2 = dict(req)
     req2["measurement_freq_mhz"] = freq_mhz
     try:
-        res = solve(req2)
+        res = solve_fn(req2)
     except SingularNetworkError:
         # One frequency landing on a lossless line's pole (issue #647) must
         # not break the stream; the sentinel is what the momwire path's
@@ -215,10 +226,15 @@ def _sweep_at_multifeed(req: dict, freq_mhz: float):
     Used for the bowtie 1×2 array sweep so the streamed NDJSON can carry
     per-feed Z alongside the legacy `z_re` / `z_im` (primary) fields.
     """
+    return _sweep_point_multifeed(solve, req, freq_mhz)
+
+
+def _sweep_point_multifeed(solve_fn, req: dict, freq_mhz: float):
+    """`_sweep_at_multifeed` through ``solve_fn``."""
     req2 = dict(req)
     req2["measurement_freq_mhz"] = freq_mhz
     try:
-        res = solve(req2)
+        res = solve_fn(req2)
     except SingularNetworkError:  # see _sweep_at
         from .adapter import Z_OPEN_OHMS
 

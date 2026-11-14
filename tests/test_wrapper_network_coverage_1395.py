@@ -129,6 +129,7 @@ def test_every_wrapper_serves_the_network():
     route, so no wrapper carries a network sentence any more."""
     assert adapter._WRAPPER_NETWORK_SCOPE == {
         "pynec": (True, None, None),
+        "opennec": (True, None, None),  # PyNEC's route, inherited
         "nec5": (True, None, None),
         "nec2": (True, None, None),
         "nec42": (True, None, None),  # NEC-2's route, inherited (AK#1603)
@@ -168,7 +169,7 @@ def test_the_need_comes_from_the_engines_own_predicate_not_a_second_list():
     assert "isinstance(br, Load)" not in src, "the branch-type test is copied here"
 
 
-@pytest.mark.parametrize("kind", ["pynec", "nec5", "nec2"])
+@pytest.mark.parametrize("kind", ["pynec", "opennec", "nec5", "nec2"])
 def test_every_wrapper_kind_has_a_row(kind):
     """Three states, not two (#1103's rule): a wrapper absent from the table
     would read as SERVES, which is the one answer that must never be inferred."""
@@ -252,7 +253,7 @@ def test_a_port_refusal_outranks_a_network_one():
 @pytest.mark.parametrize(
     "capability", ["junction_ports", "node_gaps", "distributed_ports"]
 )
-@pytest.mark.parametrize("kind", ["pynec", "nec5", "nec2"])
+@pytest.mark.parametrize("kind", ["pynec", "opennec", "nec5", "nec2"])
 def test_every_wrapper_kind_has_a_row_for_every_port_capability(capability, kind):
     """Three states, not two (#1103): a wrapper ABSENT from a table would read as
     "serves", which is the one answer that must never be inferred. `None` is
