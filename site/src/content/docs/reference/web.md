@@ -1525,6 +1525,20 @@ pairs runs slightly slower, which is why the box starts unticked. A server can
 default it on with `ANTENNAKNOBS_PYNEC_FILL_REUSE=1`; a request that unticks it
 still wins.
 
+**The Sinusoidal tab's reuse box works on any design.** Its *reuse repeated
+geometry* box (momwire 0.91.0) now reaches the solver on every design, not
+only one where the front end finds congruent edge pairs: the sinusoidal
+solver finds its own repeated segment pairs. It stays off by default, and
+moves answers by rounding only.
+
+**An OpenNEC tab, on a local install.** With the optional
+[pyopennec](https://github.com/stevenmburns/pyopennec) installed, the
+workbench offers an **OpenNEC** tab beside PyNEC: the same NEC-2 model,
+solved by Maury Markowitz's OpenNEC. It is not on the hosted app. Its ground
+choices are free space, perfect and the two finite grounds; the MININEC-type
+ground is refused, because OpenNEC has no way to apply its soil to the
+pattern.
+
 **On the buried designs, that gate now covers the external engines too, and
 each answer is measured rather than assumed.** **PyNEC** is greyed out: NEC-2's
 Sommerfeld-Norton ground is formulated for sources above the interface and has
