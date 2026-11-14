@@ -22,6 +22,7 @@ on:
       - "tests/test_design_sandbox_2149.py"
       - "tests/test_open_design_py_2149.py"
       - "tests/test_design_worker_2157.py"
+      - "tests/test_jail_binds_2289.py"
       - "Dockerfile"
       - ".github/workflows/sandbox-jail.yml"
   push:
@@ -34,6 +35,7 @@ on:
       - "tests/test_design_sandbox_2149.py"
       - "tests/test_open_design_py_2149.py"
       - "tests/test_design_worker_2157.py"
+      - "tests/test_jail_binds_2289.py"
       - "Dockerfile"
       - ".github/workflows/sandbox-jail.yml"
   workflow_dispatch: {}
@@ -67,7 +69,7 @@ jobs:
         run: >-
           python -m pytest -q -p no:cacheprovider -rs
           tests/test_design_sandbox_2149.py tests/test_open_design_py_2149.py
-          tests/test_design_worker_2157.py
+          tests/test_design_worker_2157.py tests/test_jail_binds_2289.py
       - name: Make the checkout world-readable, as the image's /app is
         # The root run's child drops to nobody (the container's case); the
         # runner's home folder is private (750), where /app in the image is not.
@@ -80,3 +82,4 @@ jobs:
           sudo -E env "PATH=$PATH" AK_REQUIRE_JAIL=1
           "$(command -v python)" -m pytest -q -p no:cacheprovider -rs
           tests/test_design_sandbox_2149.py tests/test_design_worker_2157.py
+          tests/test_jail_binds_2289.py
