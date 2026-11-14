@@ -789,6 +789,21 @@ def _takes_pair_reuse(solver_cls) -> bool:
     return _takes_kwarg(solver_cls, "pair_reuse")
 
 
+def _pair_reuse_needs_hint(solver_cls) -> bool:
+    """Whether ``solver_cls``'s ``pair_reuse`` is fed the front end's edge-pair
+    hint (`structure.pair_reuse_hint`): the B-spline family's input (momwire
+    #1809). A solver that takes the kwarg but is not of that family finds its
+    own congruent classes and reads any truthy value as "on" (the sinusoidal
+    solver, momwire#1911; AK#2279), so it needs no hint and gets ``True``.
+
+    A live read of momwire's own class hierarchy and the installed
+    constructor, never a version compare or a list of names. momwire exposes
+    no capability flag for this (its registry's ``pair_reuse`` row says only
+    that the sinusoidal solver "finds its own"), so the hierarchy is the
+    signal."""
+    return _takes_pair_reuse(solver_cls) and issubclass(solver_cls, BSplineSolver)
+
+
 # momwire's opt-in features passed straight through as one solver keyword
 # (momwire `_features`), each with the server env that seeds an unset
 # request. `pair_reuse` is not here: it carries the engine's own hint.
@@ -1502,6 +1517,12 @@ class MomwireEngine(SimulationEngine):
         if asked_reuse is None:
             asked_reuse = os.environ.get("ANTENNAKNOBS_PAIR_REUSE", "") in ("1", "on")
         self._pair_reuse = bool(asked_reuse) and _takes_pair_reuse(self._solver)
+        # Whether the solver finds its own classes and so is handed ``True``
+        # rather than the edge-pair hint (AK#2279); decided once, on the
+        # class the engine was given.
+        self._pair_reuse_hintless = self._pair_reuse and not _pair_reuse_needs_hint(
+            self._solver
+        )
         # The same switch fills a uniform edge's own block by segment offset
         # (momwire#1809), on a momwire that takes it; no hint is needed.
         self._offset_reuse = bool(asked_reuse) and _takes_kwarg(
@@ -2288,9 +2309,15 @@ class MomwireEngine(SimulationEngine):
             **self._solver_kwargs,
             **self._feature_kwargs,
         )
-        hint = self._pair_reuse_hint()
-        if hint:
-            kwargs["pair_reuse"] = hint
+        if self._pair_reuse_hintless:
+            # The solver finds its own classes (AK#2279): no hint to compute,
+            # and none to wait for, so a design with no congruent edge pairs
+            # still gets the switch.
+            kwargs["pair_reuse"] = True
+        else:
+            hint = self._pair_reuse_hint()
+            if hint:
+                kwargs["pair_reuse"] = hint
         if self._offset_reuse:
             kwargs["offset_reuse"] = True
         solver = self._solver(**kwargs)
