@@ -66,6 +66,7 @@ def test_the_values():
         "arrayblock": 21,
         "razor-2p": 40,
         "pynec": 21,
+        "opennec": 21,  # NEC-2 again, through pyopennec
         "nec5": 40,
         "nec2": 21,
         "nec42": 21,

@@ -169,7 +169,12 @@ PYNEC_MISSING = (
 
 
 class _DeckOnlyContext:
-    """Stands in for `PyNEC.nec_context()` when PyNEC is absent."""
+    """Stands in for `PyNEC.nec_context()` when PyNEC is absent — or, with
+    ``missing`` naming the other package, for `pyopennec.nec_context()` when
+    that one is (`engines/opennec.py`)."""
+
+    def __init__(self, missing=PYNEC_MISSING):
+        self._missing = missing
 
     def get_geometry(self):
         return self
@@ -177,7 +182,7 @@ class _DeckOnlyContext:
     def __getattr__(self, name):
         if name in _DECK_ONLY_CALLS:
             return lambda *args, **kwargs: None
-        raise ImportError(PYNEC_MISSING)
+        raise ImportError(self._missing)
 
 
 def _new_context():
@@ -191,14 +196,21 @@ def _new_context():
 FILL_REUSE_ENV = "ANTENNAKNOBS_PYNEC_FILL_REUSE"
 
 
+def module_takes_fill_reuse(module) -> bool:
+    """Whether NEC binding ``module``'s ``nec_context`` has ``set_fill_reuse``:
+    a live probe of the class, never a version or a name comparison. False
+    for None (the package is absent)."""
+    return module is not None and callable(
+        getattr(getattr(module, "nec_context", None), "set_fill_reuse", None)
+    )
+
+
 def takes_fill_reuse() -> bool:
     """Whether the installed PyNEC's ``nec_context`` has ``set_fill_reuse``
     (pynec-accel 1.7.7): the fill evaluated once per congruence class of
     segment pairs. A live probe of the class, never a version comparison;
     False when PyNEC is absent."""
-    return nec is not None and callable(
-        getattr(getattr(nec, "nec_context", None), "set_fill_reuse", None)
-    )
+    return module_takes_fill_reuse(nec)
 
 
 # NEC reports a null direction as -999.99 dB; a gain shift must leave it one.
@@ -247,6 +259,12 @@ class PyNECEngine(SimulationEngine):
     """
 
     supports_far_field = True
+    # The name this engine's own errors carry. A subclass driving another
+    # binding of the same NEC-2 card API (`OpenNECEngine`) says its own.
+    engine_label = "PyNEC"
+    # nec2++'s pre-1.7.6 Sommerfeld defect (#448) is nec2++'s own; an engine
+    # on another NEC-2 implementation turns the warning off.
+    warns_somm_low_wires = True
     # NEC's source placement uses (n_seg+1)//2, which lands on the centre
     # segment for odd n_seg. Even counts get bumped up so the feed sits
     # at a true wire midpoint instead of off-centre.
@@ -352,7 +370,7 @@ class PyNECEngine(SimulationEngine):
         self._check_intersections = check_intersections
         self._extended_thin_wire_kernel = extended_thin_wire_kernel
         self.tups = self._coerce_wire_tuples(builder.build_wires())
-        refuse_graded_wires(self.tups, "PyNEC")
+        refuse_graded_wires(self.tups, self.engine_label)
         self._network = self._network_as_meshed(builder.build_network())
         # End ports are momwire-only (issue #579): NEC-2 has no junction-node
         # port — NT/TL cards attach to segment interiors, and synthesizing a
@@ -453,6 +471,19 @@ class PyNECEngine(SimulationEngine):
         else:
             self._build_geometry()
 
+    @staticmethod
+    def nec_module():
+        """The NEC binding this engine solves through — the module whose
+        ``nec_context`` every context comes from — or None when it is not
+        installed. Read at call time, so a monkeypatched module is seen."""
+        return nec
+
+    def _make_context(self):
+        """A fresh context from `nec_module`, or the deck-only stand-in when
+        the module is absent. Every context the engine makes comes from here,
+        which is the one seam a subclass on another binding overrides."""
+        return _new_context()
+
     def __del__(self):
         # Release the nec_context handle if construction got that far.
         c = getattr(self, "c", None)
@@ -515,7 +546,7 @@ class PyNECEngine(SimulationEngine):
             c.set_extended_thin_wire_kernel(True)
 
     def _build_geometry(self):
-        self.c = _new_context()
+        self.c = self._make_context()
         self._apply_fill_reuse(self.c)
         geo = self.c.get_geometry()
         self._apply_intersection_policy(geo)
@@ -990,7 +1021,7 @@ class PyNECEngine(SimulationEngine):
         """A fresh nec_context with only the real build_wires() geometry, wire
         conductivity, and ground — no virtual stubs, no tl_cards. Returns
         (context, {edge_name: (tag, mid_seg)})."""
-        c = _new_context()
+        c = self._make_context()
         self._apply_fill_reuse(c)
         geo = c.get_geometry()
         self._apply_intersection_policy(geo)
@@ -1191,6 +1222,8 @@ class PyNECEngine(SimulationEngine):
         re-scores clean (dΓ ≤ 0.0035 on the 19-deck calibration set) and
         no warning fires. Warns once per engine instance.
         """
+        if not self.warns_somm_low_wires:
+            return
         if self._somm_lowz_warned or not (
             isinstance(self.ground, tuple) and self.ground[0] == "finite"
         ):
@@ -1222,7 +1255,7 @@ class PyNECEngine(SimulationEngine):
         than returned."""
         if self._export_current_sources:
             raise NotImplementedError(
-                "this PyNECEngine was built for `nec_export` only "
+                f"this {self.engine_label}Engine was built for `nec_export` only "
                 "(_export_current_sources): its baked context has no "
                 "excitation for the DrivenCurrent ports, so any result would "
                 "be for an undriven antenna. Build it without that flag to "
