@@ -16,6 +16,7 @@ from . import (
 # the workbench share (AK#1781), in zinf.py.
 from .zinf import describe as describe_zinf, zinf_estimate
 from .engines import (
+    OpenNECEngine,
     PyNECEngine,
     MomwireEngine,
     NEC2Engine,
@@ -52,6 +53,11 @@ ENGINE_CLASSES = {
 }
 if PyNECEngine is not None:
     ENGINE_CLASSES["pynec"] = PyNECEngine
+# OpenNEC through pyopennec the same way: on the roster only where the binding
+# imports. The engine class itself always imports (it builds decks without the
+# binding), so the gate is the module, not the class.
+if OpenNECEngine is not None and OpenNECEngine.nec_module() is not None:
+    ENGINE_CLASSES["opennec"] = OpenNECEngine
 # NEC-5 is licensed, user-supplied software (issue #825): the engine only
 # joins the roster when $NEC5_EXE points at a binary, mirroring how an
 # uninstalled pynec simply isn't a legal --engines name.
@@ -603,9 +609,18 @@ def _engine_unavailable_message(name):
             "engine 'pynec' needs the optional pynec-accel package, which is "
             f"not installed (see the README); available: {available}"
         )
+    if name == "opennec":
+        return (
+            "engine 'opennec' needs the optional pyopennec package, which is "
+            "not installed (not on PyPI yet: pip install "
+            "git+https://github.com/stevenmburns/pyopennec; see the README); "
+            f"available: {available}"
+        )
     if name not in _EXTERNAL_ENGINES:
         optional = sorted(
-            n for n in ("pynec", *_EXTERNAL_ENGINES) if n not in ENGINE_CLASSES
+            n
+            for n in ("pynec", "opennec", *_EXTERNAL_ENGINES)
+            if n not in ENGINE_CLASSES
         )
         extra = f" (also {', '.join(optional)}, once configured)" if optional else ""
         return f"unknown engine {name!r}; available: {available}{extra}"
@@ -1170,7 +1185,7 @@ def cli(arguments=None):
                 default=["momwire"],
                 help="One or more simulation backends. Each spec is "
                 f'"{_MOMWIRE_SPEC_HELP}", '
-                '"pynec", "nec5", "nec2", or "nec42". sinusoidal is NEC-2\'s own formulation; '
+                '"pynec", "opennec", "nec5", "nec2", or "nec42". sinusoidal is NEC-2\'s own formulation; '
                 "sinusoidal-galerkin is the same basis tested variationally "
                 "and with the point-gap feed model. bspline-d1 is bspline "
                 "with degree=1 (tent basis) "
@@ -1203,7 +1218,7 @@ def cli(arguments=None):
                 "comma-separated list, or --engine repeated, crosses the "
                 "sweep with one trajectory/line per engine (#1554) — a "
                 "single spec behaves exactly as --engine always has. Each "
-                f"spec is {_MOMWIRE_SPEC_HELP}, pynec, nec5, "
+                f"spec is {_MOMWIRE_SPEC_HELP}, pynec, opennec, nec5, "
                 "nec2, or nec42 — see the plain --engine's help for what each basis "
                 "is. --swr/--gain/--patterns and a --param nominal_nsegs "
                 "convergence study each still take exactly one engine.",
@@ -1214,7 +1229,7 @@ def cli(arguments=None):
                 type=str,
                 default="momwire",
                 help=f"Simulation backend: {_MOMWIRE_SPEC_HELP} | "
-                "pynec | nec5 | nec2 | nec42 (default: momwire). sinusoidal is "
+                "pynec | opennec | nec5 | nec2 | nec42 (default: momwire). sinusoidal is "
                 "NEC-2's own "
                 "formulation; sinusoidal-galerkin is the same basis tested "
                 "variationally and with the point-gap feed model. "
@@ -1227,7 +1242,8 @@ def cli(arguments=None):
                 "quadrature) is off the roster (momwire#753) — construct "
                 "RazorSolver(...) directly for that lane. See "
                 "docs/reference/solver for the measured guidance. "
-                "pynec needs the optional pynec-accel package; nec5 drives "
+                "pynec needs the optional pynec-accel package and opennec "
+                "the optional pyopennec one (OpenNEC, NEC-2 again); nec5 drives "
                 "a licensed LOCAL NEC-5 binary and joins the roster only "
                 "when $NEC5_EXE points at one — the real engine, not "
                 "momwire:razor-2p, momwire's independently written "

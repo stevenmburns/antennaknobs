@@ -3,6 +3,14 @@ try:
 except ImportError:
     PyNECEngine = None
 
+# OpenNECEngine imports with or without pyopennec (it subclasses PyNECEngine
+# and builds against the deck-only stand-in when the binding is absent), so
+# whether it can SOLVE is `opennec.pyopennec is not None`, not this name.
+try:
+    from .opennec import OpenNECEngine
+except ImportError:
+    OpenNECEngine = None
+
 from .momwire import MomwireEngine
 from .nec2 import NEC2Engine, find_nec2, probe_nec2
 from .nec42 import NEC42Engine, find_nec42, probe_nec42
@@ -10,6 +18,7 @@ from .nec5 import NEC5Engine, find_nec5, probe_nec5
 
 __all__ = [
     "PyNECEngine",
+    "OpenNECEngine",
     "MomwireEngine",
     "NEC5Engine",
     "find_nec5",
