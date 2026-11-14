@@ -71,6 +71,9 @@ export function GroundPanel({
    *  already shows. */
   notices?: boolean;
 }) {
+  // PyNEC and OpenNEC are the same NEC-2 model on two bindings (OpenNEC takes
+  // PyNEC's panel), so the NEC ITYPE tooltips below describe both.
+  const isPynecModel = backend.name === "pynec" || backend.name === "opennec";
   return (
     <>
       {notices && <GroundNotices
@@ -108,7 +111,7 @@ export function GroundPanel({
                   [
                     "pec",
                     "PEC",
-                    backend.name === "pynec"
+                    isPynecModel
                       ? "Perfectly conducting ground (image method, NEC ITYPE=1) — matches every backend's model='PEC' for apples-to-apples engine comparison."
                       : "Perfectly conducting ground (image method) — matches PyNEC's PEC model for apples-to-apples engine comparison.",
                   ],
@@ -150,21 +153,23 @@ export function GroundPanel({
                         // served words (AK#1856: NEC-5).
                         backend.ground_refusals?.fast
                           ? `Refused on ${backend.label}: ${backend.ground_refusals.fast}`
-                          : backend.name === "pynec"
+                          : isPynecModel
                             ? "Reflection-coefficient approximation (NEC ITYPE=0). ~2x faster per solve; impedance degrades below ~0.1λ height."
                             : "Reflection-coefficient model. Fast; matches Sommerfeld above ~0.1λ heights, and degrades on low antennas and verticals.",
                       ],
                       [
                         "sommerfeld",
                         "Sommerfeld",
-                        backend.name === "pynec"
+                        isPynecModel
                           ? "Sommerfeld-Norton (NEC ITYPE=2) — most accurate, slowest; the impedance sweep drops to half resolution to compensate."
                           : "True Sommerfeld ground — accurate at any height, on every momwire solver including the fast array paths (momwire ≥ 0.8.0). First solve at each frequency builds a grid (seconds); repeats are fast. The impedance sweep runs at half resolution.",
                       ],
                       [
                         "mininec",
                         "MININEC",
-                        "EZNEC's “Real, MININEC type” ground (AK#1655): the currents and impedance are the perfect ground's, and only the pattern reflects off this soil. Valid when no horizontal wire is lower than about 0.2λ.",
+                        backend.ground_refusals?.mininec
+                          ? `Refused on ${backend.label}: ${backend.ground_refusals.mininec}`
+                          : "EZNEC's “Real, MININEC type” ground (AK#1655): the currents and impedance are the perfect ground's, and only the pattern reflects off this soil. Valid when no horizontal wire is lower than about 0.2λ.",
                       ],
                     ] as [FiniteGroundMethod, string, string][]
                   ).map(([value, label, title]) => (
@@ -172,6 +177,14 @@ export function GroundPanel({
                       <input
                         type="radio"
                         name="ground-method"
+                        // Only the MININEC type is withheld outright (OpenNEC);
+                        // a refused refl-coef stays pickable so its refusal
+                        // reads as the notice it has always been (AK#1856).
+                        disabled={
+                          value === "mininec" &&
+                          !!backend.ground_refusals?.mininec &&
+                          finiteGroundMethod !== value
+                        }
                         checked={finiteGroundMethod === value}
                         onChange={() => setFiniteGroundMethod(value)}
                       />

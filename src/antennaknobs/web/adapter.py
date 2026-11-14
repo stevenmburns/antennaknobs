@@ -2945,7 +2945,7 @@ def _ground_answers(b: _BackendSpec) -> tuple[dict[str, str], dict[str, str]]:
         return out, {}
     lane = {
         "pynec": (_pynec_ground_spec, _pynec_ground_applied),
-        "opennec": (_pynec_ground_spec, _pynec_ground_applied),
+        "opennec": (_opennec_ground_spec, _pynec_ground_applied),
         "nec2": (_pynec_ground_spec, _pynec_ground_applied),
         "nec42": (_pynec_ground_spec, _pynec_ground_applied),
         "nec5": (_nec5_ground_spec, _nec5_ground_applied),
@@ -2992,6 +2992,24 @@ def _pynec_ground_spec(req: dict):
         # field pynec_solve attaches to the response.
         return ("finite",) + _terrain_from_request(req).crest_medium
     return ("finite",) + _soil_from_request(req)
+
+
+_OPENNEC_MININEC_REFUSAL = (
+    "OpenNEC does not offer the MININEC-type ground: the soil enters NEC-2 only "
+    "through a cliff-mode RP (the GD card), and pyopennec's porty far field "
+    "reads the solve's own perfect ground, so the pattern it would draw is not "
+    "the one asked for. Use the PyNEC, NEC-2 or momwire engine for that ground."
+)
+
+
+def _opennec_ground_spec(req: dict):
+    """PyNEC's ground spec, except the MININEC-type ground, which OpenNEC
+    refuses by name (`OpenNECEngine.gain_grid_dbi` refuses its pattern). Raised
+    here so the roster serves the refusal from this same function
+    (`_ground_answers`) and a request that still sends it is refused as served."""
+    if _requested_ground_model(req) == "mininec":
+        raise NotImplementedError(_OPENNEC_MININEC_REFUSAL)
+    return _pynec_ground_spec(req)
 
 
 def _nec5_ground_spec(req: dict):
@@ -3372,7 +3390,9 @@ def _make_momwire_engine(req: dict, builder, cancel=None):
     )
 
 
-def _make_pynec_engine(req: dict, builder, *, kind="pynec", engine_cls=None):
+def _make_pynec_engine(
+    req: dict, builder, *, kind="pynec", engine_cls=None, ground_spec=None
+):
     # PyNEC's fill reuse (pynec-accel 1.7.7), `pair_reuse`'s shape: passed
     # named where the installed PyNEC offers it, dropped otherwise. Absent,
     # the engine reads ANTENNAKNOBS_PYNEC_FILL_REUSE; an explicit off wins.
@@ -3384,7 +3404,7 @@ def _make_pynec_engine(req: dict, builder, *, kind="pynec", engine_cls=None):
         fill_reuse = bool(opts["fill_reuse"])
     return (engine_cls or PyNECEngine)(
         builder,
-        ground=_pynec_ground_spec(req),
+        ground=(ground_spec or _pynec_ground_spec)(req),
         wire_radius=_slot_wire_radius(req),
         fill_reuse=fill_reuse,
     )
@@ -3393,7 +3413,13 @@ def _make_pynec_engine(req: dict, builder, *, kind="pynec", engine_cls=None):
 def _make_opennec_engine(req: dict, builder):
     """The PyNEC lane's engine on pyopennec's porty: same ground and radius
     (no fill-reuse option there, `_offers_fill_reuse`)."""
-    return _make_pynec_engine(req, builder, kind="opennec", engine_cls=OpenNECEngine)
+    return _make_pynec_engine(
+        req,
+        builder,
+        kind="opennec",
+        engine_cls=OpenNECEngine,
+        ground_spec=_opennec_ground_spec,
+    )
 
 
 # ---------------------------------------------------------------------------

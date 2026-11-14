@@ -125,12 +125,12 @@ export function exactPatternRefusal(
 export type BackendEntry = {
   name: string;
   label: string;
-  /** Non-momwire kinds ("pynec", "nec5", "nec2", "nec42") ride the `solver`
+  /** Non-momwire kinds ("pynec", "opennec", "nec5", "nec2", "nec42") ride the `solver`
    *  request field and never `momwire_model`; everything else is a momwire
    *  model name. "nec5", "nec2" and "nec42" appear only when the serving
    *  machine resolves $NEC5_EXE / $NEC2_EXE / $NEC42_EXE — user-supplied
    *  binaries (issues #825, #1354, #1603), never the hosted box. */
-  kind: "momwire" | "pynec" | "nec5" | "nec2" | "nec42";
+  kind: "momwire" | "pynec" | "opennec" | "nec5" | "nec2" | "nec42";
   supports_ground: boolean;
   /** What this backend's impedance solve RUNS for each finite method it
    *  serves, in `ground_model_applied`'s words (AK#1854): a momwire solver
