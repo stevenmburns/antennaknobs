@@ -1362,14 +1362,18 @@ class PyNECEngine(SimulationEngine):
             self._excited_p_in,
             self._excited_power_budget,
         ) = self._radiation_efficiency(sc, C_LIGHT / (self.builder.freq * 1e6))
-        all_tags = list(sc.get_current_segment_tag())
-        all_cur = sc.get_current()
+        return self._knot_currents(list(sc.get_current_segment_tag()), sc.get_current())
 
-        # A wire end shared with another tuple is a junction (current
-        # continuous through it); an unshared end is a free end (I -> 0).
-        # Without this, a 1-segment feed stub — both ends junctions — would
-        # render zero current along its whole length even though it sits at a
-        # current maximum, opening a visible gap at the feed.
+    def _knot_currents(self, all_tags, all_cur):
+        """`current_distribution`'s wires from NEC's segment-centre currents
+        ``all_cur``, ``all_tags`` naming each one's GW tag in segment order.
+
+        A wire end shared with another tuple is a junction (current
+        continuous through it); an unshared end is a free end (I -> 0).
+        Without this, a 1-segment feed stub — both ends junctions — would
+        render zero current along its whole length even though it sits at a
+        current maximum, opening a visible gap at the feed."""
+
         def _key(p):
             return tuple(np.round(np.asarray(p, dtype=float), 6))
 
