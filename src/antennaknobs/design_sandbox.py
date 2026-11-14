@@ -68,9 +68,9 @@ class SandboxError(RuntimeError):
 
 
 # What the jailed child may see, read-only: the system's programs and
-# libraries, /etc, and Python with every directory on this process's import
-# path (the venv, an editable checkout's src/). NOT the whole root: a server
-# keeps readable things a design has no business with (the app folder, /root,
+# libraries, /etc, the interpreter, and the directories the child's OWN import
+# path is made of (`_import_roots`). NOT the whole root: a server keeps
+# readable things a design has no business with (the app folder, /root,
 # /home, /var, /run, Fly's /.fly), and a read-only bind still lets them be read.
 _SYSTEM_DIRS = ("/usr", "/bin", "/sbin", "/lib", "/lib64", "/lib32", "/libx32", "/etc")
 
@@ -79,35 +79,150 @@ _SYSTEM_DIRS = ("/usr", "/bin", "/sbin", "/lib", "/lib64", "/lib32", "/libx32", 
 # root-only file.
 NOBODY = 65534
 
+# Run by `_import_roots` in the child's own interpreter, with the child's own
+# flags. It prints sys.path, which -I builds with no cwd, script folder or
+# PYTHONPATH entry in it, and the folders the editable-install finders on
+# sys.meta_path map packages to: setuptools' ``__editable___*_finder``
+# modules (MAPPING, NAMESPACES) and scikit-build-core's redirecting finder
+# (known_source_files), neither of which puts its targets on sys.path.
+_ROOTS_PROBE = r"""
+import json, os, sys
+out = [p for p in sys.path if p]
+for f in sys.meta_path:
+    mod = sys.modules.get(getattr(f, "__module__", None) or "")
+    if mod is not None and mod.__name__.startswith("__editable___"):
+        out += [p for p in getattr(mod, "MAPPING", {}).values()]
+        for ps in getattr(mod, "NAMESPACES", {}).values():
+            out += list(ps)
+    if type(f).__name__ == "ScikitBuildRedirectingFinder":
+        for p in getattr(f, "known_source_files", {}).values():
+            out.append(os.path.dirname(p) if p.endswith("/__init__.py") else p)
+print(json.dumps([p for p in out if isinstance(p, str) and os.path.isabs(p)]))
+"""
+
+
+@lru_cache(maxsize=1)
+def _import_roots() -> tuple[str, ...]:
+    """The folders the jailed child imports from: exactly what
+    ``sys.executable -I`` puts on its import path, plus the editable-install
+    finders' targets (`_ROOTS_PROBE`), asked of that interpreter run the way
+    the child is run.
+
+    The constraint, and why it is not "this process's sys.path": the child is
+    ``python -I``, which leaves out ``sys.path[0]`` (the cwd under
+    ``python -m`` / ``-c``, a script's folder), PYTHONPATH and the user site.
+    So no entry of those kinds can be one the child imports from, and binding
+    one would only show a design the server's files (AK#2289: under
+    ``python -m uvicorn``, the folder the server was started in). What is
+    left is the stdlib, site-packages, and what the installed distributions'
+    ``.pth`` files and finders point at: every root an installed package
+    imports from, and nothing an operator's launch adds. A folder an
+    editable install points at is bound whole, so a flat-layout editable
+    project exposes its project folder: install the app non-editable, or
+    from a ``src/`` layout, where the jail matters.
+
+    If the probe fails, the prefixes alone: a design that cannot import
+    fails closed, it does not see more."""
+    try:
+        r = subprocess.run(
+            [sys.executable, "-I", "-c", _ROOTS_PROBE],
+            capture_output=True, text=True, timeout=30, cwd="/",
+            env=_child_env("/"),
+        )  # fmt: skip
+        # The last line: a .pth file may print too.
+        last = (r.stdout.strip().splitlines() or ["[]"])[-1]
+        roots = json.loads(last) if r.returncode == 0 else []
+    except (OSError, ValueError, subprocess.TimeoutExpired):
+        roots = []
+    if not isinstance(roots, list):
+        roots = []
+    return tuple(p for p in roots if isinstance(p, str) and os.path.isabs(p))
+
+
+def _resolve(path: str) -> tuple[str, list[tuple[str, str]]]:
+    """``path`` with every symlink resolved, and each symlink met on the way
+    as ``(where it is, what it says)``: the jail binds the real path and
+    recreates the links, so the path as written still leads there inside.
+    Each link's own folder is already a real path."""
+    links: list[tuple[str, str]] = []
+    parts = list(Path(path).parts[1:])
+    cur = "/"
+    while parts:
+        part = parts.pop(0)
+        if part in ("", "."):
+            continue
+        if part == "..":
+            cur = os.path.dirname(cur)
+            continue
+        nxt = os.path.join(cur, part)
+        if os.path.islink(nxt):
+            if len(links) > 40:
+                raise OSError(f"{path}: too many levels of symbolic links")
+            text = os.readlink(nxt)
+            links.append((nxt, text))
+            parts = list(Path(os.path.join(cur, text)).parts[1:]) + parts
+            cur = "/"
+        else:
+            cur = nxt
+    return cur, links
+
+
+def _under(p: str, roots) -> bool:
+    return any(p == q or p.startswith(q.rstrip("/") + "/") for q in roots)
+
 
 def _jail_binds() -> list[str]:
-    seen: list[str] = []
-    made: set[str] = set()
-    out: list[str] = []
-    paths = list(_SYSTEM_DIRS) + [sys.prefix, sys.base_prefix, sys.exec_prefix]
-    paths += [p for p in sys.path if p and os.path.isabs(p)]
-    for p in paths:
-        p = os.path.normpath(p)
-        if not os.path.lexists(p) or any(p == q or p.startswith(q + "/") for q in seen):
+    """The bubblewrap arguments that make the jail's read-only view: the
+    system dirs, the interpreter (``sys.executable`` as written, through
+    every symlink on the way to the real file: AK#2289, uv's
+    ``cpython-3.12-…`` minor-version link), the prefixes, and
+    `_import_roots`. Each is bound at its REAL path and every symlink met
+    resolving it is recreated, unless it already sits inside a bind."""
+    wanted = [*_SYSTEM_DIRS, sys.executable, sys.prefix, sys.base_prefix]
+    wanted += [sys.exec_prefix, *_import_roots()]
+    real: list[str] = []
+    links: dict[str, str] = {}
+    for p in wanted:
+        if not p or not os.path.isabs(p) or not os.path.lexists(p):
             continue
-        seen.append(p)
-        if os.path.islink(p) and os.path.dirname(p) == "/":
-            # bookworm's /lib, /bin, ... are symlinks into /usr: recreate them.
-            out += ["--symlink", os.readlink(p), p]
-        elif os.path.isdir(p):
-            # The parents a bind needs (/app for /app/src, /opt/... for a
-            # toolcache Python) do not exist in the jail's fresh root, and
-            # bubblewrap run as root creates missing ones 0700: nobody could
-            # not walk through them. Make each one first, 0755, top-down.
-            parts = p.split("/")[1:-1]
-            for i in range(1, len(parts) + 1):
-                a = "/" + "/".join(parts[:i])
-                if a not in made and not any(
-                    a == q or a.startswith(q + "/") for q in seen[:-1]
-                ):
-                    made.add(a)
-                    out += ["--perms", "0755", "--dir", a]
-            out += ["--ro-bind", p, p]
+        try:
+            r, met = _resolve(p)
+        except OSError:
+            continue
+        for where, text in met:
+            links.setdefault(where, text)
+        if os.path.exists(r) and r not in real:
+            real.append(r)
+    # Outermost first, and nothing inside a folder that is already bound.
+    binds: list[str] = []
+    for r in sorted(real, key=lambda s: (s.count("/"), s)):
+        if not _under(r, binds):
+            binds.append(r)
+    out: list[str] = []
+    made: set[str] = {"/", "/tmp"}  # /tmp is the jail's own tmpfs
+
+    def parents(p: str) -> None:
+        # The parents a bind needs (/app for /app/src, /opt/... for a
+        # toolcache Python) do not exist in the jail's fresh root, and
+        # bubblewrap run as root creates missing ones 0700: nobody could
+        # not walk through them. Make each one first, 0755, top-down.
+        parts = p.split("/")[1:-1]
+        for i in range(1, len(parts) + 1):
+            a = "/" + "/".join(parts[:i])
+            if a not in made and not _under(a, binds):
+                made.add(a)
+                out.extend(["--perms", "0755", "--dir", a])
+
+    for r in sorted(binds):
+        parents(r)
+        out += ["--ro-bind", r, r]
+    for where in sorted(links):
+        # bookworm's /lib, /bin, ... -> usr/...; a uv venv's python ->
+        # .../cpython-3.12-linux-x86_64-gnu -> cpython-3.12.12-.... A link
+        # inside a bound folder is there already.
+        if not _under(where, binds):
+            parents(where)
+            out += ["--symlink", links[where], where]
     return out
 
 
@@ -136,8 +251,10 @@ def _bwrap_cmd(workdir: str) -> list[str]:
         *unshare,
         "--die-with-parent",
         "--new-session",
-        *_jail_binds(),
+        # The private /tmp first: a bind under /tmp (an import root, a uv
+        # Python's folder) then mounts INTO it rather than being hidden by it.
         "--perms", "1777", "--tmpfs", "/tmp",
+        *_jail_binds(),
         "--bind", workdir, workdir,
         "--proc", "/proc",
         "--dev", "/dev",
