@@ -132,6 +132,7 @@ point — agreement between independent engines is your confidence check.
 --engine momwire:hmatrix         # B-spline + hierarchical-matrix (ACA) acceleration
 --engine momwire:arrayblock      # element-aware block solver for arrays
 --engine pynec                   # NEC2 via PyNEC (needs the optional pynec-accel)
+--engine opennec                 # NEC2 via OpenNEC (needs the optional pyopennec, built from source)
 --engine momwire:sinusoidal-galerkin            # three-term basis, Galerkin testing
 --engine momwire:sinusoidal-galerkin-converged  # same, with the converged feed model
 --engine momwire:razor-2p      # NEC-5 razor-blade testing on a tent basis, the interactive lane
@@ -184,6 +185,33 @@ self-contained wheel (OpenBLAS vendored, so no SWIG/BLAS/autotools toolchain is
 required at install time). It is licensed **GPL-2.0** and installed separately
 from its own release; antennaknobs (MIT) neither bundles nor depends on it,
 and loads it only if present.
+
+### Optional: OpenNEC (`--engine opennec`)
+
+**OpenNEC** is a C rewrite of NEC-2 / nec2c (MIT), reached through
+[pyopennec](https://github.com/stevenmburns/pyopennec), MIT Python bindings
+with PyNEC's own API. The `opennec` engine is the PyNEC engine on that binding:
+the same cards, readouts and refusals, so on one deck the two agree to ~1e-3
+on impedance (`tests/test_opennec_parity.py` holds them together over 14
+catalog cases). It is optional exactly as PyNEC is. When pyopennec imports,
+`--engine opennec` and the workbench's **OpenNEC** tab appear. When it does not,
+the engine says which package is missing. pyopennec is not on PyPI yet, so build
+it from source (a C compiler and CMake; OpenBLAS is used when `pkg-config`
+finds it):
+
+```bash
+git clone --recursive https://github.com/stevenmburns/pyopennec
+pip install ./pyopennec
+```
+
+Known limitations: no fill reuse (pynec-accel's `set_fill_reuse` has no
+pyopennec counterpart) and no wire-intersection check (OpenNEC makes none).
+OpenNEC refuses plane-wave and current-element excitation (EX 1-4), CP and GN 3,
+which this engine never emits. Buried wires are NEC-2's limit, as they are for
+PyNEC: they are solved as if in air, so the workbench greys the tab on buried
+designs. Junction-node (`PortAtEnd`) and vertex (`PortAtVertex`) ports and graded
+meshes are refused, as on PyNEC. The hosted app does not offer OpenNEC, and the
+Windows bundle does not include it.
 
 ---
 

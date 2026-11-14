@@ -264,6 +264,40 @@ Two app-side notes the engine page doesn't carry:
   sinusoidal and pulse bases and `razor-2p` refuse them, with momwire's
   own sentence.
 
+### OpenNEC (optional)
+
+The `opennec` engine (`--engine opennec`, and the workbench's **OpenNEC** tab)
+is NEC-2 again, on a second implementation. [OpenNEC](https://github.com/maurymarkowitz/OpenNEC)
+is a C rewrite of NEC-2 / nec2c, reached through
+[pyopennec](https://github.com/stevenmburns/pyopennec), MIT bindings with
+PyNEC's API. antennaknobs drives it through the PyNEC engine's own code, so
+the cards, readouts and refusals are PyNEC's, and the two agree to about
+1e-3 on impedance across the parity set: free space, PEC, Sommerfeld and
+reflection-coefficient ground, loads, a TL network, a native NT card,
+multi-port arrays, sweeps and patterns.
+
+It is optional, like PyNEC. It appears only when pyopennec imports, and
+never on the hosted app. pyopennec is not on PyPI yet, so build it from
+source:
+
+```bash
+git clone --recursive https://github.com/stevenmburns/pyopennec
+pip install ./pyopennec
+```
+
+**Known limitations.**
+
+- No fill reuse: pynec-accel's `set_fill_reuse` has no pyopennec counterpart,
+  so the checkbox is not offered.
+- No wire-intersection check. OpenNEC makes none, so the engine accepts every
+  deck nec2c accepts.
+- OpenNEC refuses plane-wave and current-element excitation (EX 1-4), CP
+  and GN 3. antennaknobs never emits them.
+- Buried wires are solved as if in air, the same as nec2++. The tab is greyed
+  on buried designs, with the measured sentence.
+- `PortAtEnd` / `PortAtVertex` ports and graded meshes are refused, as on
+  PyNEC.
+
 ## Segments & convergence
 
 Method-of-moments discretizes each wire into **segments**, and the solve builds
