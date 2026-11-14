@@ -88,7 +88,7 @@ export type BandZ = {
 
 export type SolveResponse = {
   geometry: string;
-  /** Which backend actually produced this response ("momwire" | "pynec").
+  /** Which backend actually produced this response ("momwire" | "pynec" | "opennec").
    *  Not a strict union — kept a plain string so a retired/renamed backend
    *  echoed from an older cached response never fails to type-check. */
   solver?: string;
@@ -393,7 +393,7 @@ export type SolveRequest = {
   /** Which `<name>_params` dict on the Builder to seed from. Omitted
    *  → backend falls back to default_params. */
   variant?: string;
-  solver: "momwire" | "pynec" | "nec5" | "nec2" | "nec42";
+  solver: "momwire" | "pynec" | "opennec" | "nec5" | "nec2" | "nec42";
   /** A momwire model name from the served roster (#628) — a plain string,
    *  not a union: the server owns the registry and validates it, and a
    *  third copy of the roster here is exactly the drift #628 removes. */

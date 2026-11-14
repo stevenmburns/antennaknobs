@@ -44,8 +44,17 @@ def test_the_roster_entry_follows_have_opennec():
     assert entry["label"] == "OpenNEC"
     assert entry["kind"] == "opennec"
     # PyNEC's panel, grounds, density and exact pattern: the same NEC-2.
-    for key in ("panel", "ground_applied", "ground_refusals", "default_n_per_wire"):
+    for key in ("panel", "default_n_per_wire"):
         assert entry[key] == pynec[key], key
+    assert entry["ground_applied"] == {
+        k: v for k, v in pynec["ground_applied"].items() if k != "mininec"
+    }
+    # ... except the MININEC-type ground, which OpenNEC refuses by name and
+    # the roster stops offering (the other methods are PyNEC's).
+    assert "mininec" in pynec["ground_applied"]
+    assert "mininec" not in entry["ground_applied"]
+    assert entry["ground_refusals"] == {"mininec": adapter._OPENNEC_MININEC_REFUSAL}
+    assert pynec["ground_refusals"] == {}
     assert entry["exact_pattern"]["label"] == "OpenNEC"
     assert entry["buried"] is False
     assert entry["buried_refusal"].startswith("OpenNEC cannot model")
@@ -142,3 +151,19 @@ def test_the_solve_seams_are_pynecs_with_the_engine_swapped():
         adapter._SEAMS_BY_SOLVER["opennec"].make_engine is adapter._make_opennec_engine
     )
     assert adapter._OPENNEC_SEAMS.run is adapter._PYNEC_SEAMS.run
+
+
+@needs_opennec
+def test_a_request_for_the_mininec_ground_refuses_by_name(monkeypatch):
+    """The roster stops offering it (`ground_refusals`); a request that still
+    sends it is refused with that same served sentence, not solved."""
+    monkeypatch.setattr(server, "_HOSTED", False)
+    with pytest.raises(NotImplementedError, match="OpenNEC does not offer the MININEC"):
+        server.solve(
+            {**REQ, "solver": "opennec", "ground": True, "ground_model": "mininec"}
+        )
+    # PyNEC's own lane is unchanged.
+    assert (
+        adapter._pynec_ground_spec({"ground": True, "ground_model": "mininec"})[0]
+        == "mininec"
+    )
