@@ -49,7 +49,7 @@ def test_the_roster_entry_follows_have_opennec():
     assert entry["exact_pattern"]["label"] == "OpenNEC"
     assert entry["buried"] is False
     assert entry["buried_refusal"].startswith("OpenNEC cannot model")
-    # pyopennec has no set_fill_reuse, so the knob is not offered.
+    # porty has no fill choice, so the knob is not offered.
     assert "fill_reuse" not in entry["model_kwargs"]
 
 
@@ -93,17 +93,17 @@ def test_a_solve_request_returns_z_from_opennec(monkeypatch):
     made = []
     from antennaknobs.engines import opennec as opennec_mod
 
-    real = opennec_mod._new_context
+    real = opennec_mod.porty.Structure.solve
 
-    def spy():
-        c = real()
-        made.append(type(c).__module__.split(".")[0])
-        return c
+    def spy(self, freqs, *args, **kwargs):
+        made.append(tuple(freqs))
+        return real(self, freqs, *args, **kwargs)
 
-    monkeypatch.setattr(opennec_mod, "_new_context", spy)
+    monkeypatch.setattr(opennec_mod.porty.Structure, "solve", spy)
     out = server.solve({**REQ, "solver": "opennec"})
     assert out["solver"] == "opennec"
-    assert made and set(made) == {"pyopennec"}, made
+    # One porty solve for the impedance and the currents together.
+    assert made == [(REQ["measurement_freq_mhz"],)], made
     z = complex(out["z_in_re"], out["z_in_im"])
     assert 10 < z.real < 500, z
     assert out["k_meas_m_inv"] > 0 and out["directivity_norm"] > 0

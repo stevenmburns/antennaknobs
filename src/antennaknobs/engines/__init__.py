@@ -4,8 +4,8 @@ except ImportError:
     PyNECEngine = None
 
 # OpenNECEngine imports with or without pyopennec (it subclasses PyNECEngine
-# and builds against the deck-only stand-in when the binding is absent), so
-# whether it can SOLVE is `opennec.pyopennec is not None`, not this name.
+# and records its cards either way), so whether it can SOLVE is
+# `opennec.porty is not None`, not this name.
 try:
     from .opennec import OpenNECEngine
 except ImportError:

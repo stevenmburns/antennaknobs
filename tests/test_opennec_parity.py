@@ -1,8 +1,9 @@
 """OpenNEC against PyNEC over the catalog: the same NEC-2 on two bindings.
 
-Both engines are `PyNECEngine`'s model — the same cards from the same code —
-so on one deck they differ only by the NEC-2 implementation underneath
-(OpenNEC, a C rewrite of nec2c, against nec2++). pyopennec's own suite puts
+Both engines are `PyNECEngine`'s model — the same cards from the same code,
+OpenNEC's solved through pyopennec's porty port-admittance interface — so on
+one deck they differ only by the NEC-2 implementation underneath (OpenNEC, a
+C rewrite of nec2c, against nec2++). pyopennec's own suite puts
 that at ~1e-3 on Z; these bars are the brief's:
 
     impedance    |dZ| / |Z|                       <= 2e-3 (each port, each sweep point)
@@ -30,10 +31,10 @@ Two cases carry a documented, measured exception rather than being dropped
   applied within 25 dB of the peak (measured worst there: 0.047 dB).
 
 Skips cleanly when either binding is missing. The guard against comparing
-PyNEC with itself is in `_solve` (each engine must report its own binding as
-the module behind every context) and in `_assert_two_engines_ran` (a parity
-that is bit-identical did not run two engines); `test_routing_opennec_to_pynec
-_fails_the_parity` proves both trip.
+PyNEC with itself is in `_solve` (PyNEC must have made every context, and
+OpenNEC none of them but at least one porty solve) and in
+`_assert_two_engines_ran` (a parity that is bit-identical did not run two
+engines); `test_routing_opennec_to_pynec_fails_the_parity` proves both trip.
 """
 
 from __future__ import annotations
@@ -49,8 +50,8 @@ from antennaknobs.engines.opennec import OpenNECEngine
 from antennaknobs.engines.pynec import PyNECEngine
 
 pytestmark = pytest.mark.skipif(
-    pynec_mod.nec is None or opennec_mod.pyopennec is None,
-    reason="needs both PyNEC (pynec-accel) and pyopennec",
+    pynec_mod.nec is None or opennec_mod.porty is None,
+    reason="needs both PyNEC (pynec-accel) and pyopennec (porty)",
 )
 
 SOMMERFELD = ("finite", 13.0, 0.005)
@@ -93,7 +94,7 @@ CASES = [
     ("four-square-multiport-pec", "verticals.four_square", "pec", {}, Z_BAR, 25.0),
 ]
 
-BINDING = {PyNECEngine: "PyNEC", OpenNECEngine: "pyopennec"}
+BINDING = {PyNECEngine: "PyNEC", OpenNECEngine: "porty"}
 
 
 def _builder(design):
@@ -104,22 +105,29 @@ def _builder(design):
 
 
 def _spy_on_contexts(monkeypatch, made):
-    """Record the module of every context either engine creates."""
-    for mod in (pynec_mod, opennec_mod):
-        real = mod._new_context
+    """Record the module of every PyNEC context any engine creates."""
+    real = pynec_mod._new_context
 
-        def spy(real=real):
-            c = real()
-            made.append(type(c).__module__.split(".")[0])
-            return c
+    def spy():
+        c = real()
+        made.append(type(c).__module__.split(".")[0])
+        return c
 
-        monkeypatch.setattr(mod, "_new_context", spy)
+    monkeypatch.setattr(pynec_mod, "_new_context", spy)
 
 
-def _solve(engine_cls, design, ground, kwargs, monkeypatch):
+def _binding(eng, made):
+    """What an engine solved through: porty when it logged porty solves and
+    made no PyNEC context, else the module behind its contexts."""
+    if getattr(eng, "solve_log", None) and not made:
+        return "porty"
+    return type(getattr(eng, "c", None)).__module__.split(".")[0]
+
+
+def _solve(engine_cls, design, ground, kwargs, monkeypatch, want=None):
     """Z, currents and pattern from one engine (one instance, as the web lane
-    reads them), and a 3-point sweep from a second. Every context it made must
-    come from the engine's own binding."""
+    reads them), and a 3-point sweep from a second. Every solve must go
+    through the engine's own binding."""
     made: list[str] = []
     _spy_on_contexts(monkeypatch, made)
     with warnings.catch_warnings():
@@ -130,17 +138,18 @@ def _solve(engine_cls, design, ground, kwargs, monkeypatch):
         ff = eng.far_field(n_theta=18, n_phi=36, del_theta=5, del_phi=10)
         b2 = _builder(design)
         f0 = b2.freq
-        sweep = engine_cls(b2, ground=ground, **kwargs).impedance_sweep(
-            np.linspace(0.97 * f0, 1.03 * f0, 3)
+        sweeper = engine_cls(b2, ground=ground, **kwargs)
+        sweep = sweeper.impedance_sweep(np.linspace(0.97 * f0, 1.03 * f0, 3))
+    want = want or BINDING[engine_cls]
+    # The sweep too on porty, where nothing else would show which ran.
+    for e in (eng, sweeper) if want == "porty" else (eng,):
+        got = _binding(e, made)
+        assert got == want, f"{engine_cls.__name__} solved through {got}, not {want}"
+    if want == "PyNEC":
+        # Every context the readings made, through the module factory.
+        assert made and set(made) == {want}, (
+            f"{engine_cls.__name__} solved through {sorted(set(made))}, not {want}"
         )
-    want = BINDING[engine_cls]
-    # The context the pattern was read from, whatever made it ...
-    got = type(eng.c).__module__.split(".")[0]
-    assert got == want, f"{engine_cls.__name__} solved through {got}, not {want}"
-    # ... and every context the readings made, through the module factory.
-    assert made and set(made) == {want}, (
-        f"{engine_cls.__name__} solved through {sorted(set(made))}, not {want}"
-    )
     monkeypatch.undo()
     currents = np.concatenate([np.asarray(w.knot_currents) for w in cur])
     return {
@@ -209,27 +218,26 @@ def test_multiport_cases_really_drive_several_ports(monkeypatch):
 # --------------------------------------------------------------------------
 
 
+class _PyNECAsOpenNEC(PyNECEngine):
+    """The silent mistake the guards exist for: PyNEC answering for OpenNEC."""
+
+    engine_label = "OpenNEC"
+
+
 def test_routing_opennec_to_pynec_fails_the_parity(monkeypatch):
-    """Route OpenNECEngine's contexts back to PyNEC — the silent mistake the
-    guards exist for — and the parity body must fail, both on the binding
-    check and, with that check out of the way, on the bit-identity check."""
+    """Answer for OpenNEC with PyNEC and the parity body must fail, both on
+    the binding check and, with that check out of the way, on the
+    bit-identity check."""
     design, ground = "dipoles.invvee", "free"
     p = _solve(PyNECEngine, design, ground, {}, monkeypatch)
 
-    monkeypatch.setattr(
-        OpenNECEngine, "_make_context", lambda self: pynec_mod._new_context()
-    )
     with pytest.raises(AssertionError, match="solved through"):
-        _solve(OpenNECEngine, design, ground, {}, monkeypatch)
+        _solve(_PyNECAsOpenNEC, design, ground, {}, monkeypatch, want="porty")
 
     # Without the binding check the numbers alone still give it away.
-    monkeypatch.setattr(
-        OpenNECEngine, "_make_context", lambda self: pynec_mod.nec.nec_context()
-    )
     with warnings.catch_warnings():
         warnings.simplefilter("ignore")
-        eng = OpenNECEngine(_builder(design), ground=ground)
-        assert type(eng.c).__module__.split(".")[0] == "PyNEC"
+        eng = _PyNECAsOpenNEC(_builder(design), ground=ground)
         fake = {"z": np.asarray(eng.impedance(), complex).ravel()}
     with pytest.raises(AssertionError, match="one binding ran twice"):
         _assert_two_engines_ran(p, fake)

@@ -122,17 +122,14 @@ except ImportError:
         return False
 
 
-# OpenNEC through pyopennec: PyNECEngine on another binding (engines/opennec.py).
-# The class imports whether or not pyopennec does; the roster gates on the
-# module, which the server reads per request.
+# OpenNEC through pyopennec's porty interface: PyNECEngine's model on a
+# port-admittance solve (engines/opennec.py). The class imports whether or not
+# pyopennec does; the roster gates on the module, which the server reads per
+# request.
 try:
     from antennaknobs.engines.opennec import OpenNECEngine
-    from antennaknobs.engines.opennec import takes_fill_reuse as _opennec_fill_reuse
 except ImportError:
     OpenNECEngine = None
-
-    def _opennec_fill_reuse() -> bool:
-        return False
 
 
 from antennaknobs.engines.momwire import (
@@ -932,10 +929,8 @@ def _offers_fill_reuse(spec) -> bool:
     `_offers_pair_reuse`'s live probe, of PyNEC rather than momwire: a PyNEC
     predating it (1.7.6, what CI installs today) answers False, so nothing
     is offered and nothing is sent. The NEC-2 tab shares PyNEC's panel but
-    is a subprocess, so it never offers it. The OpenNEC tab asks the same
-    question of pyopennec, which has no such method today."""
-    if spec.kind == "opennec":
-        return _opennec_fill_reuse()
+    is a subprocess, so it never offers it. Nor does the OpenNEC tab: porty
+    has no fill choice to make."""
     return spec.kind == "pynec" and takes_fill_reuse()
 
 
@@ -1014,12 +1009,12 @@ _PYNEC_BURIED_REFUSAL = (
 _OPENNEC_BURIED_REFUSAL = (
     "OpenNEC cannot model a conductor below the ground plane. NEC-2's "
     "Sommerfeld-Norton ground is formulated for sources ABOVE the interface "
-    "and has no below-interface case — and OpenNEC does not refuse such a "
-    "deck. It solves it, without warning, as though the wire were still in "
-    "air. Measured on this catalog's buried dipole: moving the wire from 5 cm "
-    "above the interface to 5 cm below moves OpenNEC's impedance by 11%, "
-    "where momwire's buried fill moves it by a factor of 10. Use a momwire "
-    "backend for buried decks."
+    "and has no below-interface case, so antennaknobs refuses such a deck, as "
+    "its NEC-2 lane does, rather than let OpenNEC solve it as though the wire "
+    "were still in air. Measured on this catalog's buried dipole before the "
+    "refusal: moving the wire from 5 cm above the interface to 5 cm below "
+    "moved OpenNEC's impedance by 11%, where momwire's buried fill moves it by "
+    "a factor of 10. Use a momwire backend for buried decks."
 )
 
 _NEC2_BURIED_REFUSAL = (
@@ -3393,7 +3388,8 @@ def _make_pynec_engine(req: dict, builder, *, kind="pynec", engine_cls=None):
 
 
 def _make_opennec_engine(req: dict, builder):
-    """The PyNEC lane's engine on pyopennec: same ground, radius and options."""
+    """The PyNEC lane's engine on pyopennec's porty: same ground and radius
+    (no fill-reuse option there, `_offers_fill_reuse`)."""
     return _make_pynec_engine(req, builder, kind="opennec", engine_cls=OpenNECEngine)
 
 
@@ -3904,8 +3900,8 @@ _PYNEC_SEAMS = _SolveSeams(
 )
 
 
-# OpenNEC: the PyNEC seams with the engine swapped. OpenNECEngine is
-# PyNECEngine on another binding, so PyNEC's run, ground constants and drives.
+# OpenNEC: the PyNEC seams with the engine swapped. OpenNECEngine keeps
+# PyNECEngine's model and readings, so PyNEC's run, ground constants and drives.
 _OPENNEC_SEAMS = _PYNEC_SEAMS._replace(make_engine=_make_opennec_engine)
 
 
@@ -5591,7 +5587,16 @@ def _make_example(name: str, cls, *, defer_hints: bool = False) -> AntennaExampl
         return _engine_solve(req, _PYNEC_SEAMS)
 
     def opennec_build(req: dict) -> dict:
-        return pynec_build(req, _make_opennec_engine)
+        # `pynec_build`'s dict without a context: the OpenNEC pattern is read
+        # off the engine's own cached solve (`opennec_backend.pattern`).
+        builder = _solve_builder(req)
+        _apply_plane(builder, req)
+        return {
+            "_engine": _make_opennec_engine(req, builder),
+            "ground": bool(req.get("ground", False)),
+            "ground_fast": bool(req.get("ground_fast", False)),
+            "z_offset": 0.0,
+        }
 
     def opennec_solve(req: dict) -> dict:
         return _engine_solve(req, _OPENNEC_SEAMS)

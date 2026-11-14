@@ -122,9 +122,7 @@ def pattern(req: dict) -> dict:
 
 
 def pattern_from_build(req: dict, ex, b: dict) -> dict:
-    """`pattern`'s body on an already-built context — shared with the OpenNEC
-    backend, whose build is the same dict on pyopennec's context."""
-    geometry = req.get("geometry", next(iter(EXAMPLES)))
+    """`pattern`'s body on an already-built context."""
     c = b["context"]
     meas_freq_mhz = float(
         req.get("measurement_freq_mhz", req.get("design_freq_mhz", 14.3))
@@ -147,12 +145,7 @@ def pattern_from_build(req: dict, ex, b: dict) -> dict:
             ground_fast=b["ground_fast"],
         )
 
-    # 2°×5° grid: 46 thetas (0..90), 73 phis (0..360 inclusive). At ~3.4k
-    # rays this runs in tens of ms — fine for a debounced overlay request.
-    n_theta = 46
-    n_phi = 73
-    del_theta = 90.0 / (n_theta - 1)
-    del_phi = 360.0 / (n_phi - 1)
+    n_theta, n_phi, del_theta, del_phi = PATTERN_GRID
     # The mode is the build's: the circular cliff over the MININEC-type
     # ground, whose medium no normal-mode pattern reads (AK#1655).
     c.rp_card(
@@ -176,8 +169,21 @@ def pattern_from_build(req: dict, ex, b: dict) -> dict:
         [_shift_gain(float(c.get_gain(0, ti, pi)), shift_db) for pi in range(n_phi)]
         for ti in range(n_theta)
     ]
-    pattern_ms = (time.perf_counter() - t0) * 1e3
+    return pattern_payload(req, b, gains, meas_freq_mhz, t0)
 
+
+# 2°×5° grid: 46 thetas (0..90), 73 phis (0..360 inclusive). At ~3.4k
+# rays this runs in tens of ms — fine for a debounced overlay request.
+# (n_theta, n_phi, del_theta, del_phi), shared with the OpenNEC backend.
+PATTERN_GRID = (46, 73, 90.0 / 45, 360.0 / 72)
+
+
+def pattern_payload(req: dict, b: dict, gains, meas_freq_mhz: float, t0: float):
+    """The pattern response for `gains` (dBi, `PATTERN_GRID`), timed from
+    `t0`; `b` is the build dict (ground flags and height)."""
+    geometry = req.get("geometry", next(iter(EXAMPLES)))
+    n_theta, n_phi, del_theta, del_phi = PATTERN_GRID
+    pattern_ms = (time.perf_counter() - t0) * 1e3
     return {
         "available": True,
         "geometry": geometry,
