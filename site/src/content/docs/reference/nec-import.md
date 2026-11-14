@@ -395,6 +395,12 @@ segment count, a tag — is an integer knob. One a real field also reads (a
 length that also sets a segment count, `lencp*8` and `-lencp`) is a decimal
 knob, and the count it sets is rounded to the nearest whole number.
 
+A knob the import made whole-number has a **Whole numbers** box beside its
+turn step in the workbench's knob menu. Untick it and the knob turns in
+decimal steps (any count it sets is rounded); tick it again to go back. The
+choice rides the design's link. A catalog design's integer parameters have
+no box.
+
 Every other symbol follows the knobs: the design re-reads the deck from the
 current knob values on every build, so a derived symbol (`z=len*cos(ang/2)`)
 and a segment count written as `int(hgh)` come out exactly as they would from

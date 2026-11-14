@@ -29,35 +29,31 @@ import { Card, CardGrid, LinkCard } from "@astrojs/starlight/components";
 {/* What's-new box: refresh as part of the release ritual (bump the version,
     swap the highlights) — a stale "new" box is worse than none. */}
 
-<Card title="New in v0.119.1" icon="star">
-  **A whole-number SY value no longer locks its knob to whole steps.** In an
-  imported deck, a symbol such as `SY lencp=2` that sets both a segment count
-  (`lencp*8`) and a coordinate (`-lencp`) used to become a whole-number knob
-  that stepped by 1, whatever the turn step said. It is now an ordinary
-  decimal knob, and the segment count follows it, rounded to the nearest whole
-  number. A symbol used only as a count still steps by 1. SimNEC `.ssn` files
-  follow the same rule. Thanks to Jeff G8HUL for the report.
+<Card title="New in v0.120.0" icon="star">
+  **An OpenNEC engine.** antennaknobs can now solve with
+  [OpenNEC](https://github.com/maurymarkowitz/OpenNEC), Maury Markowitz's C
+  rewrite of NEC-2, through the new MIT-licensed
+  [pyopennec](https://github.com/stevenmburns/pyopennec). Install its release
+  wheel (Linux x86_64 or macOS arm64; on macOS `brew install libomp` first) and
+  an **OpenNEC** tab appears beside PyNEC in the workbench, and
+  `--engine opennec` on the command line. It uses PyNEC's model, so the two
+  agree to within 0.2 % on impedance. A design with a network (a line, a tuner,
+  a virtual port) takes one solve per frequency, where PyNEC takes one per
+  port. It runs in the same session as momwire and PyNEC, and is not offered on
+  the hosted app.
 
-  **Also in v0.119.0:**
-  **Faster solves on momwire 0.91.0.** The NEC-4.2-style sinusoidal engine
-  (`nec42-sinusoidal`) can now reuse repeated geometry: tick **reuse repeated
-  geometry** on its tab and each repeated pair of segments is filled once. On
-  W8IO's 4,392-segment ELT whip that takes a 13-frequency run from 18 s to
-  13 s. It is off by default and moves results by rounding only. Every
-  momwire solve also skips its condition estimate unless the factors look
-  suspect, which saves about a second on that deck.
+  **A Whole numbers box for imported knobs.** A deck knob the import made
+  whole-number now has a **Whole numbers** box in its menu. Untick it to turn
+  the knob in decimal steps; the segment counts it sets are rounded.
 
-  **A clamped `.ssn` knob stays a knob.** A SimNEC script line such as
-  `P = Max(Min(P, 90), 10);` used to turn `P` into an output and refuse the
-  file. It now stays an input, with the clamp applied to whatever you set.
+  **Reuse on the Sinusoidal tab reaches every design.** Its *reuse repeated
+  geometry* box now works on any design, not only those with congruent edge
+  pairs. It is still off by default.
 
-  **Advisories show once, with a count.** A warning repeated many times now
-  shows once with "(×N)", and a long list folds behind one line, as does the
-  list of NEC directives not applied.
-
-  **An optimize run survives a design switch.** Switching to another design
-  or tab no longer cancels a running optimize: it keeps going and its result
-  lands on its own design when you come back.
+  **The design-file jail is tighter.** On a self-hosted server started with
+  `python -m uvicorn`, an opened design `.py` could read files in the folder
+  the server was started from. It no longer can, and a uv-managed Python now
+  works inside the jail.
 </Card>
 
 ## The whole pitch, in one line
