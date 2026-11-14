@@ -189,15 +189,17 @@ and loads it only if present.
 ### Optional: OpenNEC (`--engine opennec`)
 
 **OpenNEC** is a C rewrite of NEC-2 / nec2c (MIT), reached through
-[pyopennec](https://github.com/stevenmburns/pyopennec), MIT Python bindings
-with PyNEC's own API. The `opennec` engine is the PyNEC engine on that binding:
-the same cards, readouts and refusals, so on one deck the two agree to ~1e-3
-on impedance (`tests/test_opennec_parity.py` holds them together over 14
-catalog cases). It is optional exactly as PyNEC is. When pyopennec imports,
-`--engine opennec` and the workbench's **OpenNEC** tab appear. When it does not,
-the engine says which package is missing. pyopennec is not on PyPI yet, so build
-it from source (a C compiler and CMake; OpenBLAS is used when `pkg-config`
-finds it):
+[pyopennec](https://github.com/stevenmburns/pyopennec)'s `porty` module (MIT),
+which solves a structure once per frequency for its port admittance matrix.
+The `opennec` engine is the PyNEC engine's model on that solve: the same cards,
+readouts and refusals, with transmission lines, networks and phasing stamped on
+the port admittances by the shared network reducer. On one deck it agrees with
+PyNEC to ~1e-3 on impedance (`tests/test_opennec_parity.py` holds them together
+over 14 catalog cases). It is optional exactly as PyNEC is. When pyopennec
+imports, `--engine opennec` and the workbench's **OpenNEC** tab appear. When it
+does not, the engine says which package is missing. pyopennec is not on PyPI
+yet, so build it from source (a C compiler and CMake; OpenBLAS is used when
+`pkg-config` finds it):
 
 ```bash
 git clone --recursive https://github.com/stevenmburns/pyopennec
@@ -205,12 +207,13 @@ pip install ./pyopennec
 ```
 
 Known limitations: no fill reuse (pynec-accel's `set_fill_reuse` has no
-pyopennec counterpart) and no wire-intersection check (OpenNEC makes none).
-OpenNEC refuses plane-wave and current-element excitation (EX 1-4), CP and GN 3,
-which this engine never emits. Buried wires are NEC-2's limit, as they are for
-PyNEC: they are solved as if in air, so the workbench greys the tab on buried
-designs. Junction-node (`PortAtEnd`) and vertex (`PortAtVertex`) ports and graded
-meshes are refused, as on PyNEC. The hosted app does not offer OpenNEC, and the
+counterpart) and no wire-intersection check (OpenNEC makes none). Buried wires
+are NEC-2's limit: they are refused, as on the NEC-2 engine, and the workbench
+greys the tab on buried designs. The MININEC-type ground serves impedance and
+currents but refuses the pattern (its soil needs a cliff-mode RP, which porty
+does not offer). Legacy `build_tls()` lines, junction-node (`PortAtEnd`) and
+vertex (`PortAtVertex`) ports and graded meshes are refused. The hosted app
+does not offer OpenNEC, and the
 Windows bundle does not include it.
 
 ---
