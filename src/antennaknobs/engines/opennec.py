@@ -87,6 +87,24 @@ def _freq_key(freq_mhz):
     return float(f"{float(freq_mhz):.12g}")
 
 
+def _refuse_nonfinite(engine, what, values, where):
+    """Raise a ValueError naming `what` when `values` holds a NaN or inf.
+
+    OpenNEC does not always raise on a structure it cannot solve (a
+    degenerate or absurd model can come back as NaN/inf rather than as a
+    ``PortyError``). A request must be refused by name, not answered with a
+    number nothing warns about."""
+    a = np.asarray(values)
+    bad = ~np.isfinite(a)
+    if bad.any():
+        raise ValueError(
+            f"{engine}: the solve returned a non-finite {what} ({int(bad.sum())} "
+            f"of {a.size} values are NaN or inf) {where}; the model is outside "
+            "what the engine can solve (check the geometry, frequency and "
+            "ground), so no answer is served"
+        )
+
+
 class _CardDeck:
     """Stands in for a NEC context: records the cards `PyNECEngine` emits
     (geometry, LD, GN/GD, EX, NT, EK) for `porty.Structure`, and refuses by
@@ -305,6 +323,13 @@ class OpenNECEngine(PyNECEngine):
         sol = st.solve(todo)
         self.solve_log.append(tuple(todo))
         for i, k in enumerate(todo):
+            _refuse_nonfinite(
+                self.engine_label,
+                "port admittance Y",
+                sol.y[i],
+                f"at {k:.6g} MHz",
+            )
+        for i, k in enumerate(todo):
             self._solutions[k] = (sol, i)
 
     def _solution(self, freq_mhz):
@@ -388,8 +413,12 @@ class OpenNECEngine(PyNECEngine):
         f = self.builder.freq
         if self._use_reducer:
             wl = C_LIGHT / (f * 1e6)
-            return self._reducer.driven_impedance(self._compute_y_matrix(wl), wl)
-        return self._card_impedances(f, sum_currents)
+            z = self._reducer.driven_impedance(self._compute_y_matrix(wl), wl)
+            _refuse_nonfinite(self.engine_label, "impedance Z", z, f"at {f:.6g} MHz")
+            return z
+        zs = self._card_impedances(f, sum_currents)
+        _refuse_nonfinite(self.engine_label, "impedance Z", zs, f"at {f:.6g} MHz")
+        return zs
 
     def impedance_sweep(self, freqs, sum_currents=False):
         """One porty solve over every frequency, then each one's reduction.
@@ -447,7 +476,9 @@ class OpenNECEngine(PyNECEngine):
         self._refuse_export_only()
         f = self.builder.freq
         sol, i, v, _p = self._excited(f)
-        sc = _SegmentCurrents(sol.segments.tags, sol.currents(i, v))
+        cur = sol.currents(i, v)
+        _refuse_nonfinite(self.engine_label, "segment current", cur, f"at {f:.6g} MHz")
+        sc = _SegmentCurrents(sol.segments.tags, cur)
         (
             self._excited_efficiency,
             self._excited_p_in,
@@ -477,6 +508,7 @@ class OpenNECEngine(PyNECEngine):
         )
         ff = porty.far_field(sol, i, v, th, ph)
         g = np.asarray(ff.gain_total, float)
+        _refuse_nonfinite(self.engine_label, "gain", g, f"at {f:.6g} MHz")
         if p_source is not None:
             # Per SOURCE watt (AK#1637): porty normalises by the structure's.
             if p_source <= 0.0 or ff.power_in <= 0.0:
