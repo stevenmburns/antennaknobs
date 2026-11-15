@@ -105,6 +105,46 @@ def _refuse_nonfinite(engine, what, values, where):
         )
 
 
+# The range this engine will solve, checked BEFORE any engine work. Derived
+# from the catalog (74 designs at 1.83-406 MHz, every one within 10 wavelengths
+# of extent, the shortest segment 3e-4 wavelength) with two orders of magnitude
+# of margin each way, not from what NEC-2 happens to tolerate (it states no
+# limit: out of range the answer is a NaN, an inf, or a Z of 1e9 ohms).
+MIN_FREQ_MHZ = 0.01  # 10 kHz: the catalog's lowest is 1.83 MHz
+MAX_FREQ_MHZ = 1.0e5  # 100 GHz: its highest is 406 MHz
+MAX_EXTENT_WAVELENGTHS = 1000.0  # catalog's largest is 10 (the terminated long wire)
+
+
+def _refuse_out_of_range_freq(engine, freqs_mhz):
+    """Refuse, by name and before any engine work, a frequency outside what
+    this engine is meant for (see MIN_FREQ_MHZ above)."""
+    for f in freqs_mhz:
+        if not (MIN_FREQ_MHZ <= float(f) <= MAX_FREQ_MHZ):
+            raise ValueError(
+                f"{engine}: {float(f):.6g} MHz is outside the {MIN_FREQ_MHZ:g} "
+                f"to {MAX_FREQ_MHZ:g} MHz range it solves (10 kHz to 100 GHz); "
+                "an out-of-range frequency comes back as NaN or inf, not an answer"
+            )
+
+
+def _refuse_out_of_range_size(engine, freqs_mhz, wires):
+    """Refuse, before the solve, a structure over MAX_EXTENT_WAVELENGTHS."""
+    pts = [p for _t, _n, a, b, _r in wires for p in (a, b)]
+    if not pts:
+        return
+    lo = [min(p[k] for p in pts) for k in range(3)]
+    hi = [max(p[k] for p in pts) for k in range(3)]
+    extent = float(np.sqrt(sum((h - low) ** 2 for h, low in zip(hi, lo, strict=True))))
+    for f in freqs_mhz:
+        size = extent / (C_LIGHT / (float(f) * 1e6))
+        if not size <= MAX_EXTENT_WAVELENGTHS:
+            raise ValueError(
+                f"{engine}: the structure is {size:.6g} wavelengths across at "
+                f"{float(f):.6g} MHz, over the {MAX_EXTENT_WAVELENGTHS:g} it "
+                "solves; lower the frequency or shrink the structure"
+            )
+
+
 class _CardDeck:
     """Stands in for a NEC context: records the cards `PyNECEngine` emits
     (geometry, LD, GN/GD, EX, NT, EK) for `porty.Structure`, and refuses by
@@ -312,7 +352,9 @@ class OpenNECEngine(PyNECEngine):
     def _prefetch(self, freqs_mhz):
         """Solve every frequency in `freqs_mhz` not solved yet, in ONE porty
         solve() call."""
+        _refuse_out_of_range_freq(self.engine_label, freqs_mhz)
         st = self._structure()
+        _refuse_out_of_range_size(self.engine_label, freqs_mhz, self._deck.wires)
         todo = []
         for f in freqs_mhz:
             k = _freq_key(f)
