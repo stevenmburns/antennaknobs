@@ -451,7 +451,59 @@ def test_fuzz_slice_nothing_kills_the_process():
         if o in ("CRASH", "HANG", "sysexit"):
             bad.append((c["id"], o, d, c.get("deck") or c))
     assert not bad, bad
-    assert seen["finite"] + seen["exception"] + seen["nan"] == 50
+    # A NaN/inf answer is refused by name, never returned (the engine's
+    # non-finite check), so the slice sees none.
+    assert seen["nan"] == 0, seen
+    assert seen["finite"] + seen["exception"] == 50
+
+
+def _dipole_case(path, freq, **over):
+    c = {
+        "wires": [[1, 11, [0.0, 0.0, 5.0], [0.0, 0.0, 15.0], 0.001]],
+        "ports": [[1, 6]],
+        "loads": [],
+        "ground": None,
+        "ek": False,
+        "freqs": [freq],
+        "far": False,
+        "ak_ground": None,
+        "path": path,
+        "classes": ["nan_regression"],
+        "id": f"nan:{path}:{freq}",
+        "sweep": False,
+        "cd": False,
+    }
+    c.update(over)
+    if path == "ak":
+        c["deck"] = deck_text(c)
+    return c
+
+
+@needs_opennec
+@pytest.mark.skipif(not hasattr(os, "fork"), reason="forks one process per case")
+@pytest.mark.parametrize("path", ["porty", "ak"])
+@pytest.mark.parametrize("freq", [1e300, 5e-324, 1e-6])
+def test_a_non_finite_answer_is_refused_not_returned(path, freq):
+    """Regression for the fuzz's NaN answers: an absurd frequency used to
+    come back from the engine as NaN/inf. Through AK it is a ValueError that
+    names what was non-finite; porty itself is free to return NaN or to raise
+    (the direct path is only required not to die)."""
+    o, d = run_forked(_dipole_case(path, freq))
+    if path == "ak":
+        assert o == "exception" and "non-finite" in d, (o, d)
+    else:
+        assert o in ("exception", "nan", "finite"), (o, d)
+
+
+@needs_opennec
+def test_the_engine_names_a_non_finite_reading():
+    from antennaknobs.engines.opennec import OpenNECEngine
+    from antennaknobs.file_designs import builder_from_text
+
+    c = _dipole_case("ak", 1e300)
+    eng = OpenNECEngine(builder_from_text("f.nec", c["deck"])())
+    with pytest.raises(ValueError, match=r"non-finite port admittance Y.*1e\+300 MHz"):
+        eng.impedance()
 
 
 def test_generator_is_deterministic():
