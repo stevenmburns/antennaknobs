@@ -29,7 +29,16 @@ import { Card, CardGrid, LinkCard } from "@astrojs/starlight/components";
 {/* What's-new box: refresh as part of the release ritual (bump the version,
     swap the highlights) — a stale "new" box is worse than none. */}
 
-<Card title="New in v0.120.1" icon="star">
+<Card title="New in v0.120.2" icon="star">
+  **A wire too short to mesh is refused by name.** A design or opened deck
+  whose wire segments came out zero, vanishingly short or not a number, even
+  with the wire's two ends apart, could hang the PyNEC engine or stop the
+  OpenNEC engine outright, and gave a meaningless answer elsewhere. Every
+  engine now refuses such a wire by name before solving, naming the wire, its
+  segment count and the length it would have had. Real designs are untouched:
+  the floor is a nanometre, and the shortest segment in the catalog is 3 mm.
+
+  **Also in v0.120.1:**
   **End-fed designs over real ground now give the right impedance.** On the
   B-spline engine, an end feed (a `PortAtEnd`) on a design where any wire
   crosses the ground surface, such as a ground stake or a radial that dips into
