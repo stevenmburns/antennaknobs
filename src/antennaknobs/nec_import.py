@@ -98,6 +98,7 @@ from itertools import pairwise
 
 from . import network as _net
 from .design_data import read_data
+from .wire_catalog import degenerate_wire_refusal
 
 __all__ = [
     "NEC_C_LIGHT_MHZ_M",
@@ -7021,6 +7022,16 @@ def parse_nec(
         raise ValueError(f"{name}: deck defines no wires")
     if limits is not None:
         limits.check_wires(wires, name)
+    # A coordinate or radius that is not finite is refused here, by wire, as
+    # every engine refuses it (`degenerate_wire_refusal`), because the snap
+    # below would otherwise fail on it first with no name. Short segments are
+    # left to the engine's refusal: a deck may still be opened and read.
+    for i, (tag, _n_seg, p1, p2, radius) in enumerate(wires):
+        message = degenerate_wire_refusal(
+            f"{name}: wire {i + 1} (tag {tag})", p1, p2, None, (radius,)
+        )
+        if message is not None:
+            raise ValueError(message)
 
     _snap_nec_connections(wires)
 
