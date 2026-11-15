@@ -7,9 +7,8 @@ swaps a slot to it with ``solver: "opennec"``, exactly as it does to PyNEC.
 
 pyopennec is optional and not on PyPI yet, so `HAVE_OPENNEC` is False when
 porty does not import and the entry is absent from the served roster. The
-server also withholds it on the hosted instance (`server._have_opennec`): the
-hosted image does not install it, and offering an engine there is a separate
-call.
+hosted image installs the pinned release wheel, and serves the engine under
+PyNEC's caps (`cost.admit`; an opened deck is refused, as on PyNEC).
 """
 
 from __future__ import annotations

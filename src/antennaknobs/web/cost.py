@@ -109,6 +109,17 @@ PYNEC_DECK_REFUSAL = (
     "deck on the momwire engines only. Pick another solver tab, or run the "
     "deck locally (pip install antennaknobs) to use PyNEC."
 )
+OPENNEC_DECK_REFUSAL = (
+    "OpenNEC cannot be stopped mid-solve here, so the hosted server solves an "
+    "opened deck on the momwire engines only. Pick another solver tab, or run "
+    "the deck locally (pip install antennaknobs) to use OpenNEC."
+)
+
+# The engines an opened deck is refused on, with the sentence for each.
+UNCANCELLABLE_DECK_REFUSALS = {
+    "pynec": PYNEC_DECK_REFUSAL,
+    "opennec": OPENNEC_DECK_REFUSAL,
+}
 
 
 def admit(
@@ -126,8 +137,8 @@ def admit(
     # An opened deck on the hosted server is a stranger's model: refused
     # where its cost cannot be bounded, never run on the benefit of the doubt.
     upload = hosted and is_deck(req.get("geometry"))
-    if upload and req.get("solver") == "pynec":
-        return Admission("refuse", PYNEC_DECK_REFUSAL, None)
+    if upload and req.get("solver") in UNCANCELLABLE_DECK_REFUSALS:
+        return Admission("refuse", UNCANCELLABLE_DECK_REFUSALS[req["solver"]], None)
 
     est = estimate_basis(req, example)
     if upload and est is None:

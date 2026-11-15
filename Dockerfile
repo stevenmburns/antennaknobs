@@ -78,6 +78,20 @@ RUN if [ "$INCLUDE_PYNEC" = "1" ]; then \
       pip install "pynec-accel>=1.7.7"; \
     fi
 
+# Optional OpenNEC solver (pyopennec, MIT) -- not on PyPI, so the pinned v0.2.1
+# release wheel is installed by URL (sha256-pinned), as test.yml does. The Linux
+# x86_64 abi3 wheel vendors scipy-openblas32 and links the system libgomp1
+# installed above. The assertion fails the BUILD if the wheel came without its
+# OpenBLAS or OpenMP, rather than shipping a slower engine silently.
+# INCLUDE_OPENNEC=0 leaves it out. Served on the hosted app under PyNEC's caps
+# (cost.admit); thread counts follow server.py's threadpoolctl policy, which
+# covers this wheel's OpenBLAS pool too, so no extra env is set for it.
+ARG INCLUDE_OPENNEC=1
+RUN if [ "$INCLUDE_OPENNEC" = "1" ]; then \
+      pip install "pyopennec @ https://github.com/stevenmburns/pyopennec/releases/download/v0.2.1/pyopennec-0.2.1-cp312-abi3-manylinux_2_27_x86_64.manylinux_2_28_x86_64.whl#sha256=db79b4ed6389594a96bb8bb06a31db596972c1606aef809def00455f779abdfe" \
+      && python -c "import pyopennec; assert pyopennec.BACKEND == 'scipy-openblas32', pyopennec.BACKEND; assert pyopennec.OPENMP, 'pyopennec built without OpenMP'; print('pyopennec', pyopennec.BACKEND, pyopennec.OPENMP)"; \
+    fi
+
 EXPOSE 8000
 
 # One worker: solves are CPU-bound and run in a threadpool, so extra uvicorn

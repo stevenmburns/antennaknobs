@@ -2279,15 +2279,16 @@ def _shed(fn, *args, **kwargs):
 # that named the resolved solver into the kind of expression a fourth engine
 # gets wrong.
 def _have_opennec() -> bool:
-    """OpenNEC is served where pyopennec imports, and never on the hosted
-    instance: the image does not install it, and offering an engine there is
-    a decision rather than a side effect of a package being present."""
-    return opennec_backend.HAVE_OPENNEC and not _HOSTED
+    """OpenNEC is served where pyopennec imports, hosted or not: the hosted
+    image installs the pinned release wheel, and the engine is held to
+    PyNEC's caps there (the cost model's PyNEC basis cap, and refused on an
+    opened deck, which no wall-time budget can stop mid-solve)."""
+    return opennec_backend.HAVE_OPENNEC
 
 
 _EXTERNAL_BACKENDS = {
     "pynec": (pynec_backend, lambda: pynec_backend.HAVE_PYNEC),
-    # pyopennec: PyNEC's contract on another binding, local installs only.
+    # pyopennec: PyNEC's contract on another binding, under PyNEC's caps.
     "opennec": (opennec_backend, lambda: _have_opennec()),
     "nec5": (nec5_backend, nec5_backend.have_nec5),
     "nec2": (nec2_backend, nec2_backend.have_nec2),
@@ -5456,10 +5457,8 @@ async def deck_open_endpoint(req: dict, request: Request):
         # it: the hosted server solves an opened deck on the others. Said on
         # the record, so the tab is greyed before anyone picks it.
         refusals = dict(entry["backend_coverage"].get("refusals") or {})
-        refusals["pynec"] = {
-            "capability": "cancellable",
-            "reason": _cost.PYNEC_DECK_REFUSAL,
-        }
+        for engine, reason in _cost.UNCANCELLABLE_DECK_REFUSALS.items():
+            refusals[engine] = {"capability": "cancellable", "reason": reason}
         entry["backend_coverage"] = {**entry["backend_coverage"], "refusals": refusals}
     lim = _DECK_SETTINGS
     read = _deck_dialect(EXAMPLES[key])

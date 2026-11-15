@@ -1,7 +1,7 @@
 """The web app's OpenNEC lane (web/opennec_backend.py).
 
 The roster is served, so a new backend is data: these pin that the entry is
-served exactly where pyopennec imports and the instance is not hosted, that a
+served exactly where pyopennec imports (hosted or not), that a
 ``solver: "opennec"`` request really solves on OpenNEC (and says so), and that
 its shape matches the PyNEC lane it is a twin of.
 """
@@ -70,14 +70,48 @@ def test_the_served_roster_follows_the_import_at_request_time(client, monkeypatc
     assert "opennec" in _names(client.get("/capabilities").json()["backends"])
 
 
-def test_hosted_mode_does_not_offer_it(client, monkeypatch):
-    monkeypatch.setattr(opennec_backend, "HAVE_OPENNEC", True)
+def test_hosted_mode_offers_it_where_pyopennec_imports(client, monkeypatch):
     monkeypatch.setattr(server, "_HOSTED", True)
-    assert "opennec" not in _names(client.get("/capabilities").json()["backends"])
-    # A request naming it anyway falls back, the pynec contract (#429).
-    assert server._external_backend({"solver": "opennec"}) is None
-    monkeypatch.setattr(server, "_HOSTED", False)
+    monkeypatch.setattr(opennec_backend, "HAVE_OPENNEC", True)
+    assert "opennec" in _names(client.get("/capabilities").json()["backends"])
     assert server._external_backend({"solver": "opennec"}) is opennec_backend
+    # Without the import, a request naming it falls back, the pynec contract.
+    monkeypatch.setattr(opennec_backend, "HAVE_OPENNEC", False)
+    assert "opennec" not in _names(client.get("/capabilities").json()["backends"])
+    assert server._external_backend({"solver": "opennec"}) is None
+
+
+def test_hosted_opened_deck_is_refused_on_opennec_as_on_pynec(client, monkeypatch):
+    from antennaknobs.web import cost
+
+    req = {"geometry": "deck.0123456789ab", "solver": "opennec"}
+    ex = type("Ex", (), {"count_basis": staticmethod(lambda _r: 50)})()
+    hosted = cost.admit(req, kind="live", use_pynec=True, hosted=True, example=ex)
+    assert hosted.verdict == "refuse" and "OpenNEC" in hosted.reason
+    local = cost.admit(req, kind="live", use_pynec=True, hosted=False, example=ex)
+    assert local.verdict == "run"
+    # A catalog design is admitted under PyNEC's basis cap, and refused past it.
+    cat = {"geometry": "dipoles.invvee", "solver": "opennec"}
+    big = type("Ex", (), {"count_basis": staticmethod(lambda _r: 7001)})()
+    assert (
+        cost.admit(cat, kind="live", use_pynec=True, hosted=True, example=ex).verdict
+        == "run"
+    )
+    over = cost.admit(cat, kind="live", use_pynec=True, hosted=True, example=big)
+    assert over.verdict == "refuse" and "PyNEC" in over.reason
+
+
+@needs_opennec
+def test_hosted_solve_through_opennec_and_oversize_refused(monkeypatch):
+    monkeypatch.setattr(server, "_HOSTED", True)
+    # Its own frequency: the solve cache is keyed on the request, not the mode.
+    req = {**REQ, "measurement_freq_mhz": 28.51, "solver": "opennec"}
+    out = server.solve(req)
+    assert out["solver"] == "opennec"
+    assert 10 < out["z_in_re"] < 500
+    # The hosted size cap holds for the engine as for PyNEC.
+    with pytest.raises(server.SolveTooLargeError):
+        server.solve({**req, "n_per_wire": 20000})
 
 
 def test_the_settings_catalog_names_it_where_served():
