@@ -40,9 +40,11 @@ import os
 import random
 import resource
 import signal
+import subprocess
 import sys
 import tempfile
 import time
+import types
 from pathlib import Path
 
 import numpy as np
@@ -433,6 +435,28 @@ def run_forked(c):
     return r["o"], r.get("e", "")
 
 
+def run_cases(cases):
+    """``run_forked`` over `cases`, from a COLD helper process.
+
+    Forking from a process that has already run a solve deadlocks the child:
+    libgomp / OpenBLAS have started their thread pools in the parent, and a
+    forked child inherits the locks but not the threads. Inside pytest that is
+    the usual state (an earlier test solved), so every in-process fork there
+    hangs, even on an ordinary 14 MHz dipole. The helper imports the engine
+    but never solves, so each of its forks starts with no pool at all.
+    """
+    p = subprocess.run(
+        [sys.executable, os.path.abspath(__file__), "--zygote"],
+        input=json.dumps(cases),
+        capture_output=True,
+        text=True,
+        timeout=len(cases) * (TIMEOUT_S + 5) + 120,
+        check=False,
+    )
+    assert p.returncode == 0, (p.returncode, p.stderr[-500:])
+    return [tuple(x) for x in json.loads(p.stdout.splitlines()[-1])]
+
+
 # ----------------------------------------------------------------- CI + CLI
 
 SLICE_SEED = 20261114
@@ -444,9 +468,8 @@ SLICE_SEED = 20261114
 def test_fuzz_slice_nothing_kills_the_process():
     bad = []
     seen = collections.Counter()
-    for i in range(50):
-        c = make_case(SLICE_SEED, i, allow_big=False)
-        o, d = run_forked(c)
+    cases = [make_case(SLICE_SEED, i, allow_big=False) for i in range(50)]
+    for c, (o, d) in zip(cases, run_cases(cases), strict=True):
         seen[o] += 1
         if o in ("CRASH", "HANG", "sysexit"):
             bad.append((c["id"], o, d, c.get("deck") or c))
@@ -481,28 +504,44 @@ def _dipole_case(path, freq, **over):
 
 @needs_opennec
 @pytest.mark.skipif(not hasattr(os, "fork"), reason="forks one process per case")
-@pytest.mark.parametrize("path", ["porty", "ak"])
-@pytest.mark.parametrize("freq", [1e300, 5e-324, 1e-6])
-def test_a_non_finite_answer_is_refused_not_returned(path, freq):
-    """Regression for the fuzz's NaN answers: an absurd frequency used to
-    come back from the engine as NaN/inf. Through AK it is a ValueError that
-    names what was non-finite; porty itself is free to return NaN or to raise
-    (the direct path is only required not to die)."""
-    o, d = run_forked(_dipole_case(path, freq))
-    if path == "ak":
-        assert o == "exception" and "non-finite" in d, (o, d)
-    else:
-        assert o in ("exception", "nan", "finite"), (o, d)
+def test_an_absurd_frequency_is_refused_up_front_through_ak():
+    """The fuzz's NaN answers came from absurd frequencies. Through AK the
+    engine refuses the frequency by name before any porty work (one process,
+    no solve); porty itself is free to return NaN or to raise, and the direct
+    path is only required not to die (the fuzz slice holds that)."""
+    cases = [_dipole_case("ak", f) for f in (1e300, 5e-324, 1e-6, 1e9, 0.001)]
+    for c, (o, d) in zip(cases, run_cases(cases), strict=True):
+        assert o == "exception" and "MHz is outside the" in d, (c["freqs"], o, d)
 
 
 @needs_opennec
-def test_the_engine_names_a_non_finite_reading():
+@pytest.mark.skipif(not hasattr(os, "fork"), reason="forks one process per case")
+def test_an_absurd_electrical_size_is_refused_up_front():
+    # 10 m of wire at 100 GHz is ~3300 wavelengths: inside the frequency range,
+    # outside the size range.
+    c = _dipole_case("ak", 1.0e5)
+    o, d = run_cases([c])[0]
+    assert o == "exception" and "wavelengths across" in d, (o, d)
+
+
+@needs_opennec
+def test_the_engine_names_a_non_finite_reading(monkeypatch):
+    """A NaN admittance from porty (as the fuzz found for NaN geometry that
+    got past an older importer) is refused by name, not turned into a Z."""
     from antennaknobs.engines.opennec import OpenNECEngine
     from antennaknobs.file_designs import builder_from_text
 
-    c = _dipole_case("ak", 1e300)
-    eng = OpenNECEngine(builder_from_text("f.nec", c["deck"])())
-    with pytest.raises(ValueError, match=r"non-finite port admittance Y.*1e\+300 MHz"):
+    real = opennec_mod.porty.Structure.solve
+
+    def nan_solve(self, freqs, *a, **k):
+        sol = real(self, freqs, *a, **k)
+        return types.SimpleNamespace(
+            y=np.full_like(sol.y, np.nan), segments=sol.segments, currents=sol.currents
+        )
+
+    monkeypatch.setattr(opennec_mod.porty.Structure, "solve", nan_solve)
+    eng = OpenNECEngine(builder_from_text("f.nec", _dipole_case("ak", 14.0)["deck"])())
+    with pytest.raises(ValueError, match=r"non-finite port admittance Y.* at 14 MHz"):
         eng.impedance()
 
 
@@ -574,5 +613,10 @@ def main():
         print("  ", b)
 
 
+def zygote():
+    cases = json.loads(sys.stdin.read())
+    print(json.dumps([run_forked(c) for c in cases]))
+
+
 if __name__ == "__main__":
-    sys.exit(main())
+    sys.exit(zygote() if "--zygote" in sys.argv else main())
