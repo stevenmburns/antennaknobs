@@ -105,7 +105,7 @@ def _m_len_extreme(c, rng):
     for w in c["wires"]:
         d = [rng.uniform(-1, 1) for _ in range(3)]
         w[2] = [rng.uniform(-1, 1) * s * 0.1 for _ in range(3)]
-        w[3] = [a + b * s for a, b in zip(w[2], d)]
+        w[3] = [a + b * s for a, b in zip(w[2], d, strict=True)]
 
 
 def _m_ulp(c, rng):
@@ -147,15 +147,15 @@ def _m_touching(c, rng):
     if kind == "coincident":
         w = [n, a[1], list(a[2]), list(a[3]), a[4]]
     elif kind == "overlap":
-        mid = [(p + q) / 2 for p, q in zip(a[2], a[3])]
+        mid = [(p + q) / 2 for p, q in zip(a[2], a[3], strict=True)]
         w = [n, a[1], mid, list(a[3]), a[4]]
     elif kind == "endpoint":
         w = [n, a[1], list(a[3]), [a[3][0] + 1, a[3][1], a[3][2] + 1], a[4]]
     elif kind == "cross":
-        mid = [(p + q) / 2 for p, q in zip(a[2], a[3])]
+        mid = [(p + q) / 2 for p, q in zip(a[2], a[3], strict=True)]
         w = [n, a[1], [mid[0] - 1, mid[1], mid[2]], [mid[0] + 1, mid[1], mid[2]], a[4]]
     else:  # tee at an odd angle, 1 deg off
-        mid = [(p + q) / 2 for p, q in zip(a[2], a[3])]
+        mid = [(p + q) / 2 for p, q in zip(a[2], a[3], strict=True)]
         w = [n, a[1], mid, [mid[0] + 2, mid[1] + 0.03, mid[2]], a[4]]
     c["wires"].append(w)
 
@@ -286,7 +286,11 @@ def _ak_ground(c, rng):
 
 def _n(x):
     if isinstance(x, float):
-        return repr(x) if math.isfinite(x) else ("nan" if x != x else ("inf" if x > 0 else "-inf"))
+        return (
+            repr(x)
+            if math.isfinite(x)
+            else ("nan" if x != x else ("inf" if x > 0 else "-inf"))
+        )
     return str(x)
 
 
@@ -357,7 +361,11 @@ def run_case(c):
         out += [sol.y, sol.currents]
         if c["far"] and sol.nports:
             ff = porty.far_field(
-                sol, 0, np.ones(sol.nports, complex), [0.0, 45.0, 90.0, 179.0], [0.0, 90.0, 0.0, 180.0]
+                sol,
+                0,
+                np.ones(sol.nports, complex),
+                [0.0, 45.0, 90.0, 179.0],
+                [0.0, 90.0, 0.0, 180.0],
             )
             out.append(ff)
     else:
@@ -369,7 +377,9 @@ def run_case(c):
         eng = OpenNECEngine(b, ground=tuple(g) if isinstance(g, list) else g)
         out.append(eng.impedance())
         if c["sweep"]:
-            out.append(eng.impedance_sweep([c["freqs"][0] * f for f in (0.9, 1.0, 1.1)]))
+            out.append(
+                eng.impedance_sweep([c["freqs"][0] * f for f in (0.9, 1.0, 1.1)])
+            )
         if c["cd"]:
             out.append(eng.current_distribution())
         if c["far"]:
@@ -453,7 +463,9 @@ def test_generator_is_deterministic():
 @needs_opennec
 def test_large_mode_is_opt_in():
     # The large mode is the __main__ below, gated by AK_FUZZ_CASES.
-    assert os.environ.get("AK_FUZZ_CASES") is None or int(os.environ["AK_FUZZ_CASES"]) > 0
+    assert (
+        os.environ.get("AK_FUZZ_CASES") is None or int(os.environ["AK_FUZZ_CASES"]) > 0
+    )
 
 
 def main():
@@ -490,7 +502,10 @@ def main():
             if "deck" in c:
                 (out / f"repro-{seed}-{i}.nec").write_text(c["deck"])
         if done % 250 == 0:
-            print(f"  {done} cases, {time.time() - t0:.0f}s, {dict(by_outcome)}", flush=True)
+            print(
+                f"  {done} cases, {time.time() - t0:.0f}s, {dict(by_outcome)}",
+                flush=True,
+            )
     print(f"\nran {done} cases in {time.time() - t0:.0f}s")
     print("outcomes:", dict(by_outcome))
     print("by path:")
