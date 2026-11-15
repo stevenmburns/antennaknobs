@@ -1534,7 +1534,8 @@ moves answers by rounding only.
 **An OpenNEC tab, on a local install.** With the optional
 [pyopennec](https://github.com/stevenmburns/pyopennec) installed, the
 workbench offers an **OpenNEC** tab beside PyNEC: the same NEC-2 model,
-solved by Maury Markowitz's OpenNEC. It is not on the hosted app. Its ground
+solved by Maury Markowitz's OpenNEC. Since v0.121.0 the hosted app offers it
+too, under PyNEC's size and time limits. Its ground
 choices are free space, perfect and the two finite grounds; the MININEC-type
 ground is refused, because OpenNEC has no way to apply its soil to the
 pattern.
