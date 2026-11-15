@@ -14,6 +14,7 @@ from .wire_catalog import (
     port_at,
     port_wire,
     refuse_coincident_ports,
+    refuse_degenerate_segments,
 )
 
 _logger = logging.getLogger(__name__)
@@ -868,7 +869,15 @@ class SimulationEngine(ABC):
         required parity. Logs once per distinct (n_in, n_out) shift so a
         converge sweep doesn't spam the log per-edge. Reads
         self.segment_parity so subclasses can set it per-instance (e.g.
-        MomwireEngine, where the parity depends on the chosen solver)."""
+        MomwireEngine, where the parity depends on the chosen solver).
+
+        Every engine builds its geometry from what this returns, so it is also
+        where a wire no engine can mesh is refused, by name, before any engine
+        sees it (`refuse_degenerate_segments`): a coordinate or radius that is
+        not finite, or a segment under the floor. OpenNEC aborts the process
+        on one and PyNEC hangs, so the check runs on every engine, whatever
+        its parity, and again on the pieces a split cuts."""
+        refuse_degenerate_segments(tups, self._wire_labels(tups))
         parity = self.segment_parity
         if parity == "any":
             return tups
@@ -951,7 +960,31 @@ class SimulationEngine(ABC):
             else:
                 out.append((w.p0, w.p1, n_new, w.ex))
             self._tup_authored.append(index)
+        if self._split_wires:
+            refuse_degenerate_segments(out)
         return out
+
+    def _wire_labels(self, tups):
+        """How a refusal names each ``build_wires()`` entry: ``wire <i>``, the
+        GW tag too when the design is an opened deck whose wires are these one
+        for one, and the wire's own name when it has one."""
+        deck = getattr(getattr(self, "builder", None), "file_deck_parsed", None)
+        deck_wires = getattr(deck, "wires", None)
+        tags = (
+            [w.tag for w in deck_wires]
+            if deck_wires is not None and len(deck_wires) == len(tups)
+            else None
+        )
+        labels = []
+        for i, t in enumerate(tups):
+            name = as_wire(t).name
+            label = f"wire {i + 1}"
+            if tags is not None:
+                label += f" (tag {tags[i]})"
+            if name:
+                label += f" {name!r}"
+            labels.append(label)
+        return labels
 
     @abstractmethod
     def impedance(self): ...

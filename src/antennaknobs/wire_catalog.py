@@ -584,6 +584,115 @@ def as_wire(t) -> Wire:
     return Wire(*t)
 
 
+# The shortest segment any engine is handed, in metres. Below it a segment is
+# not a model of a conductor but a floating-point accident, and the engines do
+# not refuse one: measured 2026-11-15 on a 2-segment wire 2.3e-162 m long over
+# Sommerfeld ground, OpenNEC ABORTS the process (its segment length comes out
+# NaN and trips an assert in its ground integration), PyNEC hangs, and over free
+# space both return NaN Z with no word. A wire from z = 1 to the next double
+# above 1 does the same with nseg = 2 or 3, its middle knot rounding onto an
+# end. The floor is far from anything real: the shortest segment in the catalog
+# and the test decks of both repos (720 designs and decks, scanned for this)
+# is 3.3 mm, the ELT whip's loading stub; 1 nm is six orders below that and
+# three below momwire's own node quantum (1e-6 m, `flat_wires_to_polylines`),
+# and nine above the 1e-15 m at which momwire's solvers call an edge zero.
+SEGMENT_LENGTH_FLOOR_M = 1e-9
+
+
+def _is_finite_point(p) -> bool:
+    return all(math.isfinite(float(c)) for c in p)
+
+
+def degenerate_wire_refusal(label, p0, p1, n_seg, radii=()):
+    """Why one wire cannot be handed to an engine, or None.
+
+    ``label`` names the wire in the sentence. ``n_seg`` is its segment count,
+    a `GradedSegments` (each panel judged on its own count), or None for a
+    count still to be resolved (only the coordinates and radii are judged).
+    ``radii`` are the radii it carries, each of which must be finite.
+
+    A segment is judged twice, the way the NEC engines build it: its nominal
+    length ``|p1 - p0| / n`` with the length taken as the square root of the
+    summed squares (so it underflows and overflows where theirs does), and the
+    distance between consecutive knots placed at ``p0 + (p1 - p0) * (k / n)``,
+    the expression the importer and the NEC geometry use. The second catches a
+    wire whose nominal segments are long enough but whose knots floating point
+    cannot place apart (a knot rounding onto its neighbour is a zero-length
+    segment however long the wire)."""
+    for end, p in (("p0", p0), ("p1", p1)):
+        if not _is_finite_point(p):
+            coords = ", ".join(f"{float(c):g}" for c in p)
+            return (
+                f"{label}: its end {end} is ({coords}); every coordinate must be "
+                "a finite number"
+            )
+    for r in radii:
+        if r is not None and not math.isfinite(float(r)):
+            return f"{label}: its radius is {float(r):g}; a radius must be finite"
+    if n_seg is None:
+        return None
+    if isinstance(n_seg, GradedSegments):
+        panels = n_seg.subdivide(p0, p1)
+    else:
+        panels = [(tuple(p0), tuple(p1), max(1, int(n_seg)))]
+    floor = SEGMENT_LENGTH_FLOOR_M
+    for q0, q1, n in panels:
+        a = [float(c) for c in q0]
+        d = [float(y) - x for x, y in zip(a, q1, strict=True)]
+        nominal = math.sqrt(sum(c * c for c in d)) / n
+        segs = f"{n} segment{'s' if n != 1 else ''}"
+        if not math.isfinite(nominal):
+            return (
+                f"{label}: its length over {segs} is not a finite number "
+                f"({nominal:g} m a segment); no engine can mesh it"
+            )
+        if nominal < floor:
+            return (
+                f"{label}: its {segs} would each be {nominal:.3g} m long, under "
+                f"the {floor:g} m a segment needs; no engine can mesh a segment "
+                "that short"
+            )
+        # The knots can collide only where a segment is a few ulps of the
+        # coordinates; everywhere else the nominal length is the answer.
+        scale = max(abs(c) for c in (*a, *(float(c) for c in q1)))
+        if nominal > 1e-9 * scale:
+            continue
+        import numpy as np
+
+        ks = np.arange(n + 1, dtype=float) / n
+        knots = np.asarray(a)[None, :] + np.asarray(d)[None, :] * ks[:, None]
+        steps = np.sqrt(np.sum(np.diff(knots, axis=0) ** 2, axis=1))
+        k = int(np.argmin(steps))
+        if not steps[k] >= floor:
+            return (
+                f"{label}: segment {k + 1} of {n} comes out {steps[k]:.3g} m long "
+                "where its ends are placed, under the "
+                f"{floor:g} m a segment needs; at these coordinates floating "
+                "point cannot place its ends apart"
+            )
+    return None
+
+
+def refuse_degenerate_segments(tups, labels=None) -> None:
+    """Refuse, by name, the first ``build_wires()`` entry whose geometry no
+    engine can mesh (`degenerate_wire_refusal`): a coordinate or radius that
+    is not finite, or a segment under `SEGMENT_LENGTH_FLOOR_M`. ``labels``,
+    when given, names each entry; otherwise it is ``wire <i>``, with the
+    wire's own name if it has one."""
+    for i, t in enumerate(tups):
+        w = as_wire(t)
+        if labels is not None:
+            label = labels[i]
+        else:
+            label = f"wire {i + 1}" + (f" {w.name!r}" if w.name else "")
+        radii = ()
+        if w.spec is not None:
+            radii = (w.spec.radius, w.spec.insulation_radius)
+        message = degenerate_wire_refusal(label, w.p0, w.p1, w.n_seg, radii)
+        if message is not None:
+            raise ValueError(message)
+
+
 def port_wire(port) -> str:
     """The geometry wire a gap port sits on: its ``wire`` when it names one
     (momwire#1059, AK#1469), else its own ``name``. Read through ``getattr``
