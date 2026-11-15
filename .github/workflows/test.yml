@@ -104,12 +104,12 @@ jobs:
 
     - name: Install pyopennec from its release wheel
       # Optional engine, installed here so the opennec tests run instead of
-      # skipping. Pinned to v0.2.0; the Linux x86_64 abi3 wheel vendors
+      # skipping. Pinned to v0.2.1; the Linux x86_64 abi3 wheel vendors
       # scipy-openblas32 and links OpenMP. Only THIS job gets it: wheel-smoke,
-      # publish and the hosted image stay without it (opennec is optional).
+      # and publish stay without it (opennec is optional); the hosted image has its own pinned install (Dockerfile).
       run: |
         pip install -c constraints-ci.txt \
-          "pyopennec @ https://github.com/stevenmburns/pyopennec/releases/download/v0.2.0/pyopennec-0.2.0-cp312-abi3-manylinux_2_27_x86_64.manylinux_2_28_x86_64.whl"
+          "pyopennec @ https://github.com/stevenmburns/pyopennec/releases/download/v0.2.1/pyopennec-0.2.1-cp312-abi3-manylinux_2_27_x86_64.manylinux_2_28_x86_64.whl"
         python - <<'PY'
         import pyopennec
         # A lane that cannot reach the wheel must fail here, not skip the

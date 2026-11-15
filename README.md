@@ -202,8 +202,8 @@ PyPI; install its release wheel (Linux x86_64 or macOS arm64; on macOS run
 `brew install libomp` first; Windows is unsupported):
 
 ```bash
-pip install "pyopennec @ https://github.com/stevenmburns/pyopennec/releases/download/v0.2.0/pyopennec-0.2.0-cp312-abi3-manylinux_2_27_x86_64.manylinux_2_28_x86_64.whl"   # Linux x86_64
-pip install "pyopennec @ https://github.com/stevenmburns/pyopennec/releases/download/v0.2.0/pyopennec-0.2.0-cp312-abi3-macosx_14_0_arm64.whl"   # macOS arm64
+pip install "pyopennec @ https://github.com/stevenmburns/pyopennec/releases/download/v0.2.1/pyopennec-0.2.1-cp312-abi3-manylinux_2_27_x86_64.manylinux_2_28_x86_64.whl"   # Linux x86_64
+pip install "pyopennec @ https://github.com/stevenmburns/pyopennec/releases/download/v0.2.1/pyopennec-0.2.1-cp312-abi3-macosx_14_0_arm64.whl"   # macOS arm64
 ```
 
 Fallback, from source (a C compiler and CMake; OpenBLAS is used when
