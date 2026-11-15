@@ -269,21 +269,21 @@ Two app-side notes the engine page doesn't carry:
 The `opennec` engine (`--engine opennec`, and the workbench's **OpenNEC** tab)
 is NEC-2 again, on a second implementation. [OpenNEC](https://github.com/maurymarkowitz/OpenNEC)
 is a C rewrite of NEC-2 / nec2c, reached through
-[pyopennec](https://github.com/stevenmburns/pyopennec), MIT bindings with
-PyNEC's API. antennaknobs drives it through the PyNEC engine's own code, so
+[pyopennec](https://github.com/stevenmburns/pyopennec), MIT bindings. antennaknobs drives it through the PyNEC engine's own code, so
 the cards, readouts and refusals are PyNEC's, and the two agree to about
 1e-3 on impedance across the parity set: free space, PEC, Sommerfeld and
 reflection-coefficient ground, loads, a TL network, a native NT card,
 multi-port arrays, sweeps and patterns.
 
-It is optional, like PyNEC. It appears only when pyopennec imports, and
-never on the hosted app. pyopennec is not on PyPI; install its release wheel
+It is optional, like PyNEC. It appears only when pyopennec imports. The
+hosted app has it, under the same size and time limits as PyNEC. pyopennec is
+not on PyPI; install its release wheel
 (Linux x86_64 or macOS arm64; on macOS run `brew install libomp` first;
 Windows is unsupported):
 
 ```bash
-pip install "pyopennec @ https://github.com/stevenmburns/pyopennec/releases/download/v0.2.0/pyopennec-0.2.0-cp312-abi3-manylinux_2_27_x86_64.manylinux_2_28_x86_64.whl"   # Linux x86_64
-pip install "pyopennec @ https://github.com/stevenmburns/pyopennec/releases/download/v0.2.0/pyopennec-0.2.0-cp312-abi3-macosx_14_0_arm64.whl"   # macOS arm64
+pip install "pyopennec @ https://github.com/stevenmburns/pyopennec/releases/download/v0.2.1/pyopennec-0.2.1-cp312-abi3-manylinux_2_27_x86_64.manylinux_2_28_x86_64.whl"   # Linux x86_64
+pip install "pyopennec @ https://github.com/stevenmburns/pyopennec/releases/download/v0.2.1/pyopennec-0.2.1-cp312-abi3-macosx_14_0_arm64.whl"   # macOS arm64
 ```
 
 To build from source instead (a C compiler and CMake):

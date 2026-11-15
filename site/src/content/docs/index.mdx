@@ -29,7 +29,20 @@ import { Card, CardGrid, LinkCard } from "@astrojs/starlight/components";
 {/* What's-new box: refresh as part of the release ritual (bump the version,
     swap the highlights) — a stale "new" box is worse than none. */}
 
-<Card title="New in v0.120.2" icon="star">
+<Card title="New in v0.121.0" icon="star">
+  **OpenNEC on the hosted app.** The [simulator](https://app.antennaknobs.dev)
+  now has the **OpenNEC** tab beside PyNEC, with the same size and time limits.
+  What OpenNEC cannot solve is refused by name before it reaches the engine: a
+  frequency out of range, a structure thousands of wavelengths across, or a
+  wire too short to mesh. An answer that comes back not a number is refused
+  too, instead of being shown.
+
+  **On momwire 0.93.0.** The momwire command-line launchers are faster on
+  NEC-2 decks with many frequencies. The razor-2p executable fills a buried
+  structure in less memory, holding one whole matrix where it held two: a hub
+  of 32 buried radials drops from 4.0 GB to 1.5 GB.
+
+  **Also in v0.120.2:**
   **A wire too short to mesh is refused by name.** A design or opened deck
   whose wire segments came out zero, vanishingly short or not a number, even
   with the wire's two ends apart, could hang the PyNEC engine or stop the
@@ -46,32 +59,6 @@ import { Card, CardGrid, LinkCard } from "@astrojs/starlight/components";
   reactive) without any warning. momwire 0.92.0 fixes it, and this release
   picks that up. Designs without a wire through the ground surface are
   unchanged.
-
-  **Also in v0.120.0:**
-  **An OpenNEC engine.** antennaknobs can now solve with
-  [OpenNEC](https://github.com/maurymarkowitz/OpenNEC), Maury Markowitz's C
-  rewrite of NEC-2, through the new MIT-licensed
-  [pyopennec](https://github.com/stevenmburns/pyopennec). Install its release
-  wheel (Linux x86_64 or macOS arm64; on macOS `brew install libomp` first) and
-  an **OpenNEC** tab appears beside PyNEC in the workbench, and
-  `--engine opennec` on the command line. It uses PyNEC's model, so the two
-  agree to within 0.2 % on impedance. A design with a network (a line, a tuner,
-  a virtual port) takes one solve per frequency, where PyNEC takes one per
-  port. It runs in the same session as momwire and PyNEC, and is not offered on
-  the hosted app.
-
-  **A Whole numbers box for imported knobs.** A deck knob the import made
-  whole-number now has a **Whole numbers** box in its menu. Untick it to turn
-  the knob in decimal steps; the segment counts it sets are rounded.
-
-  **Reuse on the Sinusoidal tab reaches every design.** Its *reuse repeated
-  geometry* box now works on any design, not only those with congruent edge
-  pairs. It is still off by default.
-
-  **The design-file jail is tighter.** On a self-hosted server started with
-  `python -m uvicorn`, an opened design `.py` could read files in the folder
-  the server was started from. It no longer can, and a uv-managed Python now
-  works inside the jail.
 </Card>
 
 ## The whole pitch, in one line
