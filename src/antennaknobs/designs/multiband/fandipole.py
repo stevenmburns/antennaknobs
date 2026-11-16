@@ -128,11 +128,18 @@ class Builder(AntennaBuilder):
         # always sit at the same azimuth across variants. (Re-laying
         # out per-n_bands would rotate the antenna under the user
         # whenever they toggled n_bands.)
+        # Two bands are the exception: on that layout they would take the
+        # first two spokes, 72 degrees apart and both above the feed, so the
+        # feed would not sit level. A pair instead takes 0 and 180 degrees,
+        # one each side of the feed at its height.
         n = _MAX_BANDS
-        lst = [
-            (math.cos(math.radians(i)), math.sin(math.radians(i)))
-            for i in range(360 // (2 * n), 360, 360 // n)
-        ][:n_bands]
+        if n_bands == 2:
+            lst = [(1.0, 0.0), (-1.0, 0.0)]
+        else:
+            lst = [
+                (math.cos(math.radians(i)), math.sin(math.radians(i)))
+                for i in range(360 // (2 * n), 360, 360 // n)
+            ][:n_bands]
 
         def ry(p):
             return p[0], -p[1], p[2]
