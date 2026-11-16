@@ -265,10 +265,16 @@ on, from "(faster, approximate)", which only a request turns on. Moving that
 line is Steve's call. A registry without those fields keeps the hand-kept
 table (`_FALLBACK_SWITCHES`, `_FALLBACK_FEATURE_SPECS`), whole.
 
-**A pin bump never turns a feature on.**
-- Every momwire feature is off unless asked for. So moving the pin or the
-  submodule pointer changes defaults only through features that momwire has
-  PROMOTED to stable.
+**A pin bump turns a feature on only through momwire's own promotion.**
+- Every momwire feature is off unless asked for, or promoted to on by default.
+  So moving the pin or the submodule pointer changes defaults only through
+  features that momwire has PROMOTED to stable, or to default-on
+  (`Feature.default`, momwire#1951). Default-on is a separate decision from
+  reach: a default-on feature is on wherever it is certified, and off outside
+  its reach.
+- AK passes every served feature's keyword explicitly, `False` included
+  (AK#2317), and serves each checkbox's default from `Feature.default`. Never
+  rely on an absent keyword meaning off: absent means momwire's default.
 - momwire's stable-path tripwire holds the flag-off bytes. Its Skylake nightly,
   status in momwire#1837, holds exe == Python and perf.
 - Neither replaces the gates here: the antenna computation check, the frontend
