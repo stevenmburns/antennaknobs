@@ -833,12 +833,16 @@ class FeatureInfo(NamedTuple):
     """What momwire's registry says a front end needs about one offered
     feature: the solver keyword, the checkbox text and hover, and its
     declared ``drift``, the largest relative change in input impedance its
-    author measured with it on (an upper bound, not a run-time reading)."""
+    author measured with it on (an upper bound, not a run-time reading), and
+    ``default``, whether momwire runs it when nothing asks either way
+    (momwire#1951's ``Feature.default``: on wherever it is certified; a
+    momwire predating the field has every feature off)."""
 
     kwarg: str
     label: str
     summary: str
     drift: float
+    default: bool = False
 
 
 # The line between a feature that changes only the last digits and one that
@@ -876,7 +880,13 @@ def _derive_features(registry) -> dict[str, FeatureInfo] | None:
             math.isfinite(drift) and drift >= 0.0
         ):
             return None
-        out[f.name] = FeatureInfo(kwarg, label.strip(), summary.strip(), drift)
+        out[f.name] = FeatureInfo(
+            kwarg,
+            label.strip(),
+            summary.strip(),
+            drift,
+            bool(getattr(f, "default", False)),
+        )
     return out
 
 
@@ -909,6 +919,27 @@ def feature_seedable(name: str) -> bool:
     default). The hand-kept table's features are all last-digit ones."""
     info = (FEATURE_INFO or {}).get(name)
     return info is None or info.drift <= LAST_DIGITS_DRIFT
+
+
+def feature_default(name: str) -> bool:
+    """Whether momwire runs offered feature ``name`` when a request says
+    nothing (momwire#1951's ``Feature.default``), read from the installed
+    registry. The hand-kept table's features are all off, as is every one
+    on a momwire predating the field. Only consulted where the feature is
+    served, i.e. certified here, which is where momwire's own default
+    applies."""
+    info = (FEATURE_INFO or {}).get(name)
+    return info is not None and info.default
+
+
+def seed_value(env: str) -> bool | None:
+    """What server seed ``env`` says: True for ``1``/``on``, False for any
+    other value (``0``, say: the way to turn a default-on feature off for
+    the whole server), None when unset or empty (the default stands)."""
+    value = os.environ.get(env, "").strip()
+    if not value:
+        return None
+    return value in ("1", "on")
 
 
 def feature_kwarg(name: str) -> str:
@@ -1363,10 +1394,13 @@ class MomwireEngine(SimulationEngine):
         """
         features:
           ``{name: bool}`` for momwire's pass-through features
-          (`FEATURE_SWITCHES`), off by default. An unset or None entry reads
-          the feature's ``ANTENNAKNOBS_<NAME>`` (``1`` on). A feature the
-          solver does not take, or that momwire does not certify here
-          (`feature_served`), is passed nothing.
+          (`FEATURE_SWITCHES`). An unset or None entry reads the feature's
+          ``ANTENNAKNOBS_<NAME>`` (``1`` on, any other value off), and when
+          that is unset too takes momwire's own default for it
+          (`feature_default`: off, unless momwire#1951 promoted it). A
+          served feature is always passed explicitly, ``False`` included; a
+          feature the solver does not take, or that momwire does not
+          certify here (`feature_served`), is passed nothing.
 
         pair_reuse:
           Fill each repeated edge-pair block once and copy it (AK#2165 stage
@@ -1529,17 +1563,22 @@ class MomwireEngine(SimulationEngine):
             self._solver, "offset_reuse"
         )
         self._pair_reuse_hint_cache = None
-        # Pass-through features, folded the same way; only an on and served
-        # one reaches the constructor, so an off solve passes what it did.
+        # Pass-through features, folded the same way: the request, else the
+        # server seed, else momwire's own default for it (AK#2317). Every
+        # served one reaches the constructor as an explicit True or False,
+        # never as an absence: since momwire#1951 a feature can be on by
+        # default, and an unticked box must still turn it off.
         self._feature_kwargs = {}
         for name, env in FEATURE_SWITCHES.items():
             asked = self._solver_kwargs.pop(name, None)
             if (features or {}).get(name) is not None:
                 asked = features[name]
             if asked is None and feature_seedable(name):
-                asked = os.environ.get(env, "") in ("1", "on")
-            if asked and feature_served(self._solver, name):
-                self._feature_kwargs[feature_kwarg(name)] = True
+                asked = seed_value(env)
+            if asked is None:
+                asked = feature_default(name)
+            if feature_served(self._solver, name):
+                self._feature_kwargs[feature_kwarg(name)] = bool(asked)
         # Per-instance parity: sinusoidal wants odd, bspline depends on
         # degree. Set before _coerce_wire_tuples runs.
         self.segment_parity = _parity_for_solver(self._solver, self._solver_kwargs)

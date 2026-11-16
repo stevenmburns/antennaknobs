@@ -141,6 +141,7 @@ from antennaknobs.engines.momwire import (
     exact_kernel_served,
     feature_seedable,
     feature_served,
+    seed_value,
     _ends_in_the_plane,
     _takes_pair_reuse,
     _solver_supports_ground_eps,
@@ -1586,7 +1587,9 @@ def _feature_specs() -> dict[str, _OptionSpec]:
     """The pass-through features' checkboxes, from momwire's registry
     (`FEATURE_INFO`) when it describes them, else the hand-kept specs. A
     feature that moves the answer says so in its label as well as its hover,
-    with the bound its author measured."""
+    with the bound its author measured. Each box's default is momwire's own
+    (`FeatureInfo.default`, momwire#1951), so a feature momwire runs by default
+    shows ticked and unticking it sends an explicit off (AK#2317)."""
     if FEATURE_INFO is None:
         return dict(_FALLBACK_FEATURE_SPECS)
     out = {}
@@ -1602,7 +1605,7 @@ def _feature_specs() -> dict[str, _OptionSpec]:
         out[name] = _OptionSpec(
             "bool",
             label=info.label + tag,
-            default=False,
+            default=info.default,
             description=f"{info.summary} {note}",
         )
     return out
@@ -6425,12 +6428,14 @@ _SEED_ENVS = {
 
 
 def _seeded_default(key: str, default):
+    """The served default of option ``key``: its server seed when set (``1``
+    or ``on`` ticks it, any other value unticks it, so a seed can turn off
+    a feature momwire runs by default), else ``default``."""
     env = _SEED_ENVS.get(key) or FEATURE_SWITCHES.get(key)
     if key in FEATURE_SWITCHES and not feature_seedable(key):
         return default
-    if env is not None and os.environ.get(env, "") in ("1", "on"):
-        return True
-    return default
+    seeded = None if env is None else seed_value(env)
+    return default if seeded is None else seeded
 
 
 def model_option_specs() -> dict[str, dict]:

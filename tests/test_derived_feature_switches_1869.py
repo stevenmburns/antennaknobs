@@ -48,6 +48,13 @@ class _New:
     drift: float | None = None
 
 
+@dataclass(frozen=True)
+class _Promoted(_New):
+    """A momwire#1951-shaped entry: it may be on by default."""
+
+    default: bool = False
+
+
 def _reg(*entries):
     return {e.name: e for e in entries}
 
@@ -153,9 +160,63 @@ def test_the_engine_ignores_the_seed_for_an_approximate_feature(described, monke
     from test_pair_reuse_hint_2165 import fed_yagi
 
     eng = mw_engine.MomwireEngine(fed_yagi(1))
-    assert eng._feature_kwargs == {"fast_a": True}
+    assert eng._feature_kwargs == {"fast_a": True, "edge": False, "coarse_b": False}
     asked = mw_engine.MomwireEngine(fed_yagi(1), features={"coarse_b": True})
-    assert asked._feature_kwargs == {"fast_a": True, "coarse_b": True}
+    assert asked._feature_kwargs == {"fast_a": True, "edge": False, "coarse_b": True}
+
+
+PROMOTED = _reg(
+    _Promoted("lever", "lever", True, "factored", "Fills once.", 1e-11, default=True),
+    _Promoted("plain", "plain", True, "plain", "Opt-in.", 1e-11),
+)
+
+
+def test_a_registry_without_default_has_every_feature_off():
+    # A momwire predating momwire#1951 carries no `default`: all off.
+    assert all(not f.default for f in _derive_features(FAKE).values())
+    info = _derive_features(PROMOTED)
+    assert info["lever"].default is True and info["plain"].default is False
+
+
+@pytest.fixture
+def promoted(monkeypatch):
+    info = _derive_features(PROMOTED)
+    for mod in (mw_engine, adapter):
+        monkeypatch.setattr(mod, "FEATURE_INFO", info)
+        monkeypatch.setattr(mod, "FEATURE_SWITCHES", _switches_for(info))
+    monkeypatch.setattr(mw_engine, "feature_served", lambda _s, _n: True)
+    for name in info:
+        monkeypatch.delenv("ANTENNAKNOBS_" + name.upper(), raising=False)
+    return info
+
+
+def test_a_default_on_feature_serves_its_box_ticked(promoted, monkeypatch):
+    specs = adapter._feature_specs()
+    assert specs["lever"].default is True and specs["plain"].default is False
+    assert adapter._seeded_default("lever", True) is True
+    # A seed at "0" unticks it for the whole server; "1" ticks the other.
+    monkeypatch.setenv("ANTENNAKNOBS_LEVER", "0")
+    monkeypatch.setenv("ANTENNAKNOBS_PLAIN", "1")
+    assert adapter._seeded_default("lever", True) is False
+    assert adapter._seeded_default("plain", False) is True
+
+
+def test_an_unticked_default_on_feature_is_passed_off(promoted, monkeypatch):
+    """AK#2317: absence would mean momwire's default, now on for some
+    features, so every served feature is passed as an explicit bool."""
+    from test_pair_reuse_hint_2165 import fed_yagi
+
+    eng = mw_engine.MomwireEngine(fed_yagi(1))
+    assert eng._feature_kwargs == {"lever": True, "plain": False}
+    off = mw_engine.MomwireEngine(fed_yagi(1), features={"lever": False})
+    assert off._feature_kwargs == {"lever": False, "plain": False}
+    # An explicit off in the request wins over a seed, and a seed at "0"
+    # turns the default off.
+    monkeypatch.setenv("ANTENNAKNOBS_LEVER", "1")
+    off = mw_engine.MomwireEngine(fed_yagi(1), features={"lever": False})
+    assert off._feature_kwargs["lever"] is False
+    monkeypatch.setenv("ANTENNAKNOBS_LEVER", "0")
+    assert mw_engine.MomwireEngine(fed_yagi(1))._feature_kwargs["lever"] is False
 
 
 def test_the_installed_registry_takes_one_path_whole():
