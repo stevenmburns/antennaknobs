@@ -66,6 +66,7 @@ not refused.
 
 from __future__ import annotations
 
+import dataclasses
 import math
 from dataclasses import dataclass
 
@@ -78,6 +79,7 @@ from .network import (
     Driven,
     DrivenCurrent,
     Load,
+    PortAtEnd,
     PortAtVertex,
     PortOnWire,
     PortOnWireFloating,
@@ -146,6 +148,12 @@ class StationDeckRefusal(NotImplementedError):
     """A station this writer cannot spell faithfully as one NEC-5 deck."""
 
 
+class _NoCardSpelling(StationDeckRefusal):
+    """A branch (or a floating gap) with no card of its own. Not a refusal
+    of the deck: the writer falls back to the network REDUCED onto its
+    terminals (`_reduced_cards`), and refuses only if that fails too."""
+
+
 @dataclass(frozen=True)
 class PhantomKnot:
     """One pinned knot of the phantom wire: the circuit node(s) it carries,
@@ -169,6 +177,14 @@ class StationDeck:
     # writer's cards rebuilt as a circuit on the same antenna Y.
     z_composite: complex
     z_cards: complex
+    # What the measurement stood on: the network as written (a tuner's
+    # tuned parts in place), and the antenna Y it was reduced on, with the
+    # real port names in Y's order. A caller bounding how Y's own rounding
+    # moves `z_composite` (a NEC-5 printout's Y holds five figures) needs
+    # all three.
+    network: object = None
+    antenna_y: np.ndarray | None = None
+    antenna_ports: tuple[str, ...] = ()
 
     @property
     def tolerance(self) -> float:
@@ -227,21 +243,45 @@ class _Nodes:
 
 
 def _is_real(port) -> bool:
+    """A port that IS a knot of the antenna: a centre or positioned gap, a
+    floating one included (its knot is the gap; the drop across it is the
+    knot's voltage), or a vertex knot."""
     return isinstance(port, PortAtVertex) or (
-        isinstance(port, PortOnWire)
-        and not isinstance(port, PortOnWireFloating)
-        and not port.distributed
+        isinstance(port, PortOnWire) and not port.distributed
+    )
+
+
+def _as_knot_port(port):
+    """`port` as the deck sees it: a floating gap is an ordinary gap whose
+    knot voltage is the drop across it, so the antenna engine and the
+    measurement circuit take it as a plain `PortOnWire`."""
+    if not isinstance(port, PortOnWireFloating):
+        return port
+    return PortOnWire(
+        **{f.name: getattr(port, f.name) for f in dataclasses.fields(PortOnWire)}
     )
 
 
 def _refuse_ports(net):
+    from .engines.nec5 import DISTRIBUTED_PORT_REFUSAL  # noqa: PLC0415 — on use
+
     for name, port in net.ports.items():
         if _is_real(port) or isinstance(port, PortVirtual):
             continue
+        if isinstance(port, PortOnWire) and port.distributed:
+            raise StationDeckRefusal(f"port {name!r} is {DISTRIBUTED_PORT_REFUSAL}")
+        if isinstance(port, PortAtEnd):
+            raise StationDeckRefusal(
+                f"port {name!r} (PortAtEnd) feeds a free wire end, and a NEC-5 "
+                "deck cannot: NEC-5's current at a free end is zero by its end "
+                "condition, and the binary refuses a source at that knot "
+                "(measured), so the end-port feed has no NEC-5 spelling. Run "
+                "the design on momwire (bspline)"
+            )
         raise StationDeckRefusal(
             f"port {name!r} ({type(port).__name__}) has no NEC-5 station-deck "
-            "spelling: only a centre or positioned gap (PortOnWire), a vertex "
-            "knot (PortAtVertex) and virtual nodes are written"
+            "spelling: only a centre or positioned gap (PortOnWire, floating or "
+            "not), a vertex knot (PortAtVertex) and virtual nodes are written"
         )
 
 
@@ -292,7 +332,7 @@ def _branch_cards(net, nodes: _Nodes, order, freq_mhz, wl, c_light, cl_reducer):
     def add_line(a, b, z0, nec_length, transposed):
         a, b = nodes.find(a), nodes.find(b)
         if a == b:
-            raise StationDeckRefusal(
+            raise _NoCardSpelling(
                 f"a line from node {a!r} back to itself has no TL spelling"
             )
         cards.tl.append((a, b, float(z0), float(nec_length), bool(transposed)))
@@ -308,7 +348,7 @@ def _branch_cards(net, nodes: _Nodes, order, freq_mhz, wl, c_light, cl_reducer):
             else:
                 z = _series_rlc_impedance(br.r, br.l, br.c, omega, br.ql, br.qc)
                 if z == 0:
-                    raise StationDeckRefusal(
+                    raise _NoCardSpelling(
                         f"Shunt on {br.port!r} is a dead short to ground, which "
                         "no NEC card spells"
                     )
@@ -323,7 +363,7 @@ def _branch_cards(net, nodes: _Nodes, order, freq_mhz, wl, c_light, cl_reducer):
             elif len(br.ports) == 2:
                 add_nt(*br.ports, y)
             else:
-                raise StationDeckRefusal(
+                raise _NoCardSpelling(
                     f"a {len(br.ports)}-port Admittance has no NT spelling (NT "
                     "is a two-port)"
                 )
@@ -372,7 +412,7 @@ def _branch_cards(net, nodes: _Nodes, order, freq_mhz, wl, c_light, cl_reducer):
                 add_shunt(nodes.find(br.a), 1.0 / zm)
             n = complex(br.n)
             if n.imag:
-                raise StationDeckRefusal(
+                raise _NoCardSpelling(
                     f"Transformer {br.a!r}→{br.b!r} has a complex ratio {n!r}"
                 )
             n = n.real
@@ -392,7 +432,7 @@ def _branch_cards(net, nodes: _Nodes, order, freq_mhz, wl, c_light, cl_reducer):
             add_line(br.a, mid, z1, quarter, t1)
             add_line(mid, br.b, z2, quarter, t2)
         else:
-            raise StationDeckRefusal(
+            raise _NoCardSpelling(
                 f"a {type(br).__name__} branch has no NEC-5 station-deck spelling"
             )
     return cards
@@ -421,6 +461,142 @@ def _merge_throughs(net, nodes: _Nodes, omega):
                 nodes.union(br.a, br.b)
 
 
+# A transfer admittance this far below the largest entry of the reduced Y is
+# the solve's rounding, not a coupling: written, it would be an NT card for
+# nothing. The self-check (`_SELF_CHECK_RTOL`) holds what dropping it costs.
+_REDUCED_ZERO_RTOL = 1e-13
+
+# The reduced Y of a reciprocal network is symmetric to the solve's rounding;
+# NT carries one transfer admittance, so anything above this is refused.
+_RECIPROCITY_RTOL = 1e-9
+
+
+def _reduced_cards(net, terminals, wl, cl_reducer) -> _Cards:
+    """``net`` (its `Load`s left out: `station_deck` places those) REDUCED
+    onto ``terminals``, as card material: the real ports, then the virtual
+    nodes a source drives. Every other node of the network is eliminated.
+
+    This is the spelling for a network some part of which has no card of
+    its own (`_NoCardSpelling`): an autotransformer, a floating balun, a
+    balanced line, a dead short to ground, a floating gap. Whatever the
+    parts, the network seen from its terminals at ONE frequency is a
+    symmetric admittance matrix Y_T, and NEC's network cards are exactly
+    that: every ``NT`` relates the voltages of two knots, all against the
+    one common return, and the cards at a knot add. So an off-diagonal
+    Y_T[i, j] is an ``NT`` between knots i and j and a diagonal entry rides
+    any card at its knot (`station_deck`'s shunt fold) — the sum of the
+    cards IS Y_T, with no approximation beyond the frequency.
+
+    A floating gap's terminal is the drop ACROSS it, ``v(p) - v(n)``: that
+    is the voltage NEC-5's knot carries, since the antenna only ever sees
+    gap voltage and gap current (`PortOnWireFloating`), and its ``n`` side
+    is an interior node like any other here.
+
+    Y_T is read off the reducer's own MNA system, the one the composite
+    solve stamps, with the antenna left out (Y = 0) and each terminal's
+    voltage pinned in turn: column j of Y_T is the current the network
+    draws at each terminal with terminal j at 1 V and the others at 0 V.
+    """
+    from .mw.networks import NetworkReducer  # noqa: PLC0415 — on use
+
+    real = [n for n in terminals if _is_real(net.ports[n])]
+    branches = [br for br in net.branches if not isinstance(br, Load)]
+    # A `Network` needs a source; its termination row is struck out below,
+    # since the terminals are pinned here instead.
+    bare = _Network(
+        ports=dict(net.ports),
+        branches=branches,
+        sources=[
+            Driven(
+                port=next(
+                    n
+                    for n in terminals
+                    if not isinstance(net.ports[n], PortOnWireFloating)
+                ),
+                voltage=0.0,
+            )
+        ],
+    )
+    idx = {n: i for i, n in enumerate(real)}
+    k = len(real)
+    for name, port in net.ports.items():
+        if isinstance(port, PortVirtual):
+            idx[name] = k
+            k += 1
+    red = NetworkReducer(bare, idx, k, c_light_mhz_m=cl_reducer)
+    system = red.apply_branches(np.zeros((len(real), len(real)), complex), wl)
+    keep = np.ones(system.A.shape[0], dtype=bool)
+    for col, *_rest in system.terminations.values():
+        keep[system.n_nodes + col] = False
+    a = system.A[np.ix_(keep, keep)]
+    m, t = a.shape[0], len(terminals)
+    pin = np.zeros((m, t), complex)
+    for j, name in enumerate(terminals):
+        pin[red.port_to_idx[name], j] = 1.0
+        if isinstance(net.ports[name], PortOnWireFloating):
+            pin[red.port_to_idx[f"{name}.n"], j] = -1.0
+    kkt = np.block([[a, pin], [pin.T, np.zeros((t, t), complex)]])
+    rhs = np.vstack([np.zeros((m, t), complex), np.eye(t, dtype=complex)])
+    # Equilibrated first, as the reducer's own solve is (`MNASystem.solve`):
+    # an MNA matrix mixes admittance rows with unit constitutive rows and
+    # spans twenty orders unscaled. Then a solve, or least squares where the
+    # interior has a floating common mode (a balanced line open at the far
+    # gap, an ideal floating balun): an undetermined interior voltage is no
+    # obstacle to the terminal currents. Whether the reduction is right is
+    # what `station_deck`'s self-check holds, against the composite solve.
+    rows = 1.0 / np.maximum(np.abs(kkt).max(axis=1), np.finfo(float).tiny)
+    scaled = kkt * rows[:, None]
+    cols = 1.0 / np.maximum(np.abs(scaled).max(axis=0), np.finfo(float).tiny)
+    scaled = scaled * cols[None, :]
+    try:
+        sol = np.linalg.solve(scaled, rhs * rows[:, None])
+    except np.linalg.LinAlgError:
+        sol, *_ = np.linalg.lstsq(scaled, rhs * rows[:, None], rcond=1e-14)
+    sol = sol * cols[:, None]
+    resid = np.linalg.norm((kkt @ sol - rhs) * rows[:, None]) / np.sqrt(t)
+    if not np.all(np.isfinite(sol)) or resid > 1e-9:
+        raise StationDeckRefusal(
+            "reduced onto its terminals ("
+            + ", ".join(terminals)
+            + ") the network has no admittance matrix: an ideal element "
+            "fixes a terminal's voltage or current outright, which no NT "
+            "card can carry"
+        )
+    # Pin rows read +lambda; the current the network draws is -lambda.
+    y = -sol[m:, :]
+    scale = float(np.abs(y).max()) if y.size else 0.0
+    if not np.allclose(y, y.T, rtol=0.0, atol=_RECIPROCITY_RTOL * scale):
+        raise StationDeckRefusal(
+            "the network is not reciprocal (Y12 ≠ Y21 between two of its "
+            "terminals), and NT carries one transfer admittance"
+        )
+    y = 0.5 * (y + y.T)
+    cards = _Cards(nt={}, tl=[], shunt={}, ld4=[])
+    zero = _REDUCED_ZERO_RTOL * scale
+    for i, u in enumerate(terminals):
+        for j in range(i + 1, t):
+            if abs(y[i, j]) > zero:
+                cards.nt[(u, terminals[j])] = np.array(
+                    [[0j, y[i, j]], [y[i, j], 0j]], dtype=complex
+                )
+    touched = {e for pair in cards.nt for e in pair}
+    for i, u in enumerate(terminals):
+        if abs(y[i, i]) <= zero:
+            continue
+        if u in touched:
+            cards.shunt[u] = complex(y[i, i])
+        elif _is_real(net.ports[u]):
+            # Only the antenna there: the network is an impedance across the
+            # gap, which is NEC's own LD.
+            cards.ld4.append((u, 1.0 / complex(y[i, i])))
+        else:
+            raise StationDeckRefusal(
+                f"node {u!r} reduces to a shunt and nothing else, so no card "
+                "has an end there to carry it"
+            )
+    return cards
+
+
 def _antenna_engine(builder, real, net, native, ground, wire_radius):
     """The deck-writing `NEC5Engine` over the antenna alone: the real ports,
     each driven (so the engine resolves its knot), and the loads it writes
@@ -428,7 +604,7 @@ def _antenna_engine(builder, real, net, native, ground, wire_radius):
     from .engines.nec5 import NEC5Engine  # noqa: PLC0415 — on use
 
     inner = _Network(
-        ports={n: net.ports[n] for n in real},
+        ports={n: _as_knot_port(net.ports[n]) for n in real},
         branches=list(native),
         sources=[Driven(port=n) for n in real],
     )
@@ -463,8 +639,17 @@ def _solver_y(engine, freq_mhz):
             "network by reduction, so it has no antenna Y to measure on"
         )
     Y = np.asarray(engine._compute_y_matrix(wl), dtype=complex)
-    names = [n for n, _i in sorted(reducer.port_to_idx.items(), key=lambda t: t[1])]
-    return Y, names[: Y.shape[0]]
+    # A tuner's reducer keeps its map private; a floating gap adds its two
+    # dotted terminals at the port's own row (and a new one), which are
+    # circuit nodes, not Y's ports, so only the port names are read.
+    port_to_idx = getattr(reducer, "port_to_idx", None) or reducer._port_to_idx
+    ports = reducer.network.ports if hasattr(reducer, "network") else None
+    names = [
+        n
+        for n, i in sorted(port_to_idx.items(), key=lambda t: t[1])
+        if i < Y.shape[0] and (ports is None or n in ports)
+    ]
+    return Y, names
 
 
 def _driven_z(net, Y, real_names, wl, c_light_reducer):
@@ -520,12 +705,25 @@ def station_deck(
         raise StationDeckRefusal("the design has no network source to drive")
     from .auto_match import find_tuners  # noqa: PLC0415 — on use
 
+    tuned = None
     if find_tuners(net):
-        raise StationDeckRefusal(
-            "a self-tuning tuner tunes from the solved load, so its parts are "
-            "not known until a solve; tune it, then write its parts as fixed "
-            "elements"
-        )
+        # A self-tuning tuner's parts are not known until a solve, and the
+        # measurement below solves anyway: tune it on the measuring engine's
+        # own antenna Y, as that engine's solve does, and write the parts it
+        # tuned to as fixed elements.
+        if engine is None:
+            from .cli import make_engine_factory  # noqa: PLC0415 — on use
+
+            engine = make_engine_factory("momwire:bspline", ground)(builder)
+        red = getattr(engine, "_reducer", None)
+        if not hasattr(red, "tuned_network"):
+            raise StationDeckRefusal(
+                "a self-tuning tuner tunes from the solved load, and the "
+                "engine handed to the station writer has no tuner to tune it "
+                "with; tune it, then write its parts as fixed elements"
+            )
+        tuned = red.tune()
+        net = red.tuned_network()
     for src in net.sources:
         if isinstance(src, DrivenCurrent):
             raise StationDeckRefusal(
@@ -541,23 +739,46 @@ def station_deck(
     wl = c_light / freq_mhz
     omega = 2.0 * math.pi * freq_mhz * 1e6
 
-    nodes = _Nodes(net.ports)
-    _merge_throughs(net, nodes, omega)
-    for root in {nodes.find(n) for n in net.ports}:
-        members = [n for n in net.ports if nodes.find(n) == root]
-        real = [n for n in members if _is_real(net.ports[n])]
-        if len(real) > 1:
-            raise StationDeckRefusal(
-                f"an ideal through-connection joins the real ports {real}: two "
-                "places on the antenna cannot be one knot"
+    reduced = None
+    try:
+        floating = [
+            n for n, p in net.ports.items() if isinstance(p, PortOnWireFloating)
+        ]
+        if floating:
+            raise _NoCardSpelling(
+                f"the floating gap {floating[0]!r} connects its two sides to "
+                "different nodes, and a card end is one knot"
             )
-        rep = real[0] if real else min(members, key=lambda n: (len(n), n))
-        for n in members:
-            nodes.parent[n] = n
-        for n in members:
-            nodes.parent[n] = rep
-    order = [n for n in net.ports if nodes.find(n) == n]
-    cards = _branch_cards(net, nodes, order, freq_mhz, wl, c_light, cl_reducer)
+        nodes = _Nodes(net.ports)
+        _merge_throughs(net, nodes, omega)
+        for root in {nodes.find(n) for n in net.ports}:
+            members = [n for n in net.ports if nodes.find(n) == root]
+            real = [n for n in members if _is_real(net.ports[n])]
+            if len(real) > 1:
+                raise StationDeckRefusal(
+                    f"an ideal through-connection joins the real ports {real}: "
+                    "two places on the antenna cannot be one knot"
+                )
+            rep = real[0] if real else min(members, key=lambda n: (len(n), n))
+            for n in members:
+                nodes.parent[n] = n
+            for n in members:
+                nodes.parent[n] = rep
+        order = [n for n in net.ports if nodes.find(n) == n]
+        cards = _branch_cards(net, nodes, order, freq_mhz, wl, c_light, cl_reducer)
+    except _NoCardSpelling as why:
+        # Card by card fails; the network reduced onto its terminals does
+        # not (`_reduced_cards`). Its terminals are the real ports and the
+        # virtual nodes a source drives; every other node is eliminated.
+        reduced = str(why)
+        nodes = _Nodes(net.ports)
+        order = [n for n in net.ports if _is_real(net.ports[n])]
+        order += [
+            s.port
+            for s in net.sources
+            if not _is_real(net.ports[s.port]) and s.port not in order
+        ]
+        cards = _reduced_cards(net, order, wl, cl_reducer)
 
     real_nodes = [n for n in order if n in net.ports and _is_real(net.ports[n])]
     driven = {nodes.find(s.port): s for s in net.sources}
@@ -678,7 +899,7 @@ def station_deck(
     # computed in, whatever c the engine made its wavelengths with: Y is the
     # antenna at f either way.
     z_composite = complex(_driven_z(net, Y, y_names, wl, cl_reducer)[0])
-    circuit_ports = {n: net.ports[n] for n in real_nodes}
+    circuit_ports = {n: _as_knot_port(net.ports[n]) for n in real_nodes}
     circuit_ports.update({n: PortVirtual(n) for n in phantoms})
     branches = list(native)
     branches += [Load(port=node, z=z) for node, z in cards.ld4]
@@ -704,6 +925,14 @@ def station_deck(
     circuit = _Network(ports=circuit_ports, branches=branches, sources=sources)
     z_cards = complex(_driven_z(circuit, Y, y_names, wl, cl_reducer)[0])
     if abs(z_cards - z_composite) > _SELF_CHECK_RTOL * abs(z_composite):
+        if reduced is not None:
+            # Not a card spelled wrong: the reduction's own solve is what
+            # disagrees, which an ill-posed interior does to it.
+            raise StationDeckRefusal(
+                f"reduced onto its terminals the network solves to {z_cards} "
+                f"where it solves to {z_composite} whole, so its reduced Y is "
+                f"not trustworthy ({reduced})"
+            )
         raise AssertionError(
             f"the station deck's cards solve to {z_cards} where the network "
             f"solves to {z_composite}: a card is wrong"
@@ -773,6 +1002,16 @@ def station_deck(
         f"CM NT/TL station cards valid at {freq_mhz:g} MHz only",
         "CM (NT values and the lambda/4 transformer lines are computed at it)",
     ]
+    if reduced is not None:
+        header.append(
+            "CM the network is written REDUCED onto its terminals (NT cards of "
+            "its Y there), because " + card_text(reduced)
+        )
+    if tuned is not None:
+        header.append(
+            f"CM the self-tuning tuner is written as the parts it tuned to on "
+            f"{card_text(type(engine).__name__)}: {card_text(tuned.summary)}"
+        )
     if phantoms:
         header.append(
             f"CM wire {ptag} is the phantom wire for virtual nodes, each knot "
@@ -798,6 +1037,9 @@ def station_deck(
         knots=tuple(knots),
         z_composite=z_composite,
         z_cards=z_cards,
+        network=net,
+        antenna_y=Y,
+        antenna_ports=tuple(y_names),
     )
 
 
