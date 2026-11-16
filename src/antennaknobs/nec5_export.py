@@ -15,14 +15,20 @@ comment.
 
 What this refuses, and it is a different list from the NEC-2 writer's:
 
-* **TL / virtual-driver networks** — refused by BOTH writers. NEC-5 has no
-  native card for them either; the app solves them by a multiport-Y reduction
+* **TL / virtual-driver networks** — refused by default. NEC-5 has no native
+  card for most of them; the app solves them by a multiport-Y reduction
   outside the field solve, one deck per driven port, so there is no faithful
-  SINGLE deck. (The catalog export writes the per-port decks instead, which is
-  a set of files rather than a download.) `nec5_station.station_deck` does
-  write one, at ONE frequency (AK#2209): each two-port as an ``NT`` of its Y
-  at that frequency, virtual nodes as pinned phantom knots. That is a
-  different file (it is wrong at any other frequency), so this refusal stays.
+  deck at EVERY frequency. (The catalog export writes the per-port decks
+  instead, which is a set of files rather than a download.)
+  ``networks=True`` writes one anyway, at ONE frequency:
+  `nec5_station.station_deck` (AK#2209), each line as a ``TL`` and each
+  two-port as an ``NT`` of its Y at that frequency, virtual nodes as pinned
+  phantom knots, and a network some part of which has no card of its own
+  (an autotransformer, a floating balun or gap, a balanced line) reduced onto
+  its terminals as ``NT`` cards. ``antennaknobs export --dialect nec5`` asks
+  for it, since it writes one frequency anyway; the app's Download keeps the
+  refusal, since its file is the catalog's. What the station writer cannot
+  spell is refused by name (`StationDeckRefusal`), never by this sentence.
 * **Buried, ground-contact and graded designs** — served here and refused by
   the NEC-2 writer. That asymmetry is the whole point of #1389: the user who
   most needs a deck for `verticals.buried_radial_vertical` was being handed
@@ -70,6 +76,7 @@ def export_nec5(
     note: str = "",
     sources=None,
     wire_radius=None,
+    networks: bool = False,
 ) -> str:
     """Return a NEC-5 card deck (str) for ``builder``.
 
@@ -85,10 +92,26 @@ def export_nec5(
     sources      : passed through to `NEC5Engine.deck` for a per-port deck.
     wire_radius  : the web slot's radius field (QRZ #170), NEC5Engine's
                    ``wire_radius``: 0.0005 or None is "auto" (the design's own).
+    networks     : write a network that needs the reduction as ONE station
+                   deck at ``freq`` (`nec5_station.station_deck`) instead of
+                   refusing it; what that writer cannot spell still refuses,
+                   naming the element and why.
     """
     freq = float(builder.freq if freq is None else freq)
     eng = NEC5Engine(builder, ground=ground, require_exe=False, wire_radius=wire_radius)
     if sources is None and _network_needs_reducer(builder.build_network()):
+        if networks:
+            return _station_export(
+                builder,
+                ground=ground,
+                freq=freq,
+                design=design,
+                rung=rung,
+                ground_name=ground_name,
+                header_freq=header_freq,
+                note=note,
+                wire_radius=wire_radius,
+            )
         raise NotImplementedError(
             "NEC-5 export of TL/virtual-driver networks (and distributed "
             "finite-gap ports) is not supported: the app solves those by a "
@@ -104,3 +127,36 @@ def export_nec5(
         note=note,
     )
     return header + deck.replace(_ENGINE_CM, "", 1)
+
+
+def _station_export(
+    builder, *, ground, freq, design, rung, ground_name, header_freq, note, wire_radius
+) -> str:
+    """`export_nec5`'s deck for a network on the reduction route: the station
+    deck at ``freq``, under the same catalog header. A refusal names the
+    design, the element and why NEC-5 cannot carry it."""
+    from .nec5_station import (  # noqa: PLC0415 — the station writer, on use
+        StationDeckRefusal,
+        station_deck,
+    )
+
+    try:
+        sd = station_deck(
+            builder,
+            freq=freq,
+            ground=ground,
+            title=design,
+            wire_radius=wire_radius,
+        )
+    except StationDeckRefusal as exc:
+        raise NotImplementedError(
+            f"a NEC-5 deck of {design} cannot carry its network: {exc}"
+        ) from None
+    header = catalog_header(
+        design,
+        rung,
+        ground_name,
+        freq if header_freq is None else header_freq,
+        note=note,
+    )
+    return header + sd.text

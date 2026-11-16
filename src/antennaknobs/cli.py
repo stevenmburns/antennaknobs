@@ -3213,6 +3213,10 @@ def cli(arguments=None):
                 rung="default",
                 ground_name=ground,
                 note="written by `antennaknobs export --dialect nec5`",
+                # One frequency is all this command writes, so a network on
+                # the reduction route is written as one station deck at it
+                # rather than refused.
+                networks=True,
             )
             # The writers mesh through these engines, so their notes are the
             # deck's (AK#1510).
