@@ -114,13 +114,21 @@ PIN_RESIDUAL_S = 1.0 / PIN_OHMS
 # segment.
 NODE_EFFECT_LIMIT = 1e-6
 
-# NEC-5 refuses a real whose mantissa, sign included, runs past 17
-# characters before an exponent (measured: `-1.23456789012345e-1` and
-# `1.234567890123456e-1` read, `-1.234567890123456e-1` and
-# `1.2345678901234567e-1` stop the run with "INVALID NUMBER"; a token with no
-# exponent read at 26 characters). Fifteen significant figures fit always.
+# A real with an exponent must fit in 20 characters, the WHOLE token: past
+# that the licensed binary misreads it, and not always loudly. Measured
+# (black box, an NT card's Y12 read back from its NETWORK DATA echo):
+# `-5.7936425383252e-06`, `5.79364253832523e-06` and `-5.79364253832523e-6`
+# (20 characters) read as written, while `-5.79364253832523e-06` and
+# `-5.79364253832523e+06` (21) read as -5.7936 -- the exponent silently
+# dropped. The earlier measurement fits the same rule: `-1.23456789012345e-1`
+# and `1.234567890123456e-1` (20) read, `-1.234567890123456e-1` and
+# `1.2345678901234567e-1` (21) stop the run with "INVALID NUMBER". A token
+# with no exponent read at 26 characters. momwire's NEC-5 launchers read
+# all of these as written, so only the licensed binary can catch it.
+# Fifteen significant figures are written where they fit, fourteen where a
+# sign and a two-digit exponent take the room.
 _DIGITS = 15
-_MANTISSA_MAX = 17
+_TOKEN_MAX = 20
 
 # The phantom wire's geometry follows `nec_export._gyrator_cards`, whose
 # constraints are the importer's: more than one segment, under 0.05 λ end to
@@ -172,12 +180,13 @@ class StationDeck:
 
 def _full(x: float) -> str:
     """A real at full precision inside NEC-5's token limit."""
-    s = f"{float(x):.{_DIGITS}g}"
-    if s in ("-0", "0"):
-        return "0"
-    if "e" in s and len(s.split("e")[0]) > _MANTISSA_MAX:
-        raise ValueError(f"{x!r} cannot be written inside NEC-5's number token")
-    return s
+    for digits in range(_DIGITS, 0, -1):
+        s = f"{float(x):.{digits}g}"
+        if s in ("-0", "0"):
+            return "0"
+        if "e" not in s or len(s) <= _TOKEN_MAX:
+            return s
+    raise ValueError(f"{x!r} cannot be written inside NEC-5's number token")
 
 
 def quarter_wave_pair(n: float) -> tuple[tuple[float, bool], tuple[float, bool]]:

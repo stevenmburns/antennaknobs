@@ -435,3 +435,32 @@ def test_a_design_reading_files_beside_itself_writes_the_same_deck(tmp_path):
         sys.modules.pop("hybrid_2209", None)
     inline = station_deck(_station(), title="t")
     assert from_files.text == inline.text
+
+
+# --- the number token the licensed binary reads ------------------------------
+
+
+@pytest.mark.parametrize(
+    "x",
+    [
+        -5.79364253832523e-06,
+        5.79364253832523e-06,
+        -5.79364253832523e06,
+        -1.234567890123456e-1,
+        1.2345678901234567e-1,
+        -9.87654321098765e-123,
+        0.1234,
+        -0.0,
+        1e10,
+    ],
+)
+def test_every_real_fits_the_licensed_binarys_token(x):
+    """An exponent token past 20 characters is misread by the licensed
+    binary, sometimes silently: `-5.79364253832523e-06` came back as
+    -5.7936 in its NETWORK DATA echo (`nec5_station._TOKEN_MAX`). The
+    momwire launchers read it right, so no served deck can catch this."""
+    from antennaknobs.nec5_station import _TOKEN_MAX, _full
+
+    s = _full(x)
+    assert "e" not in s or len(s) <= _TOKEN_MAX, s
+    assert float(s) == pytest.approx(x, rel=1e-13, abs=0.0)
