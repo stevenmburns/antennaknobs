@@ -5,6 +5,7 @@ import type { BandSpec } from "../../lib/params";
 import type { SweepRange } from "../../lib/sweep";
 import { formatZo } from "../../lib/zoOverride";
 import { ZoField, type ZoControl } from "./ZoField";
+import { zoOverriddenTitle } from "./zoOpen";
 export type { ZoControl };
 import {
   BandsEditor,
@@ -384,6 +385,22 @@ function SimControls({
                     // objectives measure against and leads there.
                     <div className="opt-zo-link">
                       SWR and Match Z₀ are against {formatZo(zo.value)} Ω{" "}
+                      {zo.value !== zo.design && (
+                        // AK#2116: not the design's own, and says so.
+                        <>
+                          <button
+                            type="button"
+                            className="zo-overridden solver-advisory-toggle"
+                            title={zoOverriddenTitle(zo.design)}
+                            onClick={() => {
+                              setOptMenuOpen(false);
+                              zo.open?.();
+                            }}
+                          >
+                            Overridden
+                          </button>{" "}
+                        </>
+                      )}
                       <button
                         type="button"
                         className="solver-advisory-toggle"
