@@ -925,8 +925,10 @@ def _offers_pair_reuse(spec) -> bool:
     turns on as it supports them (momwire#1982), razor-2p's
     ``razor_pair_reuse`` among them. It is offered only where momwire
     certifies every part the solver carries (`pair_reuse_certified`; Steve,
-    11-17): razor-2p wherever ``razor_pair_reuse`` reaches, the hosted app
-    included, and nowhere below it."""
+    11-17): razor-2p wherever ``razor_pair_reuse`` reaches, bspline wherever
+    ``offset_reuse`` does, and the sinusoidal tab, which has no part, wherever
+    ``pair_reuse`` itself does; the hosted app is all three, and below a
+    reach the box is not offered."""
     return (
         spec.kind == "momwire"
         and _takes_pair_reuse(spec.solver)
