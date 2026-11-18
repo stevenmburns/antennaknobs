@@ -395,6 +395,9 @@ describe("the backends that never had a bespoke panel", () => {
     const c = controls();
     expect(c.boxes.map((x) => x.label)).toEqual([
       "extended kernel (EK)",
+      // ADDED with momwire 0.94.0 (#1982): the one pair-reuse switch, offered
+      // where razor_pair_reuse is certified (the hosted app among them).
+      "reuse repeated geometry (faster fill)",
       // ADDED with momwire 0.89.0 (#1860), from its registry (AK#2233).
       "factored rod columns (faster)",
       "shared near-ground tables (faster)",

@@ -282,7 +282,7 @@ export const SERVED_OPTION_SPECS: ModelOptionSpecs =
   "factored_columns": {
     "kind": "bool",
     "label": "factored rod columns (faster)",
-    "default": false,
+    "default": true,
     "auto_when_null": false,
     "shown_when": null,
     "gate_label": null,
@@ -293,7 +293,7 @@ export const SERVED_OPTION_SPECS: ModelOptionSpecs =
   "height_sheet_recal": {
     "kind": "bool",
     "label": "shared near-ground tables (faster)",
-    "default": false,
+    "default": true,
     "auto_when_null": false,
     "shown_when": null,
     "gate_label": null,
@@ -310,7 +310,7 @@ export const SERVED_OPTION_SPECS: ModelOptionSpecs =
     "gate_label": null,
     "gate_on_value": null,
     "shown_when_value": null,
-    "description": "Where a wire crosses the ground (an EFHW over a ground rod), read the entries near the crossing from one table per frequency instead of computing each. Coarser: input impedance moves by about 0.1 ohm on an EFHW. Results move by up to 1e-03 relative: compare against a solve with this off before trusting them."
+    "description": "Where a wire crosses the ground (an EFHW over a ground rod), read the entries near the crossing from one table per frequency instead of computing each. Coarser: input impedance moves by about 0.1 ohm on an EFHW and up to about 0.4 % on a fat vertical over a small buried screen, well under what a 10 % error in the ground's constants does. Results move by up to 5e-03 relative: compare against a solve with this off before trusting them."
   },
   "crossing_above_rule": {
     "kind": "bool",

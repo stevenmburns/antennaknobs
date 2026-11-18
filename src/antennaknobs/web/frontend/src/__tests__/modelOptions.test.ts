@@ -109,7 +109,8 @@ describe("modelOptionsForRequest", () => {
         // last digits.
         "transmitted_anchors",
         // ADDED with momwire 0.89.0 (#1860): the EFHW levers, derived from
-        // momwire's registry (AK#2233); each `false` by default.
+        // momwire's registry (AK#2233); each `false` by default until
+        // momwire 0.94.0 (#1951) promoted the first two to on by default.
         "factored_columns",
         "height_sheet_recal",
         "crossing_table",
@@ -132,8 +133,10 @@ describe("modelOptionsForRequest", () => {
       rotational_symmetry: false,
       pair_reuse: false,
       transmitted_anchors: false,
-      factored_columns: false,
-      height_sheet_recal: false,
+      // momwire 0.94.0 (#1951): on by default wherever certified, so the
+      // served default is ticked and the request says so (AK#2317).
+      factored_columns: true,
+      height_sheet_recal: true,
       crossing_table: false,
       crossing_above_rule: false,
       kcl_nullspace: false,
@@ -223,12 +226,13 @@ describe("modelOptionsForRequest", () => {
     // bspline alone carries `rotational_symmetry` (#1029, momwire 0.60.0),
     // `pair_reuse` (#1809, momwire 0.87.0), `transmitted_anchors`
     // (#1847, momwire 0.88.0), the four EFHW levers (#1860, 0.89.0) and
-    // `kcl_nullspace` (#1898, 0.91.0);
+    // `kcl_nullspace` (#1898, 0.91.0); the first two EFHW levers on by
+    // default since momwire 0.94.0 (#1951, sent explicitly per AK#2317);
     // the accelerators' stock payload is exactly the family's, unchanged.
     expect(stock("bspline")).toBe(
       BSPLINE_JSON.slice(0, -1) +
         ',"rotational_symmetry":false,"pair_reuse":false,"transmitted_anchors":false' +
-        ',"factored_columns":false,"height_sheet_recal":false,"crossing_table":false' +
+        ',"factored_columns":true,"height_sheet_recal":true,"crossing_table":false' +
         ',"crossing_above_rule":false,"kcl_nullspace":false}',
     );
     expect(stock("hmatrix")).toBe(BSPLINE_JSON);
