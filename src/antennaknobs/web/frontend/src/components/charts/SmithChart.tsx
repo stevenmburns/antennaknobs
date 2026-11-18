@@ -192,17 +192,20 @@ export function SmithChart({
   const zoomBy = (factor: number, ax: number, ay: number) =>
     setView((v) => zoomAbout(v, factor, ax, ay, half, half, rFit));
 
-  // Wheel zoom about the cursor, ~1.2× per detent, exponential so trackpads
-  // feel smooth — the antenna canvas's law, so the two views zoom alike. And
-  // like the antenna canvas, the chart takes EVERY wheel over it, plain or
-  // Ctrl (a trackpad pinch arrives as Ctrl+wheel): a mouse has no other way
-  // to magnify it, and letting plain wheel through would scroll the page out
-  // from under a user reaching for the zoom. Native and non-passive because
-  // React's onWheel cannot preventDefault the page scroll or page zoom.
+  // Ctrl/⌘+wheel zooms about the cursor, ~1.2× per detent, exponential so
+  // trackpads feel smooth; a trackpad pinch arrives as Ctrl+wheel. A PLAIN
+  // wheel is never taken — no zoom, no preventDefault (AK#2255): over the
+  // chart it belongs to the page's scroll, and the knobs beside it turn on
+  // the wheel, so trackpad momentum carried off a knob must not zoom the
+  // chart. The sweep charts' rule (SweepChart.tsx) and the antenna canvas's,
+  // so every view zooms alike; + and − still serve a mouse without Ctrl.
+  // Native and non-passive because React's onWheel cannot preventDefault the
+  // browser's page zoom.
   useEffect(() => {
     const canvas = canvasRef.current;
     if (!canvas || !interactive) return;
     const onWheel = (e: WheelEvent) => {
+      if (!(e.ctrlKey || e.metaKey)) return;
       e.preventDefault();
       const rect = canvas.getBoundingClientRect();
       const dy = e.deltaMode === 1 ? e.deltaY * 33 : e.deltaY; // line-mode → px
@@ -1271,7 +1274,7 @@ export function SmithChart({
         ? {
             tabIndex: 0,
             "aria-label":
-              "Smith chart. Scroll or press + and − to zoom, drag to pan, " +
+              "Smith chart. Ctrl+scroll, pinch, or press + and − to zoom, drag to pan, " +
               "double-click or press 0 to show the whole chart.",
             onPointerDown,
             onPointerMove,
