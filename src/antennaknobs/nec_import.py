@@ -4434,8 +4434,13 @@ def _gm(card, wires):
 
     i1 = _first_wire_with_tag(wires, its, card)
     if nrpt == 0:
+        # Moved in place, and RENUMBERED in place (AK#2124): NEC's MOVE adds
+        # the tag increment to every moved wire's nonzero tag with no copy, so
+        # a later card addresses the moved wire by its new tag.
         for w in wires[i1:]:
             w[2], w[3] = xf(w[2]), xf(w[3])
+            if w[0] != 0:
+                w[0] += itgi
         return
     block = wires[i1:]
     for _ in range(nrpt):
