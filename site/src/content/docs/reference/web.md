@@ -1556,6 +1556,15 @@ only one where the front end finds congruent edge pairs: the sinusoidal
 solver finds its own repeated segment pairs. It stays off by default, and
 moves answers by rounding only.
 
+**razor-2p and B-spline have the box too (momwire 0.94.0).** momwire's one
+*reuse repeated geometry* switch turns on whatever reuse each solver
+supports: razor-2p's fill-pair reuse, B-spline's offset reuse, the
+sinusoidal pair reuse. A tab offers the box only where momwire certifies the
+reuse behind it, which on the hosted simulator is all three; on a local
+install below that reach the box is not shown. It stays off by default, and
+the printed impedance is unchanged with it on. A server can default it on
+with `ANTENNAKNOBS_PAIR_REUSE=1`; a request that unticks it still wins.
+
 **An OpenNEC tab, on a local install.** With the optional
 [pyopennec](https://github.com/stevenmburns/pyopennec) installed, the
 workbench offers an **OpenNEC** tab beside PyNEC: the same NEC-2 model,
