@@ -141,6 +141,7 @@ from antennaknobs.engines.momwire import (
     exact_kernel_served,
     feature_seedable,
     feature_served,
+    pair_reuse_certified,
     seed_value,
     _ends_in_the_plane,
     _takes_pair_reuse,
@@ -918,8 +919,19 @@ def _offers_pair_reuse(spec) -> bool:
     class takes it at every degree, and the point-matched sinusoidal class
     since momwire 0.91.0 (momwire#1911, which finds its own classes, so the
     engine's hint only switches it on); the H-matrix and array subclasses
-    do not."""
-    return spec.kind == "momwire" and _takes_pair_reuse(spec.solver)
+    do not.
+
+    Since momwire 0.94.0 the switch is one umbrella whose parts each solver
+    turns on as it supports them (momwire#1982), razor-2p's
+    ``razor_pair_reuse`` among them. It is offered only where momwire
+    certifies every part the solver carries (`pair_reuse_certified`; Steve,
+    11-17): razor-2p wherever ``razor_pair_reuse`` reaches, the hosted app
+    included, and nowhere below it."""
+    return (
+        spec.kind == "momwire"
+        and _takes_pair_reuse(spec.solver)
+        and pair_reuse_certified(spec.solver)
+    )
 
 
 def _offers_fill_reuse(spec) -> bool:
@@ -1775,8 +1787,10 @@ _OPTION_SPECS: dict[str, _OptionSpec] = {
             "than 3 radii, where the thin-wire kernels stop converging."
         ),
     ),
-    # Fill reuse (momwire#1809, AK#2165): offered on the bspline tab only
-    # where the installed momwire takes it (`_offers_pair_reuse`). It only
+    # Fill reuse (momwire#1809, AK#2165): offered on the bspline, sinusoidal
+    # and (momwire 0.94.0, momwire#1982) razor-2p tabs only where the
+    # installed momwire takes it and certifies the part it turns on there
+    # (`_offers_pair_reuse`). It only
     # ever removes work, never adds any, so it is on the hosted allowlist.
     # Off by default: the server's ANTENNAKNOBS_PAIR_REUSE seeds an unset
     # request in the engine, and an explicit off here wins over it.

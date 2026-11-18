@@ -789,6 +789,39 @@ def _takes_pair_reuse(solver_cls) -> bool:
     return _takes_kwarg(solver_cls, "pair_reuse")
 
 
+def pair_reuse_parts(solver_cls) -> tuple[str, ...]:
+    """The parts of momwire's one ``pair_reuse`` switch that ``solver_cls``
+    carries (momwire#1982): the registry's features with
+    ``part_of == "pair_reuse"`` whose keyword the class's constructor takes
+    (bspline's ``offset_reuse``, razor-2p's ``razor_pair_reuse``). Empty for
+    a class whose reuse is the switch itself (the sinusoidal solver), and on
+    a momwire whose registry has no parts. A live probe of the installed
+    registry and constructor, never a version compare or a list of names."""
+    from ..mw import feature_registry
+
+    return tuple(
+        f.name
+        for f in (feature_registry() or {}).values()
+        if getattr(f, "part_of", None) == "pair_reuse"
+        and _takes_kwarg(solver_cls, getattr(f, "kwarg", None) or f.name)
+    )
+
+
+def pair_reuse_certified(solver_cls) -> bool:
+    """Whether momwire certifies, where this process runs, every part of the
+    ``pair_reuse`` switch that ``solver_cls`` carries (`pair_reuse_parts`).
+    The switch turns on what the solver supports of it, and a native part
+    outside its reach stays off without a word (momwire's ``withheld``), so a
+    checkbox there would do nothing (Steve, 11-17: offered only where
+    certified). True for a class with no parts."""
+    from ..mw import feature_certified
+
+    try:
+        return all(feature_certified(name) for name in pair_reuse_parts(solver_cls))
+    except (ImportError, KeyError, ValueError):
+        return False
+
+
 def _pair_reuse_needs_hint(solver_cls) -> bool:
     """Whether ``solver_cls``'s ``pair_reuse`` is fed the front end's edge-pair
     hint (`structure.pair_reuse_hint`): the B-spline family's input (momwire
