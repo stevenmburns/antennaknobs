@@ -628,10 +628,21 @@ def _solver_y(engine, freq_mhz):
     """``(Y, real port names in Y's order)``: the antenna's short-circuit Y
     at ``freq_mhz`` from an engine on the reducer route (momwire, NEC-5,
     NEC-2), which is all of an engine the measurement reads."""
+    from .engines import _multiport
+    from .engines.nec2 import NEC2Engine
+    from .engines.nec5 import NEC5Engine
     from .network_reduce import C_LIGHT  # noqa: PLC0415 — on use
 
     wl_for = getattr(engine, "_wavelength_for", None)
-    wl = wl_for(freq_mhz) if wl_for is not None else C_LIGHT / (freq_mhz * 1e6)
+    if wl_for is not None:
+        wl = wl_for(freq_mhz)
+    elif isinstance(engine, (NEC2Engine, NEC5Engine)):
+        # The card-deck engines make their wavelengths in the design's c and
+        # read a frequency back from it the same way (AK#2226), so the Y run
+        # is at `freq_mhz` itself.
+        wl = _multiport.wavelength(engine, freq_mhz)
+    else:
+        wl = C_LIGHT / (freq_mhz * 1e6)
     reducer = getattr(engine, "_reducer", None)
     if reducer is None:
         raise StationDeckRefusal(

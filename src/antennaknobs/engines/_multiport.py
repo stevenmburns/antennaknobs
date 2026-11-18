@@ -27,8 +27,36 @@ from typing import NamedTuple
 import numpy as np
 
 from ..auto_match import design_freq_mhz, make_reducer
+from ..builder import C_LIGHT_MHZ_M
+from ..mw.networks._reduce import frequency_mhz
 from ..network import PortVirtual
-from ..network_reduce import C_LIGHT
+
+
+def reducer_c_light(eng):
+    """The c the reducer reads a frequency back from a wavelength with
+    (AK#2226): the design's own, as the momwire engine's is (AK#1685).
+
+    A NEC computes the lines and lumped parts in its OWN cards at its own c,
+    so a deck-loaded design (c = 299.8) reduced at SI c read a lossy line's
+    phase 25 ppm off and its composite ~1.6e-4 off NEC's. None for an SI
+    design, which keeps the reducer's SI expression and so stays bit-identical.
+    """
+    c = float(eng.builder.c_light_mhz_m)
+    return None if c == C_LIGHT_MHZ_M else c
+
+
+def wavelength(eng, freq_mhz):
+    """The wavelength this route hands the reducer at `freq_mhz`: made with the
+    design's c, so a line's phase (which reads the wavelength as given) is the
+    one the design's own NEC would compute. Spelled ``c*1e6 / (f*1e6)`` so an
+    SI design stays bit-identical to ``C_LIGHT / (f*1e6)``
+    (``299.792458 * 1e6`` is exactly ``299792458.0``)."""
+    return float(eng.builder.c_light_mhz_m) * 1e6 / (float(freq_mhz) * 1e6)
+
+
+def frequency(eng, wl):
+    """`wavelength`'s inverse: the frequency an engine's Y run solves at."""
+    return frequency_mhz(wl, reducer_c_light(eng))
 
 
 def make_port_reducer(eng, network, real_names):
@@ -49,12 +77,14 @@ def make_port_reducer(eng, network, real_names):
         next_idx,
         y_at=lambda wl: eng._compute_y_matrix(wl),
         design_freq_mhz=design_freq_mhz(eng.builder),
+        wavelength_for=lambda f: wavelength(eng, f),
+        c_light_mhz_m=reducer_c_light(eng),
     )
 
 
 def reduced_impedance(eng, freq_mhz):
     """The driven impedances at `freq_mhz`, one per network source."""
-    wl = C_LIGHT / (float(freq_mhz) * 1e6)
+    wl = wavelength(eng, freq_mhz)
     return np.atleast_1d(eng._reducer.driven_impedance(eng._compute_y_matrix(wl), wl))
 
 
@@ -86,7 +116,7 @@ def reduced_state(eng, freq_mhz, *, impedances=False) -> ReducedState:
     the network resolves at every real port (which is what drives the one
     structure deck), the source power and the network's own losses — and, with
     ``impedances``, the driven impedances too."""
-    wl = C_LIGHT / (float(freq_mhz) * 1e6)
+    wl = wavelength(eng, freq_mhz)
     Y = eng._compute_y_matrix(wl)
     red = eng._reducer
     zs = list(np.atleast_1d(red.driven_impedance(Y, wl))) if impedances else None

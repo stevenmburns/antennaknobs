@@ -290,7 +290,7 @@ def test_a_swapped_port_assignment_fails_on_a_real_nec2(monkeypatch):
     ).Builder
     eng = NEC2Engine(cls())
     assert eng._use_reducer and len(eng._real_port_names) >= 2
-    wl = m.C_LIGHT / (eng.builder.freq * 1e6)
+    wl = _multiport.wavelength(eng, eng.builder.freq)
     eng._compute_y_matrix(wl)
     assert 1e-2 < eng._y_reciprocity_rel < 3e-2
 
@@ -323,7 +323,7 @@ def test_the_reported_asymmetry_is_the_formulations(monkeypatch):
         "antennaknobs.designs.multiband.hexbeam_5band"
     ).Builder
     eng = NEC2Engine(cls())
-    wl = m.C_LIGHT / (eng.builder.freq * 1e6)
+    wl = _multiport.wavelength(eng, eng.builder.freq)
     eng._compute_y_matrix(wl)
     ref, _pair = _multiport.y_asymmetry(
         PyNECEngine(cls())._compute_y_matrix(wl), eng._real_port_names
