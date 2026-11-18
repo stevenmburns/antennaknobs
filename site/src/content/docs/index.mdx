@@ -29,36 +29,34 @@ import { Card, CardGrid, LinkCard } from "@astrojs/starlight/components";
 {/* What's-new box: refresh as part of the release ritual (bump the version,
     swap the highlights) — a stale "new" box is worse than none. */}
 
-<Card title="New in v0.121.0" icon="star">
-  **OpenNEC on the hosted app.** The [simulator](https://app.antennaknobs.dev)
-  now has the **OpenNEC** tab beside PyNEC, with the same size and time limits.
-  What OpenNEC cannot solve is refused by name before it reaches the engine: a
-  frequency out of range, a structure thousands of wavelengths across, or a
-  wire too short to mesh. An answer that comes back not a number is refused
-  too, instead of being shown.
+<Card title="New in v0.122.0" icon="star">
+  **On momwire 0.94.0.** razor-2p gains the **reuse repeated geometry** box on
+  the [simulator](https://app.antennaknobs.dev): it fills each class of
+  identical segment pairs once, so long uniform wires over real ground solve
+  in about half the time, with the printed impedance unchanged. Two momwire
+  refinements now run by default where they are certified, moving answers
+  over buried and crossing wires by a few parts in 10¹², far below a printed
+  digit.
 
-  **On momwire 0.93.0.** The momwire command-line launchers are faster on
-  NEC-2 decks with many frequencies. The razor-2p executable fills a buried
-  structure in less memory, holding one whole matrix where it held two: a hub
-  of 32 buried radials drops from 4.0 GB to 1.5 GB.
+  **A network design exports as one NEC-5 deck.** `antennaknobs export
+  --dialect nec5` writes a design with a matching network as a single station
+  deck, the network reduced onto its terminals where it has no card of its
+  own, and every number fits the field the licensed binary reads.
 
-  **Also in v0.120.2:**
-  **A wire too short to mesh is refused by name.** A design or opened deck
-  whose wire segments came out zero, vanishingly short or not a number, even
-  with the wire's two ends apart, could hang the PyNEC engine or stop the
-  OpenNEC engine outright, and gave a meaningless answer elsewhere. Every
-  engine now refuses such a wire by name before solving, naming the wire, its
-  segment count and the length it would have had. Real designs are untouched:
-  the floor is a nanometre, and the shortest segment in the catalog is 3 mm.
-
-  **Also in v0.120.1:**
-  **End-fed designs over real ground now give the right impedance.** On the
-  B-spline engine, an end feed (a `PortAtEnd`) on a design where any wire
-  crosses the ground surface, such as a ground stake or a radial that dips into
-  the soil, gave a wildly wrong impedance (hundreds of thousands of ohms
-  reactive) without any warning. momwire 0.92.0 fixes it, and this release
-  picks that up. Designs without a wire through the ground surface are
-  unchanged.
+  **Smaller fixes.**
+  - The Smith chart and the antenna view zoom on Ctrl/⌘+wheel or a pinch, so
+    a plain wheel scrolls the page again. The [web
+    reference](/reference/web/) has a gesture table.
+  - A reference impedance you set in the gear menu is marked **Overridden**
+    wherever it is shown, so an old setting can no longer hide a design's own
+    value.
+  - The NEC-5, NEC-2 and NEC-4.2 engines evaluate a design's lines in the
+    design's own speed of light, as those programs do, so a deck-loaded
+    design with a lossy line reads what NEC itself computes.
+  - Opening a `.nec` deck: a `GM` card that moves wires in place with a tag
+    increment renumbers them, so a later source finds the moved wire.
+  - The two-band fan dipole lays its second pair opposite the first, at the
+    feed level.
 </Card>
 
 ## The whole pitch, in one line
