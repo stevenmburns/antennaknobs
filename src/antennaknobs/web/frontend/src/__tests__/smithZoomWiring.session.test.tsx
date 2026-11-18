@@ -20,7 +20,7 @@ describe("Smith chart zoom wiring", () => {
     });
     const chart = container.querySelector<HTMLElement>(".grid-cell canvas.smith")!;
     expect(chart.getAttribute("tabindex")).toBe("0");
-    expect(fireEvent.wheel(chart, { deltaY: -400 })).toBe(false);
+    expect(fireEvent.wheel(chart, { deltaY: -400, ctrlKey: true })).toBe(false);
     expect(Number(chart.dataset.zoom)).toBeGreaterThan(1);
   });
 
@@ -31,7 +31,7 @@ describe("Smith chart zoom wiring", () => {
     });
     const thumb = container.querySelector<HTMLElement>(".thumbstrip canvas.smith")!;
     expect(thumb.getAttribute("tabindex")).toBeNull();
-    expect(fireEvent.wheel(thumb, { deltaY: -400 })).toBe(true);
+    expect(fireEvent.wheel(thumb, { deltaY: -400, ctrlKey: true })).toBe(true);
     expect(thumb.dataset.zoom).toBe("1");
   });
 });

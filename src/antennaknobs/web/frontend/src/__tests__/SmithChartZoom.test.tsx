@@ -1,6 +1,6 @@
 // Pins the Smith chart's own zoom (SmithChart.tsx + lib/smithView.ts): the
-// stage chart takes the wheel — plain or Ctrl, the page must neither scroll
-// nor zoom — and a thumbnail ignores it; double-click, the fit button and a
+// stage chart takes Ctrl/⌘+wheel (a trackpad pinch) and leaves a PLAIN wheel
+// to the page's scroll (AK#2255), and a thumbnail ignores both; double-click, the fit button and a
 // design switch go back to the whole chart; the view survives a re-solve.
 // data-zoom is the seam (jsdom has no canvas pixels), plus a recording
 // context for "markers stay screen-sized and land where the transform says".
@@ -33,13 +33,13 @@ function props(over: Partial<ComponentProps<typeof SmithChart>> = {}) {
 const zoomOf = (c: HTMLElement) => Number(c.querySelector("canvas.smith")!.getAttribute("data-zoom"));
 
 describe("Smith chart zoom", () => {
-  it("zooms the stage chart on a plain wheel and keeps the page still", () => {
+  it("leaves a plain wheel to the page: no zoom, not preventDefaulted", () => {
     const { container } = render(<SmithChart {...props({ interactive: true })} />);
     const canvas = container.querySelector("canvas.smith")!;
     expect(zoomOf(container)).toBe(1);
-    // fireEvent returns false when the listener called preventDefault.
-    expect(fireEvent.wheel(canvas, { deltaY: -300, clientX: 150, clientY: 150 })).toBe(false);
-    expect(zoomOf(container)).toBeGreaterThan(1.5);
+    // fireEvent returns true when no listener called preventDefault.
+    expect(fireEvent.wheel(canvas, { deltaY: -300, clientX: 150, clientY: 150 })).toBe(true);
+    expect(zoomOf(container)).toBe(1);
   });
 
   it("takes a Ctrl+wheel (trackpad pinch) instead of the browser's page zoom", () => {
@@ -47,6 +47,18 @@ describe("Smith chart zoom", () => {
     const canvas = container.querySelector("canvas.smith")!;
     expect(fireEvent.wheel(canvas, { deltaY: -120, ctrlKey: true })).toBe(false);
     expect(zoomOf(container)).toBeGreaterThan(1);
+  });
+
+  it("zooms by exp(-0.002·deltaY) per wheel event, as before, with Ctrl or ⌘", () => {
+    const { container } = render(<SmithChart {...props({ interactive: true })} />);
+    const canvas = container.querySelector("canvas.smith")!;
+    expect(fireEvent.wheel(canvas, { deltaY: -100, ctrlKey: true, clientX: 150, clientY: 150 })).toBe(false);
+    expect(zoomOf(container)).toBeCloseTo(Math.exp(0.2), 9);
+    // Line-mode deltas read as 33 px a line; ⌘ on a Mac is the same gesture.
+    expect(
+      fireEvent.wheel(canvas, { deltaY: -3, deltaMode: 1, metaKey: true, clientX: 150, clientY: 150 }),
+    ).toBe(false);
+    expect(zoomOf(container)).toBeCloseTo(Math.exp(0.2) * Math.exp(3 * 33 * 0.002), 9);
   });
 
   it("leaves a thumbnail alone: no zoom, and the wheel goes to the page", () => {
@@ -61,7 +73,7 @@ describe("Smith chart zoom", () => {
     const { container } = render(<SmithChart {...props({ interactive: true })} />);
     const canvas = container.querySelector("canvas.smith")!;
     expect(screen.queryByRole("button", { name: "Show the whole chart" })).toBeNull();
-    fireEvent.wheel(canvas, { deltaY: -500 });
+    fireEvent.wheel(canvas, { deltaY: -500, ctrlKey: true });
     expect(zoomOf(container)).toBeGreaterThan(1);
     expect(screen.getByRole("button", { name: "Show the whole chart" })).toBeTruthy();
     fireEvent.doubleClick(canvas);
@@ -86,7 +98,7 @@ describe("Smith chart zoom", () => {
     const { container, rerender } = render(
       <SmithChart {...props({ interactive: true, designKey: "dipoles.invvee" })} />,
     );
-    fireEvent.wheel(container.querySelector("canvas.smith")!, { deltaY: -400 });
+    fireEvent.wheel(container.querySelector("canvas.smith")!, { deltaY: -400, ctrlKey: true });
     const z = zoomOf(container);
     expect(z).toBeGreaterThan(1);
     // A knob drag: new impedance, same design.
@@ -128,7 +140,7 @@ describe("Smith chart zoom", () => {
     try {
       const { container } = render(<SmithChart {...props({ interactive: true })} />);
       const canvas = container.querySelector("canvas.smith")!;
-      fireEvent.wheel(canvas, { deltaY: -600, clientX: 170, clientY: 140 });
+      fireEvent.wheel(canvas, { deltaY: -600, ctrlKey: true, clientX: 170, clientY: 140 });
       const zoom = zoomOf(container);
       expect(zoom).toBeGreaterThan(2);
       // The last paint's markers: what the transform says, radius 4 as at fit.

@@ -73,10 +73,10 @@ function Stage({
   return <ViewPanel view={showing} {...PROPS} canvasCamera={camera} />;
 }
 
-/** Wheel the canvas in, as a scroll gesture over it does. */
+/** Wheel the canvas in, as a Ctrl+scroll (or a trackpad pinch) over it does. */
 function zoomIn(container: HTMLElement) {
   const canvas = container.querySelector("canvas") as HTMLCanvasElement;
-  fireEvent.wheel(canvas, { deltaY: -500, clientX: 0, clientY: 0 });
+  fireEvent.wheel(canvas, { deltaY: -500, ctrlKey: true, clientX: 0, clientY: 0 });
 }
 
 const zoomChip = (c: HTMLElement) =>
@@ -157,5 +157,28 @@ describe("the antenna camera survives a rail view switch", () => {
     );
     expect(camera.zoom).toBe(1);
     expect(zoomChip(container)).toBeNull();
+  });
+});
+
+describe("the antenna canvas's wheel (AK#2255)", () => {
+  it("leaves a plain wheel to the page: no zoom, not preventDefaulted", () => {
+    const camera = fitCamera();
+    const { container } = render(<Stage showing="antenna" camera={camera} />);
+    const canvas = container.querySelector("canvas") as HTMLCanvasElement;
+    // fireEvent returns true when no listener called preventDefault.
+    expect(fireEvent.wheel(canvas, { deltaY: -500, clientX: 0, clientY: 0 })).toBe(true);
+    expect(camera.zoom).toBe(1);
+    expect(zoomChip(container)).toBeNull();
+  });
+
+  it("zooms on Ctrl+wheel and ⌘+wheel, and keeps the page zoom out of it", () => {
+    const camera = fitCamera();
+    const { container } = render(<Stage showing="antenna" camera={camera} />);
+    const canvas = container.querySelector("canvas") as HTMLCanvasElement;
+    expect(fireEvent.wheel(canvas, { deltaY: -100, ctrlKey: true })).toBe(false);
+    const z = camera.zoom;
+    expect(z).toBeCloseTo(Math.exp(0.2), 9);
+    expect(fireEvent.wheel(canvas, { deltaY: -100, metaKey: true })).toBe(false);
+    expect(camera.zoom).toBeGreaterThan(z);
   });
 });

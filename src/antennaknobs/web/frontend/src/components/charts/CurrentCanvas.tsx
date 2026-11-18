@@ -510,10 +510,14 @@ export function CurrentCanvas({
       scheduleDraw();
     };
 
-    // Wheel zoom, ~1.2× per detent, exponential so trackpads feel smooth.
-    // Native non-passive listener for the same reason as the VFO dial:
-    // React's onWheel can't preventDefault the page scroll.
+    // Ctrl/⌘+wheel zoom, ~1.2× per detent, exponential so trackpads feel
+    // smooth; a trackpad pinch arrives as Ctrl+wheel. A PLAIN wheel is never
+    // taken (AK#2255): it scrolls the page, as over the Smith chart and the
+    // sweep charts, so a scroll passing over the canvas, or trackpad momentum
+    // carried off a knob, cannot zoom it. Native non-passive listener because
+    // React's onWheel can't preventDefault the browser's page zoom.
     const onWheel = (e: WheelEvent) => {
+      if (!(e.ctrlKey || e.metaKey)) return;
       e.preventDefault();
       const rect = canvas.getBoundingClientRect();
       const dy = e.deltaMode === 1 ? e.deltaY * 33 : e.deltaY; // line-mode → px

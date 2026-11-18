@@ -979,7 +979,8 @@ and the two never look alike. Thumbnails leave the bands off.
 - **Ctrl+scroll** (⌘+scroll on a Mac), a **trackpad or touch pinch**, or
   **+** and **−** with the chart focused, zoom about the pointer, or the middle
   for the keys. A plain scroll is never taken: over the chart it scrolls the
-  page, as it does over the knobs;
+  page, as it does over the knobs (the same rule on every view:
+  [the gesture table](#zoom-and-pan-view-by-view));
 - **double-click**, **Esc**, or **Reset zoom** go back to the whole sweep.
 
 Zooming is only a view, and nothing re-solves. The range Auto fits is the
@@ -1060,6 +1061,28 @@ there.
   it. The norm check is the deliberate
   exception (its number lives in the always-present solve readout).
 
+### Zoom and pan, view by view
+
+The Smith chart, the sweep charts (SWR and S11) and the antenna view share
+one rule: a **plain scroll is never taken**. Over any of them it scrolls the
+page, as it does over the knobs, so a page scroll passing over a chart, or
+trackpad momentum carried off a knob, never zooms it. Zooming is Ctrl+scroll (⌘+scroll on a Mac), which is also what a
+trackpad pinch sends.
+
+| gesture | Smith chart | SWR / S11 | Antenna view |
+|---|---|---|---|
+| plain scroll | scrolls the page | scrolls the page | scrolls the page |
+| Ctrl+scroll / ⌘+scroll, trackpad pinch | zoom about the pointer | zoom the frequency axis about the pointer | zoom about the pointer |
+| two-finger touch pinch | zoom about the fingers | zoom the axis about the fingers | zoom about the fingers |
+| **+** / **−** (chart focused) | zoom about the middle | zoom about the middle | — |
+| click | — | a ham band: zoom to it | — |
+| drag | pans, once zoomed | selects a span to zoom to (touch: pans, once zoomed) | pans, once zoomed |
+| back to the whole view | double-click, **0**, or the fit button | double-click, **Esc**, or **Reset zoom** | double-click / double-tap, or **Fit** |
+
+At fit, a one-finger touch drag over any of them is the page's (on a phone,
+the swipe between output screens). Thumbnails take none of these: every
+gesture over one goes to the page.
+
 ## The antenna viewer
 
 The Antenna view draws the wires (with the current heat-map and standing-wave
@@ -1079,10 +1102,12 @@ Tools menu's **View** choice overrides this for every design, and
 The view auto-fits the whole antenna, and you can navigate from there,
 map-style:
 
-- **Zoom** — scroll wheel (desktop) or pinch (touch), anchored at the cursor
-  or pinch centre, up to 10 000×. Fine construction detail — a cage of wires
-  millimetres apart on an antenna metres across, typical of imported NEC
-  decks — is inspectable without touching any knob.
+- **Zoom** — Ctrl+scroll (⌘+scroll on a Mac) or a pinch (trackpad or
+  touch), anchored at the cursor or pinch centre, up to 10 000×. A plain
+  scroll scrolls the page ([the gesture table](#zoom-and-pan-view-by-view)).
+  Fine construction detail — a cage of wires millimetres apart on an antenna
+  metres across, typical of imported NEC decks — is inspectable without
+  touching any knob.
 - **Pan** — drag, once zoomed in. At fit zoom a touch drag stays with the
   page (on a phone that's the swipe between output screens); after a pinch
   the canvas owns the gesture until you re-fit.

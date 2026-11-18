@@ -936,7 +936,7 @@ export function SweepChart({
   // arrives as Ctrl+wheel. A PLAIN wheel is never taken — no zoom, no
   // preventDefault — because over this chart it belongs to the page's
   // scroll, and the knobs beside it turn on the wheel too (params/Knob.tsx).
-  // That is on purpose unlike SmithChart, which takes every wheel (AK#2255).
+  // The Smith chart and the antenna canvas follow the same rule (AK#2255).
   // Native and non-passive: React's onWheel cannot preventDefault the
   // browser's page zoom.
   const spanLo = span?.lo ?? null;
