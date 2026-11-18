@@ -10,6 +10,8 @@ hint, and the B-spline hint path is unchanged. Off by default throughout.
 
 from __future__ import annotations
 
+import importlib
+
 import numpy as np
 import pytest
 
@@ -89,6 +91,12 @@ def test_bspline_is_unchanged(monkeypatch, builder):
 
 @needs_sin_reuse
 def test_z_agrees_with_the_switch_off_and_the_reuse_path_ran(monkeypatch):
+    # Since momwire 0.94.0 (momwire#1969) the sinusoidal reuse declines a deck
+    # under SMALL_DECK_SEGS_FREE segments as too small to repay the plan; this
+    # Yagi is far under it, so the floor is lowered to make the path run.
+    small = importlib.import_module("momwire._sin_pair_reuse")
+    if hasattr(small, "SMALL_DECK_SEGS_FREE"):
+        monkeypatch.setattr(small, "SMALL_DECK_SEGS_FREE", 0)
     off = engine(fed_yagi(4), "momwire:sinusoidal")
     z0 = np.asarray(off.impedance(), dtype=complex)
 
