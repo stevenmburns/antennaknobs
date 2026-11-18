@@ -5,7 +5,9 @@ momwire#1982 made ``pair_reuse`` one switch every solver takes, with parts
 (``part_of="pair_reuse"`` in momwire's registry): bspline's ``offset_reuse``
 and razor-2p's ``razor_pair_reuse``. A native part asked for only through the
 switch outside its reach is silently off (momwire's ``withheld``), so a
-checkbox there would be one that does nothing. The probe is live: the parts
+checkbox there would be one that does nothing. A solver with no part (the
+sinusoidal one) runs ``pair_reuse`` itself and is held to its reach. The
+probe is live: the parts
 come from the installed registry and a solver carries a part when its
 constructor takes the part's keyword, never a version compare or a hand-kept
 backend list.
@@ -97,10 +99,49 @@ def test_an_uncertified_part_withholds_the_offer(certified, monkeypatch):
 
     monkeypatch.setattr("antennaknobs.mw.feature_certified", fake)
     assert adapter._offers_pair_reuse(_spec(_Solver)) is certified
-    assert "razor_pair_reuse" in seen
-    # A solver that carries no part (the sinusoidal shape) is offered by the
-    # constructor probe alone, as before.
-    assert adapter._offers_pair_reuse(_spec(_Plain)) is True
+    assert "razor_pair_reuse" in seen and "pair_reuse" not in seen
+    # A solver that carries no part (the sinusoidal shape) is held to the
+    # `pair_reuse` feature itself.
+    seen.clear()
+    assert adapter._offers_pair_reuse(_spec(_Plain)) is certified
+    assert seen == ["pair_reuse"]
+
+
+def _sinusoidal():
+    b = adapter._BACKENDS_BY_NAME.get("sinusoidal")
+    if b is None or not _takes_pair_reuse(b.solver):
+        pytest.skip("this momwire's SinusoidalSolver takes no pair_reuse")
+    return b
+
+
+@has_parts
+def test_sinusoidal_has_no_part_and_is_offered_where_pair_reuse_is_certified():
+    from antennaknobs.mw import feature_certified
+
+    b = _sinusoidal()
+    assert engine.pair_reuse_parts(b.solver) == ()
+    assert feature_certified("pair_reuse")  # the hosted level, as here
+    assert adapter._offers_pair_reuse(b) is True
+    rows = {r["name"]: r for r in adapter.backend_roster(have_pynec=False)}
+    assert "pair_reuse" in rows["sinusoidal"]["model_kwargs"]
+
+
+@has_parts
+def test_sinusoidal_is_withheld_where_pair_reuse_is_uncertified(monkeypatch):
+    b = _sinusoidal()
+    monkeypatch.setattr(
+        "antennaknobs.mw.feature_certified", lambda name: name != "pair_reuse"
+    )
+    assert adapter._offers_pair_reuse(b) is False
+    rows = {r["name"]: r for r in adapter.backend_roster(have_pynec=False)}
+    assert "pair_reuse" not in rows["sinusoidal"]["model_kwargs"]
+    # and a request for it on that tab is dropped, never forwarded
+    monkeypatch.delenv("ANTENNAKNOBS_PAIR_REUSE", raising=False)
+    eng = adapter._make_momwire_engine(
+        {"momwire_model": "sinusoidal", "model_options": {"pair_reuse": True}},
+        fed_yagi(2),
+    )
+    assert eng._pair_reuse is False
 
 
 def test_a_solver_without_the_switch_is_never_offered():

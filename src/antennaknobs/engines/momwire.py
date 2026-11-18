@@ -813,11 +813,22 @@ def pair_reuse_certified(solver_cls) -> bool:
     The switch turns on what the solver supports of it, and a native part
     outside its reach stays off without a word (momwire's ``withheld``), so a
     checkbox there would do nothing (Steve, 11-17: offered only where
-    certified). True for a class with no parts."""
-    from ..mw import feature_certified
+    certified, every part included, python or native).
 
+    A class with no parts (the sinusoidal solver) runs the ``pair_reuse``
+    feature itself, so it is held to that feature's certification instead.
+    A momwire whose registry has no ``pair_reuse`` entry (before momwire
+    #1869) has nothing to certify against, and the constructor probe alone
+    decides, as it always did."""
+    from ..mw import feature_certified, feature_registry
+
+    parts = pair_reuse_parts(solver_cls)
+    if not parts:
+        if "pair_reuse" not in (feature_registry() or {}):
+            return True
+        parts = ("pair_reuse",)
     try:
-        return all(feature_certified(name) for name in pair_reuse_parts(solver_cls))
+        return all(feature_certified(name) for name in parts)
     except (ImportError, KeyError, ValueError):
         return False
 
