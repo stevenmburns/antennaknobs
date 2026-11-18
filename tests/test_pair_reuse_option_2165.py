@@ -4,8 +4,9 @@ Offered by capability, the way the exact ring kernel and the sector route
 are: the server probes the installed momwire's constructor and lists
 `pair_reuse` in a backend's `model_kwargs` only where its solver takes it.
 The B-spline tab at any degree does, and the point-matched sinusoidal tab
-since momwire 0.91.0 (momwire#1911); razor, pulse, H-matrix and the array
-tab do not. The pane renders the served bool spec as a generic
+since momwire 0.91.0 (momwire#1911), and razor-2p since 0.94.0
+(momwire#1982) where its part, razor_pair_reuse, is certified; pulse,
+H-matrix and the array tab do not. The pane renders the served bool spec as a generic
 checkbox. On a momwire that predates it (0.86.0, the pin until 0.87.0)
 nothing is offered and nothing is sent, which is what the solving checks
 here skip on.
@@ -15,7 +16,7 @@ from __future__ import annotations
 
 import pytest
 
-from antennaknobs.engines.momwire import _takes_pair_reuse
+from antennaknobs.engines.momwire import _takes_pair_reuse, pair_reuse_certified
 from antennaknobs.web import server  # noqa: F401  (registers the backends)
 from antennaknobs.web import adapter
 
@@ -35,11 +36,15 @@ def test_the_spec_is_a_plain_checkbox_off_by_default():
 def test_offered_only_where_the_solver_takes_it():
     for b in adapter._BACKENDS:
         assert adapter._offers_pair_reuse(b) == (
-            b.kind == "momwire" and _takes_pair_reuse(b.solver)
+            b.kind == "momwire"
+            and _takes_pair_reuse(b.solver)
+            and pair_reuse_certified(b.solver)
         ), b.name
     # The point-matched sinusoidal class takes it too since momwire 0.91.0
-    # (momwire#1911), so it is not in this list.
-    for name in ("razor-2p", "hmatrix", "arrayblock"):
+    # (momwire#1911), and razor-2p since 0.94.0 (momwire#1982, gated on its
+    # part's certification: test_pair_reuse_parts_certified_1982.py), so
+    # neither is in this list.
+    for name in ("hmatrix", "arrayblock"):
         b = adapter._BACKENDS_BY_NAME.get(name)
         if b is not None:
             assert not adapter._offers_pair_reuse(b), name
@@ -66,11 +71,20 @@ def test_the_adapter_passes_the_choice_to_the_engine(asked, monkeypatch):
 def test_another_tab_drops_it():
     """A hand-made local request to a tab that does not offer it changes
     nothing: the value is dropped, never forwarded to a constructor."""
-    b = adapter._BACKENDS_BY_NAME.get("razor-2p")
+    b = next(
+        (
+            b
+            for b in adapter._BACKENDS
+            if b.kind == "momwire"
+            and not adapter._offers_pair_reuse(b)
+            and b.name in ("hmatrix", "arrayblock", "razor-2p")
+        ),
+        None,
+    )
     if b is None:
-        pytest.skip("no razor-2p backend")
+        pytest.skip("every candidate tab offers pair_reuse here")
     eng = adapter._make_momwire_engine(
-        {"momwire_model": "razor-2p", "model_options": {"pair_reuse": True}},
+        {"momwire_model": b.name, "model_options": {"pair_reuse": True}},
         fed_yagi(2),
     )
     assert eng._pair_reuse is False
