@@ -30,7 +30,7 @@ import { ThemeContext } from "../hooks";
 import { CHART_FONT, fitChartCanvas, useChartScale } from "./chartScale";
 import { curvesAttr, type ExtraCurve, NO_CURVES, NO_PINS, type PinCurve, pinsAttr } from "./curves";
 import { feedColor, feedSweepColor, PIN_DASH, plotColors, STALE_TRACE_ALPHA } from "./palette";
-import { useZoOpen } from "../session/zoOpen";
+import { useZoOpen, useZoOverriddenFrom, zoOverriddenTitle } from "../session/zoOpen";
 import {
   drawSweepProgressBar,
   sweepProgressAttr,
@@ -185,6 +185,8 @@ export function SmithChart({
   const k = useChartScale();
   const sz = size / k;
   const openZo = useZoOpen();
+  // AK#2116: the design's own Zo while the session measures against another.
+  const zoDesign = useZoOverriddenFrom();
   // Geometry the handlers share with the draw: canvas centre and the unit
   // circle's radius at fit.
   const half = sz / 2;
@@ -1311,6 +1313,28 @@ export function SmithChart({
           onClick={openZo}
         />
       )}
+      {zoDesign !== null &&
+        // AK#2116: the corner's Z₀ is not the design's own. Beside the corner
+        // text, and leading where the corner does: the gear menu's field.
+        (openZo ? (
+          <button
+            type="button"
+            className="zo-overridden smith-zo-overridden"
+            title={zoOverriddenTitle(zoDesign)}
+            style={{ left: 76 * k }}
+            onClick={openZo}
+          >
+            Overridden
+          </button>
+        ) : (
+          <span
+            className="zo-overridden smith-zo-overridden"
+            title={zoOverriddenTitle(zoDesign)}
+            style={{ left: 76 * k }}
+          >
+            Overridden
+          </span>
+        ))}
       {onYGridChange && (
         <button
           type="button"

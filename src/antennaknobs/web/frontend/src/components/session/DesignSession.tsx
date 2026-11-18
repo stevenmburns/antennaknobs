@@ -182,7 +182,7 @@ import { KnobOptMenu } from "./KnobOptMenu";
 import { SweepRangeMenu } from "./SweepRangeMenu";
 import { copyParams, downloadNec, loadMeasured, saveTextFile } from "./sessionActions";
 import { SessionGearMenu } from "./SessionGearMenu";
-import { ZoOpenContext } from "./zoOpen";
+import { ZoOpenContext, ZoOverriddenContext } from "./zoOpen";
 import { SolveOverlays } from "./SolveOverlays";
 import { SolverSlotTabs } from "./SolverSlotTabs";
 import { type ChartCellRequest, NOT_APPROVED, patternSignature, useAnalysisRunners } from "./useAnalysisRunners";
@@ -503,7 +503,9 @@ function DesignSessionBody({
     if (!gearMenuOpen) setFocusZo(false);
   }
   const withZoOpen = (node: ReactNode) => (
-    <ZoOpenContext.Provider value={openZo}>{node}</ZoOpenContext.Provider>
+    <ZoOpenContext.Provider value={openZo}>
+      <ZoOverriddenContext.Provider value={zoOverriddenFrom}>{node}</ZoOverriddenContext.Provider>
+    </ZoOpenContext.Provider>
   );
   // Transient "Copied ✓" confirmation on the Copy-params menu item.
   const [copiedParams, setCopiedParams] = useState(false);
@@ -1164,6 +1166,10 @@ function DesignSessionBody({
   const designZ0 =
     ownResponse?.design_z0_ohms ?? ownResponse?.z0_ohms ?? 50;
   const z0 = zoOverride ?? designZ0;
+  // AK#2116: what every display of the reference marks "Overridden" from,
+  // derived here in render so the marker clears the moment the override is
+  // reset, with no solve.
+  const zoOverriddenFrom = z0 !== designZ0 ? designZ0 : null;
   // `result` with the session's reference stamped in, for the views and the
   // readout. Same object when they already agree (every response after the
   // first at a new Zo echoes it), so nothing keyed on identity re-runs.

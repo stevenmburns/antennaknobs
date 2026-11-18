@@ -5,7 +5,7 @@ import { feedDriveText, formatOhms, formatSwr } from "../../lib/format";
 import type { ExampleDescriptor } from "../../lib/params";
 import { ReadoutsPanel } from "./ReadoutsPanel";
 import { ResultPanel } from "./ResultPanel";
-import { useZoOpen } from "../session/zoOpen";
+import { useZoOpen, useZoOverriddenFrom, zoOverriddenTitle } from "../session/zoOpen";
 
 function feedMag(r: SolveResponse): number {
   const w = r.wires[r.feed_wire_index];
@@ -82,6 +82,9 @@ export function SolveReadout({
 }) {
   const ref = z0 ?? result?.z0_ohms ?? 50;
   const openZo = useZoOpen();
+  // AK#2116: the design's own Zo while the session measures against another.
+  const zoDesign = useZoOverriddenFrom();
+  const zoOverTitle = zoDesign === null ? null : zoOverriddenTitle(zoDesign);
   const planes = result?.planes;
   const isCollapsed = collapsed && onCollapsedChange !== undefined;
   // Overflow guard for the floating stage HUD: with enough content (a
@@ -170,6 +173,14 @@ export function SolveReadout({
               ? formatSwr(result.z_in_re, result.z_in_im, ref)
               : "—"}
           </span>
+          {zoOverTitle && (
+            // Inside the pill's own button, so a marker rather than a second
+            // button; the full readout's row is the one that opens the field.
+            <span className="zo-overridden" title={zoOverTitle}>
+              {" "}
+              ({Number(ref.toPrecision(4))} Ω, Overridden)
+            </span>
+          )}
         </span>
         <span className="readout-pill-caret" aria-hidden="true">
           ▴
@@ -291,17 +302,28 @@ export function SolveReadout({
       )}
       <div className="row">
         {openZo ? (
-          // AK#1985: the reference is changed where it is read.
+          // AK#1985: the reference is changed where it is read. AK#2116: and
+          // says when it is not the design's own, the same button leading to
+          // the field and its reset.
           <button
             type="button"
             className="readout-zo-btn"
-            title="Change the reference impedance (this design)"
+            title={zoOverTitle ?? "Change the reference impedance (this design)"}
             onClick={openZo}
           >
-            SWR ({Number(ref.toPrecision(4))} Ω)
+            SWR ({Number(ref.toPrecision(4))} Ω
+            {zoOverTitle && <span className="zo-overridden">, Overridden</span>})
           </button>
         ) : (
-          <span>SWR ({Number(ref.toPrecision(4))} Ω)</span>
+          <span>
+            SWR ({Number(ref.toPrecision(4))} Ω
+            {zoOverTitle && (
+              <span className="zo-overridden" title={zoOverTitle}>
+                , Overridden
+              </span>
+            )}
+            )
+          </span>
         )}
         <span className="val">
           {result

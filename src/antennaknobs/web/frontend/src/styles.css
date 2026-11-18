@@ -739,6 +739,31 @@ button:focus-visible,
   color: var(--accent);
 }
 
+/* "Overridden" (AK#2116): the reference shown is the gear menu's, not the
+   design's own. Accent-coloured so it reads as a state, not a label. */
+.zo-overridden {
+  color: var(--accent);
+  font-weight: 600;
+}
+button.zo-overridden {
+  pointer-events: auto;
+  background: none;
+  border: 0;
+  padding: 0;
+  font: inherit;
+  font-weight: 600;
+  color: var(--accent);
+  text-decoration: underline dotted;
+  text-underline-offset: 2px;
+  cursor: pointer;
+}
+.smith-zo-overridden {
+  position: absolute;
+  top: 0;
+  font-size: var(--text-xs);
+  line-height: 20px;
+}
+
 /* The optimizer menu's line leading to it (AK#1985). */
 .opt-zo-link {
   color: var(--muted);
