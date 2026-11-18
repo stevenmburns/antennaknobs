@@ -782,7 +782,7 @@ class NEC5Engine(SimulationEngine):
         direction and NEC-5's EX and current readout follow it, so this Y is
         in the authored-direction port convention, as PyNEC's is.
         """
-        freq = C_LIGHT / wavelength / 1e6
+        freq = _multiport.frequency(self, wavelength)
         names = self._real_port_names
         attach = [self._port_attach[name] for name in names]
         n = len(names)

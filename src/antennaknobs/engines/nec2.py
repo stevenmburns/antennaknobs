@@ -85,7 +85,6 @@ import numpy as np
 
 from ..engine import FarField, SimulationEngine, WireCurrents, refuse_graded_wires
 from ..network import as_wire
-from ..network_reduce import C_LIGHT
 from . import _multiport
 from ._external import find_exe, run_exe
 
@@ -580,7 +579,7 @@ class NEC2Engine(SimulationEngine):
         direction and NEC-2's EX and current readout follow it, so this Y is
         in the authored-direction port convention, as PyNEC's is.
         """
-        freq = C_LIGHT / wavelength / 1e6
+        freq = _multiport.frequency(self, wavelength)
         names = self._real_port_names
         n = len(names)
         Y = np.zeros((n, n), dtype=np.complex128)
