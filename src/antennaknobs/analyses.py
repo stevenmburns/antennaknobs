@@ -1115,6 +1115,61 @@ class PatternTable(View):
         _set(self, "metrics", metrics)
 
 
+# ── fill metrics (AK#2327) ──────────────────────────────────────────────────
+#
+# A FILL METRIC is a number read off a momwire solve's fill report
+# (`antennaknobs.fill_report`): how far the matrix compressed, how long the fill
+# and the factor took, and the fill's share of the two. It is not a pattern
+# metric and reads no far field. It is drawn on the density ladder, one point
+# per rung, so how good the reuse is can be read against the mesh size. A rung
+# whose solve cannot say (another engine, reuse off for the compression) has
+# no point there, never a zero.
+
+#: What a `FillMetric` reads, and the unit it reads in.
+FILL_QUANTITIES = {
+    "compression": ("fill compression", "×"),
+    "fill_time": ("fill time", "s"),
+    "factor_time": ("factor time", "s"),
+    "fill_share": ("fill share", "%"),
+}
+
+
+@dataclass(frozen=True)
+class FillMetric:
+    """A number off the fill report (the comment above): ``"compression"``
+    (pairs ÷ (computed + near), which is not the time saved), ``"fill_time"``,
+    ``"factor_time"`` or ``"fill_share"`` (the fill's percentage of fill plus
+    factor time)."""
+
+    quantity: str
+
+    _positional: ClassVar[tuple[str, ...]] = ("quantity",)
+
+    def __post_init__(self):
+        if self.quantity not in FILL_QUANTITIES:
+            raise ValueError(
+                f"FillMetric: quantity is one of {sorted(FILL_QUANTITIES)}, "
+                f"got {self.quantity!r}"
+            )
+
+    @property
+    def name(self) -> str:
+        return FILL_QUANTITIES[self.quantity][0]
+
+    @property
+    def unit(self) -> str:
+        return FILL_QUANTITIES[self.quantity][1]
+
+
+FILL_COMPRESSION = FillMetric("compression")
+FILL_TIME = FillMetric("fill_time")
+FACTOR_TIME = FillMetric("factor_time")
+FILL_SHARE = FillMetric("fill_share")
+
+#: The density ladder's fill metrics, in the order it draws them.
+FILL_METRICS = (FILL_COMPRESSION, FILL_TIME, FACTOR_TIME, FILL_SHARE)
+
+
 def _check_metric_names(owner: str, metrics) -> None:
     """A metric is found by its name (a column, a curve's label): two alike
     would be two columns the reader cannot tell apart."""
@@ -1139,13 +1194,13 @@ class MetricPlot(View):
     one of its knobs moves (a full vertical against shortening inverted
     Ls)."""
 
-    metric: PatternMetric
+    metric: PatternMetric | FillMetric
     relative_to: str | None = None
 
     _positional: ClassVar[tuple[str, ...]] = ("metric",)
 
     def __post_init__(self):
-        if not isinstance(self.metric, PatternMetric):
+        if not isinstance(self.metric, (PatternMetric, FillMetric)):
             raise TypeError(
                 "MetricPlot: metric is a metric (an.ElevationWindow(...), "
                 f"an.Metric(...), ...), got {self.metric!r}"
@@ -1746,7 +1801,14 @@ def convergence(**kw) -> Analysis:
         **{
             "name": "convergence",
             "sweep": Sweep(DENSITY),
-            "views": (Rx(), Table(), Smith()),
+            # The fill metrics (AK#2327): how good the reuse is, and what the
+            # fill and factor cost, at each rung of the ladder.
+            "views": (
+                Rx(),
+                Table(),
+                Smith(),
+                *(MetricPlot(m) for m in FILL_METRICS),
+            ),
             **kw,
         }
     )
@@ -2529,6 +2591,7 @@ _DATA_CLASSES = {
         Azimuth,
         PatternTable,
         MetricPlot,
+        FillMetric,
         AzMode,
         ElevationWindow,
         GainAt,
