@@ -50,6 +50,7 @@ from fastapi.staticfiles import StaticFiles
 from starlette.websockets import WebSocketState
 from threadpoolctl import threadpool_limits
 
+from antennaknobs.analyses import FillMetric
 from antennaknobs.fill_report import merge_sweep
 from antennaknobs.engines.momwire import terrain_utd_power
 from antennaknobs.terrain import Facet, Sector, Terrain, specular_cut
@@ -3043,8 +3044,21 @@ def _fed_segment_m(res: dict) -> float | None:
     return float(lens[near].min())
 
 
+def _solve_z_and_fill(req: dict, metric, cancel=None):
+    """`_solve_z_only` and the fill metric ``metric`` read off THAT solve's
+    fill report (AK#2327): ``(z, feeds_z, mesh, value, why)``, ``value``
+    None and ``why`` the reason where the solve cannot say (another engine,
+    a momwire with no report, reuse off for the compression)."""
+    from antennaknobs.fill_report import fill_metric_value
+
+    sink: list = []
+    z, feeds_z, mesh = _solve_z_only(req, cancel=cancel, fill_sink=sink)
+    value, why = fill_metric_value(metric.quantity, sink[0] if sink else None)
+    return z, feeds_z, mesh, value, why
+
+
 def _solve_z_only(
-    req: dict, cancel=None
+    req: dict, cancel=None, fill_sink: list | None = None
 ) -> tuple[complex, list[complex] | None, dict | None]:
     """Run the geometry-specific solver and return only the input impedance.
 
@@ -3064,6 +3078,8 @@ def _solve_z_only(
     else:
         ex = example_for(geometry)
         res = ex.momwire_solve(req, cancel=cancel)
+    if fill_sink is not None:
+        fill_sink.append(res.get("fill_report"))
     primary = complex(res["z_in_re"], res["z_in_im"])
     feeds_list = res.get("feeds")
     feeds_z: list[complex] | None = (
@@ -3156,6 +3172,10 @@ async def _solve_points(
                     if metric is None:
                         z, feeds_z, mesh = await run_in_threadpool(
                             _shed, _solve_z_only, req_v, cancel=token
+                        )
+                    elif isinstance(metric, FillMetric):
+                        z, feeds_z, mesh, m_value, m_why = await run_in_threadpool(
+                            _shed, _solve_z_and_fill, req_v, metric, cancel=token
                         )
                     else:
                         z, feeds_z, mesh, m_value, m_why = await run_in_threadpool(
@@ -3308,7 +3328,9 @@ async def param_sweep_endpoint(req: dict, request: Request):
 
     An unknown parameter or a non-numeric value is a 422 before any solve.
     """
-    from .param_sweep import ParamSweepError, sweep_values
+    from antennaknobs import analyses as an
+
+    from .param_sweep import DENSITY, ParamSweepError, sweep_values
 
     param = req.get("param")
     try:
@@ -3316,6 +3338,14 @@ async def param_sweep_endpoint(req: dict, request: Request):
     except (ParamSweepError, UnknownGeometryError) as e:
         raise HTTPException(status_code=422, detail=str(e)) from None
     metric = _request_metric(req.get("metric"))
+    if isinstance(metric, an.FillMetric) and (
+        param != DENSITY or req.get("hold") is not None
+    ):
+        # Each rung's own solve, read where the ladder solves it (AK#2327).
+        raise HTTPException(
+            status_code=422,
+            detail="a fill metric is drawn on the density ladder, with no hold",
+        )
     base = {
         k: v for k, v in req.items() if k not in ("param", "values", "metric", "hold")
     }
@@ -3463,7 +3493,7 @@ def _request_metric(data):
         metric = an.from_data(data, SERVED_FUNCTIONS)
     except (TypeError, ValueError) as e:
         raise HTTPException(status_code=422, detail=f"bad metric: {e}") from None
-    if not isinstance(metric, an.PatternMetric):
+    if not isinstance(metric, (an.PatternMetric, an.FillMetric)):
         raise HTTPException(status_code=422, detail="metric is not a metric")
     return metric
 

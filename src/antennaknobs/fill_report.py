@@ -342,6 +342,37 @@ def merge_sweep(total: dict | None, chunk: dict | None) -> dict | None:
     return merged
 
 
+def fill_metric_value(quantity: str, report: dict | None):
+    """``(value, why)``: an `analyses.FillMetric` read off a solve's packed
+    report, or None and the reason it cannot be read there. A solve that
+    cannot say has no value, never a zero."""
+    if report is None:
+        return None, "this engine does not report its fill"
+    if report.get("no_fill"):
+        return None, "no fill ran for this solve: its matrix came from memory"
+    times = report["times"]
+    if quantity == "fill_time":
+        return float(times["fill_s"]), None
+    if quantity == "factor_time":
+        return float(times["factor_s"]), None
+    if quantity == "fill_share":
+        total = times["fill_s"] + times["factor_s"]
+        if total <= 0:
+            return None, "the solve recorded no fill or factor time"
+        return 100.0 * times["fill_s"] / total, None
+    if quantity != "compression":
+        raise ValueError(f"no fill metric {quantity!r}")
+    reuse = report.get("reuse")
+    if reuse is None:
+        return None, "fill reuse is off for this solve"
+    if reuse["state"] == "declined":
+        return None, f"fill reuse declined: {reuse.get('declined')}"
+    paid = (reuse.get("computed") or 0) + (reuse.get("near") or 0)
+    if reuse.get("pairs") is None or paid <= 0:
+        return None, "the fill counted no pairs"
+    return reuse["pairs"] / paid, None
+
+
 def refused_payload(report: dict, sentence: str) -> dict:
     """The payload of a deck `rotational_symmetry=True` refused at
     construction: ``report`` is `momwire.refused_fill_report`'s, and

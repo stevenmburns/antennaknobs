@@ -532,6 +532,13 @@ def _metric_view(a: an.Analysis) -> dict | None:
     }
 
 
+def _fill_metric_first(a: an.Analysis) -> bool:
+    """Whether the metric the chart draws (the first `MetricPlot`) is a fill
+    metric (AK#2327), which a density ladder can draw."""
+    plots = an.metric_plots(a)
+    return bool(plots) and isinstance(plots[0].metric, an.FillMetric)
+
+
 def _has_variant(cls, variant: str) -> bool:
     """Whether ``cls`` has ``variant``: "default", or a ``<variant>_params``
     mapping (`cli.list_variants`'s rule)."""
@@ -903,14 +910,23 @@ def workbench(a: an.Analysis, builder, req: Mapping, *, hosted: bool = False) ->
         "param": run["param"],
         "values": run["values"],
         "log": run["log"],
-        # A density ladder's metric is not drawn, as `analyze` does not
-        # draw it (`analysis_run._DENSITY_METRIC`).
-        "views": [
-            n
-            for v in a.views
-            if (n := _knob_view(v)) and not (n == "Metric" and run["density"])
-        ],
-        "metric": None if run["density"] else _metric_view(a),
+        # A density ladder draws a fill metric (AK#2327), read off each
+        # rung's own solve, and no other: a pattern metric's convergence is
+        # not drawn, as `analyze` does not draw it
+        # (`analysis_run._DENSITY_METRIC`).
+        # Each view once: several MetricPlots are one Metric view, which
+        # draws the first (`_metric_note` names the rest).
+        "views": list(
+            dict.fromkeys(
+                n
+                for v in a.views
+                if (n := _knob_view(v))
+                and not (n == "Metric" and run["density"] and not _fill_metric_first(a))
+            )
+        ),
+        "metric": (
+            None if run["density"] and not _fill_metric_first(a) else _metric_view(a)
+        ),
         "hold": held,
         **_listed(a),
         **crosses,

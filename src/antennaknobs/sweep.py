@@ -932,12 +932,18 @@ def _convergence_rungs(rng, npoints, markers=()):
     return sorted(ladder_rungs | marked), ladder_rungs, marked, drawn_marks
 
 
-def _convergence_rows(antenna_builder, factory, rungs, knob="nominal_nsegs"):
+def _convergence_rows(
+    antenna_builder, factory, rungs, knob="nominal_nsegs", fills=None
+):
     """One engine's ladder: ``(rows, fed_lengths, nports)``, one cold solve
     per rung with ``knob`` set to it. ``rows`` are ``(rung, N achieved, Z at
     port 0)``; ``fed_lengths`` the fed segment's length at each rung (port
     0), the reason a rough Z∞ gives (AK#1781, feed_mesh_step). The ONE place
-    a density study solves: ``sweep --param`` and ``analyze`` both call it."""
+    a density study solves: ``sweep --param`` and ``analyze`` both call it.
+
+    ``fills`` (AK#2327): a list given gets each rung's fill report, read off
+    that rung's own solve (``engine.fill_report()``), or None for an engine
+    that keeps none."""
     rows = []
     lens = []
     nports = 1
@@ -947,6 +953,9 @@ def _convergence_rows(antenna_builder, factory, rungs, knob="nominal_nsegs"):
         z = eng.impedance()
         nports = max(nports, len(z))
         rows.append((n, _achieved_n(eng, antenna_builder), complex(z[0])))
+        if fills is not None:
+            report = getattr(eng, "fill_report", None)
+            fills.append(report() if callable(report) else None)
         # Optional: an engine that cannot say (a test stub) gives no reason.
         fed_segments = getattr(eng, "fed_segments", None)
         fed = fed_segments() if fed_segments is not None else None
