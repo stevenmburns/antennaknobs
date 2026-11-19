@@ -133,6 +133,7 @@ except ImportError:
 
 
 from antennaknobs.engines.momwire import (
+    CHANGES_ANSWER_DRIFT,
     EXACT_KERNEL_CHOICES,
     FEATURE_INFO,
     FEATURE_SWITCHES,
@@ -1603,13 +1604,22 @@ def _feature_specs() -> dict[str, _OptionSpec]:
     feature that moves the answer says so in its label as well as its hover,
     with the bound its author measured. Each box's default is momwire's own
     (`FeatureInfo.default`, momwire#1951), so a feature momwire runs by default
-    shows ticked and unticking it sends an explicit off (AK#2317)."""
+    shows ticked and unticking it sends an explicit off (AK#2317). One that
+    changes the answer on purpose (`CHANGES_ANSWER_DRIFT`) is not a speed
+    option and says that instead."""
     if FEATURE_INFO is None:
         return dict(_FALLBACK_FEATURE_SPECS)
     out = {}
     for name, info in FEATURE_INFO.items():
         if _last_digits(name):
             tag, note = " (faster)", "Results change only in the last digits."
+        elif info.drift >= CHANGES_ANSWER_DRIFT:
+            marked = "changes the answer" in info.label.lower()
+            tag = "" if marked else " (changes the answer)"
+            note = (
+                "This changes the answer on purpose and is not a speed "
+                "option: leave it off for the solver's own answer."
+            )
         else:
             tag = " (faster, approximate)"
             note = (

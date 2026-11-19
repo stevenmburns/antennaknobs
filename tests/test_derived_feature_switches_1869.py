@@ -67,6 +67,14 @@ FAKE = _reg(
     _New("internal", None, offer=False),
 )
 
+# momwire#2033's shape: a feature that changes the answer on purpose, whose
+# drift (1.0) is not a bound. One label already says so, one does not.
+ANSWER = _reg(
+    _New("cap", "cap", True, "end cap (changes the answer)", "NEC-2's ends.", 1.0),
+    _New("plain_cap", "plain_cap", True, "plain cap", "Other ends.", 3.0),
+    _New("coarse_b", "coarse_b", True, "crossing table", "Reads a table.", 2e-3),
+)
+
 
 def test_an_old_registry_keeps_the_hand_kept_table():
     old = _reg(_Old("transmitted_anchors", "transmitted_anchors"))
@@ -229,3 +237,36 @@ def test_the_installed_registry_takes_one_path_whole():
     else:
         assert set(mw_engine.FEATURE_SWITCHES) == set(derived)
         assert set(derived) <= set(adapter.model_option_specs())
+
+
+@pytest.fixture
+def answering(monkeypatch):
+    info = _derive_features(ANSWER)
+    monkeypatch.setattr(adapter, "FEATURE_INFO", info)
+    monkeypatch.setattr(mw_engine, "FEATURE_INFO", info)
+    monkeypatch.setattr(adapter, "FEATURE_SWITCHES", _switches_for(info))
+    return info
+
+
+def test_a_feature_that_changes_the_answer_is_not_labelled_faster(answering):
+    specs = adapter._feature_specs()
+    # A label that already says so is left alone; one that does not gets it.
+    assert specs["cap"].label == "end cap (changes the answer)"
+    assert specs["plain_cap"].label == "plain cap (changes the answer)"
+    for name in ("cap", "plain_cap"):
+        assert "faster" not in specs[name].label
+        assert "on purpose" in specs[name].description
+        assert "relative" not in specs[name].description
+        assert specs[name].default is False
+    # Just under the line it is still an approximate speed option.
+    assert specs["coarse_b"].label == "crossing table (faster, approximate)"
+    assert set(adapter._hosted_options(specs)) == set(specs)
+
+
+def test_a_seed_never_turns_on_a_feature_that_changes_the_answer(
+    answering, monkeypatch
+):
+    for name in ("cap", "plain_cap"):
+        monkeypatch.setenv("ANTENNAKNOBS_" + name.upper(), "1")
+        assert not mw_engine.feature_seedable(name)
+        assert adapter._seeded_default(name, False) is False
