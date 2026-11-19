@@ -39,6 +39,7 @@ TABS = {
     "crossing_table": ("bspline", "razor-2p"),
     "crossing_above_rule": ("bspline",),
     "kcl_nullspace": ("bspline",),
+    "nec2_end_cap": ("sinusoidal",),
 }
 
 
