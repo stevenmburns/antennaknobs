@@ -165,7 +165,7 @@ worth keeping readable.
 ## Two repos, one working tree
 
 `momwire/` is a git submodule with **its own** ruff config, excluded here via
-`extend-exclude`. Six hazards follow:
+`extend-exclude`. Seven hazards follow:
 
 - **Never `git add -A`.** It sweeps the momwire submodule pointer and
   untracked `scratch/*.jsonl` into the commit. Stage explicit paths.
@@ -173,21 +173,39 @@ worth keeping readable.
   what USERS get. They are two contracts.** CI's test lane installs momwire
   editable from the submodule at the recorded pointer and builds its C++;
   the wheel-smoke lane and the hosted app's Dockerfile install
-  `momwire==X.Y.Z` from PyPI. So the pointer may (and normally does) run
-  AHEAD of the release on momwire `main`, moved deliberately in its own
-  small "pointer" PR (`git add momwire` is the whole diff) whenever
-  antennaknobs gates need a momwire change that has landed but not shipped
-  — that is how those gates run on CI without a momwire release and
-  without a second lane. `tests/test_momwire_pin.py` holds the version
+  `momwire==X.Y.Z` from PyPI. `tests/test_momwire_pin.py` holds the version
   TRIPLE (pyproject pin / Dockerfile pin / the submodule's declared
-  version) equal, which stays true anywhere on momwire `main` until its
-  next version bump; at a momwire release the release skill moves all
-  three to the tag together, and the two contracts re-converge. Never move
-  the pointer as a side effect of another PR, never move it past a momwire
+  version) equal. At a momwire release the release skill moves all three
+  to the tag together, and the two contracts re-converge. Never move the
+  pointer as a side effect of another PR, never move it past a momwire
   version bump without the pin, and never move it backwards. The wheel-smoke
   lane races PyPI's index for about a minute after a momwire tag, so poll
   PyPI's JSON for the version before opening the pin PR, and re-run rather
   than merge on red.
+- **Work in DEV MODE. The pointer moves ONLY in the release ritual.**
+  Steve, 2026-09-15 ("No submodule pointer moves. Please work in dev
+  mode."), reaffirmed 2026-11-19 ("work in dev mode instead") when a
+  builder had made a pointer-only PR. Do not propose, build or open a
+  pointer PR, even when an antennaknobs change needs a momwire change that
+  has landed but not shipped. Instead:
+  - Dev mode means the submodule WORKING TREE checked out on momwire
+    `origin/main` and rebuilt with `cd momwire && make build`. The recorded
+    pointer is left alone and never staged: `git status` shows ` M momwire`.
+    Record both SHAs, the recorded pointer and the dev-mode one, in every
+    gate report and PR body.
+  - A feature PR that needs unreleased momwire lands with the pointer
+    untouched. It must pass CI at the RECORDED pointer: probe the installed
+    momwire live (never by version), and skip every test that needs the new
+    momwire with one named reason, pinned by a tripwire test the way
+    `tests/test_moved_corpus_skips_1299.py` and
+    `tests/test_fill_report_skips_2327.py` do. Run the real gates in dev mode
+    and say so in the PR. AK#2327's fill report is the worked example.
+  - Expect dev-mode-only failures in tests that pin pointer-era facts, such
+    as the corpus count or optionSpec fixtures that see a newly offered
+    momwire feature. Attribute them by running the same test IDs on AK
+    `main` with the same dev-mode momwire. Never "fix" them by moving the
+    pointer; they move with the pin at the release.
+  - The feature then comes alive for users at the release's pin bump.
 - **Always pass `gh -R <owner>/<repo>`.** The two repos have overlapping
   issue numbers and the shell's cwd persists across calls, so a bare
   `gh issue` can land on the wrong tracker.
