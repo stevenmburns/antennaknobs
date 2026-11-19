@@ -173,6 +173,7 @@ from momwire import BSplineSolver
 
 from .. import momwire_bases
 from ..auto_match import tuner_advisories, tuner_holding_match, tuner_rows
+from ..fill_report import refused_payload
 from ..geometry import flat_wires_to_polylines
 from ..knob_sweep import sanitize_sweep_hint
 from .examples import REGISTRY, register
@@ -970,6 +971,34 @@ def _offers_feature(spec, name) -> bool:
 _ROTATIONAL_SYMMETRY_REFUSAL_TAIL = (
     "Drop rotational_symmetry=True to solve this deck densely."
 )
+
+
+class SweepChunk(tuple):  # noqa: SLOT001 — it carries an attribute, so it needs an instance dict
+    """One chunk of `momwire_sweep`'s answer: the tuple it has always been,
+    carrying that chunk's fill report beside it (AK#2327)."""
+
+    fill_report: dict | None
+
+    def __new__(cls, values, fill_report=None):
+        self = super().__new__(cls, values)
+        self.fill_report = fill_report
+        return self
+
+
+def fill_refusal_of(exc: BaseException) -> dict:
+    """``{"fill_report": ...}`` for a deck `rotational_symmetry=True` refused
+    at construction, in the workbench's wording; ``{}`` for any other error
+    and on a momwire that cannot report one (AK#2327)."""
+    refused = getattr(
+        getattr(momwire, "_rotational_symmetry", None),
+        "RotationalSymmetryRefused",
+        None,
+    )
+    report = getattr(momwire, "refused_fill_report", None)
+    if refused is None or report is None or not isinstance(exc, refused):
+        return {}
+    sentence = reword_rotational_symmetry_refusal(str(exc))
+    return {"fill_report": refused_payload(report(exc), sentence)}
 
 
 def reword_rotational_symmetry_refusal(message: str) -> str:
@@ -5373,6 +5402,11 @@ def _make_example(name: str, cls, *, defer_hints: bool = False) -> AntennaExampl
                 (f[2], "V") for f in (getattr(eng, "_feeds", None) or [])
             ]
             out["feeds"] = _pack_feeds(zs, drives)
+        # What the fill did (AK#2327): read after every solver this request
+        # built has finished, and absent on a momwire that cannot say.
+        fill_report = eng.fill_report()
+        if fill_report is not None:
+            out["fill_report"] = fill_report
         sink = _SOLVED_METRICS_SINK.get()
         if sink is not None:
             # Last: the snapshot releases the engine's held Z (AK#1727).
@@ -6060,6 +6094,7 @@ def _make_example(name: str, cls, *, defer_hints: bool = False) -> AntennaExampl
         _apply_plane(builder, req)
         eng = _make_momwire_engine(req, builder, cancel=cancel)
         zs = np.asarray(eng.impedance_sweep(list(freqs_mhz)))
+        fill_report = eng.fill_report()
         # Open-circuited points sweep through as inf; clamp for JSON.
         zs = np.where(np.isfinite(zs), zs, complex(Z_OPEN_OHMS, 0.0))
         # MomwireEngine.impedance_sweep returns (n_freqs, n_feeds).
@@ -6069,8 +6104,8 @@ def _make_example(name: str, cls, *, defer_hints: bool = False) -> AntennaExampl
         if hints()["multi_feed"] and zs.shape[1] > 1:
             feeds_re = zs.real.tolist()  # (n_freqs, n_feeds) list of lists
             feeds_im = zs.imag.tolist()
-            return re, im, feeds_re, feeds_im
-        return re, im
+            return SweepChunk((re, im, feeds_re, feeds_im), fill_report)
+        return SweepChunk((re, im), fill_report)
 
     def momwire_bands(req: dict, freqs_mhz: list[float], cancel=None) -> dict:
         """AK#1901: one multi-band /optimize evaluation -- ONE build of the
