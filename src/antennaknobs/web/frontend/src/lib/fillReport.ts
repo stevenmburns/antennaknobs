@@ -78,6 +78,7 @@ export type FillReport = {
 
 export function formatSeconds(s: number): string {
   if (!Number.isFinite(s)) return "—";
+  if (s === 0) return "0 ms";
   if (s >= 10) return `${s.toFixed(1)} s`;
   if (s >= 1) return `${s.toFixed(2)} s`;
   return `${(s * 1e3).toPrecision(3)} ms`;
@@ -142,7 +143,7 @@ export function reuseNote(report: FillReport): string | null {
     if (report.no_fill) return null;
     return report.reuse_asked
       ? "Fill reuse was on, but this fill read no reuse plan."
-      : "Fill reuse is off for this solve.";
+      : `Fill reuse is off for this ${report.scope === "sweep" ? "sweep" : "solve"}.`;
   }
   if (reuse.state === "declined") {
     return `Fill reuse declined: ${reuse.declined ?? "no reason given"}.`;
@@ -170,6 +171,17 @@ export function cellCounts(map: FillReuseMap, row: number, col: number) {
   const reused = map.reused[row][col];
   const near = map.near[row][col];
   return { computed, reused, near, pairs: computed + reused + near };
+}
+
+/** A sector-map row's axis label: its wires, then the sector they are in. */
+export function sectorRowLabel(row: FillMapRow): string {
+  const where = sectorSpan(row);
+  return row.label === where ? where : `${row.label} · ${where}`;
+}
+
+/** Whether a sector begins at this row, for the map's boundary lines. */
+export function startsSector(rows: FillMapRow[], i: number): boolean {
+  return i > 0 && rows[i].sector_first !== rows[i - 1].sector_first;
 }
 
 export function sectorName(sector: number | undefined): string {

@@ -4470,7 +4470,9 @@ function DesignSessionBody({
       onPause={pauseSimulation}
       recommendedBackend={recommendedBackend}
       onSolveAnyway={solveAnyway}
-      solveError={solveError}
+      // The error banner takes the whole stage. The Fill view says a sector
+      // refusal itself (AK#2327), so there the banner steps aside for it.
+      solveError={view === "fill" && fillRefusal ? null : solveError}
     />
   );
 

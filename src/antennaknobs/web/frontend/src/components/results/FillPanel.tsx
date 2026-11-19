@@ -16,7 +16,9 @@ import {
   routeLabel,
   savingNote,
   sectorName,
+  sectorRowLabel,
   sectorRowText,
+  startsSector,
   sweepNote,
 } from "../../lib/fillReport";
 
@@ -27,6 +29,9 @@ import {
 const CELL = 20;
 const GUTTER = 132;
 const HEAD = 22;
+// The map's drawn width per viewBox unit at most: a four-wire map stays a
+// compact figure instead of scaling its labels up to the stage's width.
+const MAX_SCALE = 1.25;
 
 function Row({ label, value, title }: { label: string; value: string; title?: string }) {
   return (
@@ -152,6 +157,7 @@ function MapGrid({ map }: { map: FillReuseMap | FillSectorMap }) {
         <>
           <svg
             className="fill-grid"
+            style={{ maxWidth: (GUTTER + size + 4) * MAX_SCALE }}
             viewBox={`0 0 ${GUTTER + size + 4} ${HEAD + size + 4}`}
             role="img"
             tabIndex={0}
@@ -192,11 +198,14 @@ function MapGrid({ map }: { map: FillReuseMap | FillSectorMap }) {
                 <line className="fill-boundary" x1={GUTTER} x2={GUTTER + size} y1={HEAD + i * CELL} y2={HEAD + i * CELL} />
                 <line className="fill-boundary" y1={HEAD} y2={HEAD + size} x1={GUTTER + i * CELL} x2={GUTTER + i * CELL} />
                 <text className="fill-axis" x={GUTTER - 5} y={HEAD + i * CELL + 14} textAnchor="end">
-                  {`${i + 1} ${row.label}`.slice(0, 22)}
+                  {`${i + 1} ${sector ? sectorRowLabel(row) : row.label}`.slice(0, 24)}
                 </text>
                 <text className="fill-axis" x={GUTTER + i * CELL + CELL / 2} y={HEAD - 7} textAnchor="middle">
                   {i + 1}
                 </text>
+                {sector && startsSector(map.rows, i) && (
+                  <line className="fill-sector-edge" x1={0} x2={GUTTER + size} y1={HEAD + i * CELL} y2={HEAD + i * CELL} />
+                )}
               </g>
             ))}
             <rect className="fill-frame" x={GUTTER} y={HEAD} width={size} height={size} />
