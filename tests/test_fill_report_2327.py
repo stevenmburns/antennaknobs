@@ -19,10 +19,15 @@ from antennaknobs.web import adapter
 YAGI = "beams.owa_yagi"
 SCREEN = "verticals.buried_radial_vertical"
 
-pytestmark = pytest.mark.skipif(
-    not fr.reads_fill_report(momwire.BSplineSolver),
-    reason="this momwire has no fill_report",
+# Whether the installed momwire reports its fill. The recorded pointer
+# (momwire 0.94.0) does not; the tests that need a report skip there for this
+# one reason, which tests/test_fill_report_skips_2327.py pins.
+HAVE_REPORT = fr.reads_fill_report(momwire.BSplineSolver)
+SKIP_REASON = (
+    "the installed momwire has no fill_report (momwire#2016): "
+    "BSplineSolver.fill_report is missing"
 )
+needs_report = pytest.mark.skipif(not HAVE_REPORT, reason=SKIP_REASON)
 
 
 def _req(geometry, model, options, **extra):
@@ -61,6 +66,7 @@ def _fresh_caches():
     server._SOLVE_CACHE.clear()
 
 
+@needs_report
 @pytest.mark.parametrize("model", ["razor-2p", "sinusoidal", "bspline"])
 def test_reuse_off_reports_times_and_no_analysis(model):
     report = _solve(_req(YAGI, model, {"pair_reuse": False}))["fill_report"]
@@ -82,6 +88,7 @@ def _served_engine(model):
     return engine
 
 
+@needs_report
 @pytest.mark.parametrize("model", ["razor-2p", "sinusoidal", "bspline"])
 def test_the_payload_agrees_with_the_solver(model):
     """The served numbers are the solver's own, through each engine."""
@@ -102,6 +109,7 @@ def test_the_payload_agrees_with_the_solver(model):
     assert grid["near"] == wires["near"]
 
 
+@needs_report
 def test_reading_the_report_runs_no_census(monkeypatch):
     """Reads add no census. The counter is proved live first: sinusoidal's
     census goes through `timed_census`, so a count of zero could not pass here
@@ -125,6 +133,7 @@ def test_reading_the_report_runs_no_census(monkeypatch):
     assert after == before
 
 
+@needs_report
 @pytest.mark.parametrize("model", ["razor-2p", "sinusoidal", "bspline"])
 def test_reuse_off_never_reads_the_wire_map(model, monkeypatch):
     """With reuse off the tally asks momwire for no wire map at all."""
@@ -158,6 +167,7 @@ def test_the_report_does_not_move_the_answer():
     assert z_plain == z_read
 
 
+@needs_report
 def test_a_cached_answer_says_so():
     req = _req(YAGI, "bspline", {"pair_reuse": True})
     with warnings.catch_warnings():
@@ -170,6 +180,7 @@ def test_a_cached_answer_says_so():
     assert again["fill_report"]["solved_at"] == first["fill_report"]["solved_at"]
 
 
+@needs_report
 def test_a_matrix_from_memory_reports_no_fill():
     req = _req("wire.edz", "bspline", {})
     assert _solve(req)["fill_report"]["no_fill"] is False
@@ -178,6 +189,7 @@ def test_a_matrix_from_memory_reports_no_fill():
     assert again["fills"] == 0 and again["route"] is None
 
 
+@needs_report
 def test_the_sector_route_reports_sectors_and_blocks():
     report = _solve(_screen())["fill_report"]
     assert report["route"] == "sector"
@@ -189,6 +201,7 @@ def test_the_sector_route_reports_sectors_and_blocks():
     assert roles == {"computed", "rotation"}
 
 
+@needs_report
 def test_a_refused_deck_reports_the_workbench_sentence():
     req = _req(YAGI, "bspline", {"rotational_symmetry": True})
     with pytest.raises(NotImplementedError) as caught:
@@ -199,6 +212,7 @@ def test_a_refused_deck_reports_the_workbench_sentence():
     assert "rotational_symmetry=True" not in report["sector"]["declined"]
 
 
+@needs_report
 def test_the_live_channel_carries_the_refusal_and_keeps_serving():
     """Through the real socket: the refusal arrives beside the error, and the
     next solve on the same socket still answers."""
@@ -223,6 +237,7 @@ def _sweep_closing(client, req):
     return [json.loads(line) for line in response.text.splitlines()][-1]
 
 
+@needs_report
 def test_a_sweep_closes_with_its_totals():
     freqs = [28.0, 28.2, 28.4, 28.6]
     req = {**_req(YAGI, "bspline", {"pair_reuse": True}), "freqs_mhz": freqs}
@@ -333,6 +348,25 @@ def test_wire_names_come_from_the_design_or_its_number():
         ((1.0, 1.0, 0.0), (0.0, 1.0, 0.0), None, 7),
     ]
     assert fr.polyline_names(polylines, authored) == ["driver", "tag 7", "wire 3"]
+
+
+@pytest.mark.skipif(HAVE_REPORT, reason="this momwire reports its fill")
+def test_at_the_recorded_pointer_nothing_is_sent():
+    """momwire 0.94.0: no report on a solve, a sweep's closing record or a
+    refusal, and the Fill view reads that the engine does not report."""
+    out = _solve(_req(YAGI, "bspline", {"pair_reuse": True}))
+    assert "fill_report" not in out
+    with TestClient(server.app) as client:
+        done = _sweep_closing(
+            client, {**_req(YAGI, "bspline", {}), "freqs_mhz": [28.0, 28.4]}
+        )
+    assert done["done"] is True and "fill_report" not in done
+    assert (
+        MomwireEngine(
+            adapter.REGISTRY[YAGI].builder_cls(), solver=momwire.BSplineSolver
+        ).fill_report()
+        is None
+    )
 
 
 def test_a_momwire_without_the_report_sends_none():
