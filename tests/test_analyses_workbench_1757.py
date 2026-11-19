@@ -171,9 +171,15 @@ def test_e1_convergence_runs_as_the_density_ladder(invvee):
     # not the server's: the list is served whole).
     assert w["engines"] == ["momwire:bspline", "momwire:razor-2p", "nec5"]
     assert w["grounds"] == ["finite:13,0.005"]
-    assert w["note"] is None
+    # The chart draws the first of its fill metrics (AK#2327) and says which
+    # it leaves to `analyze`.
+    assert w["note"] == (
+        "left out: the MetricPlot of 'fill time', 'factor time', 'fill share' "
+        "(the chart draws the first; `antennaknobs analyze` draws each)"
+    )
     # Its views, the Table among them since step 5 unit 5.
-    assert w["views"] == ["Rx", "Table", "Smith"]
+    assert w["views"] == ["Rx", "Table", "Smith", "Metric"]
+    assert w["metric"]["name"] == "fill compression"
 
 
 def test_the_tuning_map_runs_as_a_map(invvee):
@@ -296,8 +302,10 @@ def test_e3_values_equal_what_analyze_sweeps(monkeypatch, invvee, tmp_path):
 def test_e1_rungs_equal_what_analyze_sweeps(monkeypatch, invvee, tmp_path):
     calls = []
 
-    def fake_rows(builder, factory, rungs, knob="nominal_nsegs"):
+    def fake_rows(builder, factory, rungs, knob="nominal_nsegs", fills=None):
         calls.append((knob, list(rungs)))
+        if fills is not None:
+            fills.extend([None] * len(rungs))
         rows = [(n, 2 * n, complex(70 + 10 / n, -10 + 5 / n)) for n in rungs]
         return rows, [None] * len(rungs), 1
 
