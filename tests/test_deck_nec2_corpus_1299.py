@@ -304,7 +304,7 @@ def test_corpus_is_the_whole_reference_set():
     (``dipole_ld_after_xq``, ``dipole_ld_cleared_between_runs``) and
     momwire#1079 three ``RP`` decks settling the ``XNDA`` digits
     (``dipole_rp_xnda_1000/1002/1005``)."""
-    assert len(CORPUS) == 70
+    assert len(CORPUS) == 71
 
 
 # The corpus is 47 clean exported decks: measured, not one of them has an
