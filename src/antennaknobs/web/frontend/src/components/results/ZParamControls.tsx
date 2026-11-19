@@ -270,7 +270,7 @@ export function ZParamControls({
                 plot (AnalysisDetails). */}
             <AnalysisDetails
               entries={analyses?.entries ?? []}
-              notes={chartNotes(analyses?.entries ?? [], analyses?.current ?? null, [costHint])}
+              notes={chartNotes(analyses?.entries ?? [], analyses?.current ?? null, [costHint, analyses?.metricNote])}
               blocked={analyses?.blocked ?? (() => null)}
             />
           </>

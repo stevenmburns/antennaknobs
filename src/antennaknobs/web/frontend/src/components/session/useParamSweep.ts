@@ -216,13 +216,14 @@ export function useParamSweep({
     const controller = new AbortController();
     paramSweepAbortRef.current = controller;
 
-    const { param, values, label, metric } = paramSweepReq;
+    const { param, values, label, metric, metrics } = paramSweepReq;
     const hold = paramSweepReq.hold ?? null;
     const body = {
       ...buildRequest(),
       param,
       values,
       ...(metric !== undefined ? { metric } : {}),
+      ...(metrics !== undefined ? { metrics } : {}),
       // A held sweep (AK#1757 step 6): the server re-solves the hold's knobs
       // at every point, resolving the hold on this curve's own design.
       ...(hold ? { hold: hold.spec } : {}),
@@ -240,6 +241,9 @@ export function useParamSweep({
       z_re_extrap: null,
       z_im_extrap: null,
       ...(metric !== undefined ? { metric: [] } : {}),
+      ...(metrics !== undefined
+        ? { metrics: metrics.map(() => [] as (number | null)[]), metric_errors: metrics.map(() => null) }
+        : {}),
       ...(hold ? { held: Object.fromEntries(hold.knobs.map((k) => [k, [] as number[]])), gaps: [] } : {}),
     };
     const publish = () => {
@@ -248,6 +252,8 @@ export function useParamSweep({
         ...acc,
         values: acc.values.slice(),
         ...(acc.metric ? { metric: acc.metric.slice() } : {}),
+        ...(acc.metrics ? { metrics: acc.metrics.map((m) => m.slice()) } : {}),
+        ...(acc.metric_errors ? { metric_errors: acc.metric_errors.slice() } : {}),
         ...(acc.n_seg ? { n_seg: acc.n_seg.slice() } : {}),
         ...(acc.fed_seg_m ? { fed_seg_m: acc.fed_seg_m.slice() } : {}),
         z_re: acc.z_re.slice(),
@@ -390,6 +396,17 @@ export function useParamSweep({
           if (acc.metric) {
             acc.metric.push(Number.isFinite(pt.metric) ? pt.metric : null);
             if (typeof pt.metric_error === "string") acc.metric_error ??= pt.metric_error;
+          }
+          // Every picker metric off this point's one solve (AK#2327).
+          if (acc.metrics && acc.metric_errors) {
+            const vs = Array.isArray(pt.metrics) ? pt.metrics : [];
+            const ws = Array.isArray(pt.metric_errors) ? pt.metric_errors : [];
+            acc.metrics.forEach((row, j) => {
+              const v = vs[j];
+              row.push(typeof v === "number" && Number.isFinite(v) ? v : null);
+              const w = ws[j];
+              if (typeof w === "string") acc.metric_errors![j] ??= w;
+            });
           }
           // A held point's knobs, aligned with `values`.
           if (acc.held) {

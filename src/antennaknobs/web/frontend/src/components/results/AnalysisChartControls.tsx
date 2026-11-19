@@ -279,9 +279,20 @@ export type ChartViewPickProps = {
   /** A pattern's views (AK#1757 step 7), which name their own: the view
    *  id `pattern:<k>` is the k-th of these. */
   patternViews?: readonly PatternViewSpec[];
+  /** The Metric view's metrics (AK#1828, AK#2327): the view is named by the
+   *  one it draws, and with several each is an entry of its own, the view
+   *  id staying "Metric". */
+  metricPick?: {
+    labels: readonly string[];
+    picked: number;
+    onPick: (index: number) => void;
+  } | null;
 };
 
-export function ChartViewPick({ views, view, onView, measured, patternViews }: ChartViewPickProps) {
+// A metric's entry in the view select: "Metric" and its index.
+const METRIC_OPTION = "Metric\u0001";
+
+export function ChartViewPick({ views, view, onView, measured, patternViews, metricPick }: ChartViewPickProps) {
   const label = (v: ChartView): string => {
     if (v.startsWith("pattern:")) {
       const spec = patternViews?.[Number(v.slice("pattern:".length))];
@@ -291,23 +302,42 @@ export function ChartViewPick({ views, view, onView, measured, patternViews }: C
       const words = patternViewLabel(spec);
       return words === "Table" && views.includes("Table") ? "Pattern table" : words;
     }
+    if (v === "Metric" && metricPick && metricPick.labels.length > 0) {
+      return metricPick.labels[metricPick.picked] ?? metricPick.labels[0];
+    }
     return VIEW_LABEL[v] ?? v;
+  };
+  // The Metric view as one entry per metric when the analysis declares
+  // several (AK#2327): picking one is the Metric view drawing it.
+  const several = !!metricPick && metricPick.labels.length > 1;
+  const value = several && view === "Metric" ? `${METRIC_OPTION}${metricPick!.picked}` : view;
+  const pick = (raw: string) => {
+    if (several && raw.startsWith(METRIC_OPTION)) {
+      metricPick!.onPick(Number(raw.slice(METRIC_OPTION.length)));
+      if (view !== "Metric") onView("Metric");
+      return;
+    }
+    onView(raw as ChartView);
   };
   return (
     <>
-      {views.length > 1 && (
+      {(views.length > 1 || (metricPick?.labels.length ?? 0) > 1) && (
         <label>
           <span>view</span>
-          <select
-            aria-label="Chart view"
-            value={view}
-            onChange={(e) => onView(e.target.value as ChartView)}
-          >
-            {views.map((v) => (
-              <option key={v} value={v}>
-                {label(v)}
-              </option>
-            ))}
+          <select aria-label="Chart view" value={value} onChange={(e) => pick(e.target.value)}>
+            {views.flatMap((v) =>
+              v === "Metric" && several
+                ? metricPick!.labels.map((l, k) => (
+                    <option key={`${METRIC_OPTION}${k}`} value={`${METRIC_OPTION}${k}`}>
+                      {l}
+                    </option>
+                  ))
+                : [
+                    <option key={v} value={v}>
+                      {label(v)}
+                    </option>,
+                  ],
+            )}
           </select>
         </label>
       )}

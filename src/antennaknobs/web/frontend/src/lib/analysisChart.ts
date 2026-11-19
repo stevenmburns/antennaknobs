@@ -365,6 +365,9 @@ export type AnalysisChartState = {
     /** A knob analysis's MetricPlot (AK#1828): what its "Metric" view
      *  draws and its sweep reads off each point. */
     metric?: MetricSpec | null;
+    /** Every MetricPlot it declares, when it declares several (AK#2327):
+     *  the metric picker's choices, `metric` the first. */
+    metrics?: MetricSpec[];
   } | null;
   /** The dwell switch: re-run after the knobs settle. Null until the viewer
    *  flips it, and then the kind's default (`chartDwell`). */
@@ -381,6 +384,9 @@ export type AnalysisChartState = {
      *  plain knob sweep. It runs for as long as the chart runs that pick
      *  (`chartHold`). */
     hold?: HoldRun | null;
+    /** The metric picker's choice (AK#2327), by the metric's name; absent
+     *  or null: the analysis's first. */
+    metric?: string | null;
   };
   /** Null only while the chart has never held a frequency sweep, which a new
    *  chart always has (initialChart). */
@@ -559,11 +565,35 @@ export function chartView(c: AnalysisChartState): ChartView {
   return c.frequency?.view ?? "Smith";
 }
 
-/** The MetricPlot the chart draws (AK#1828): the picked knob analysis's,
- *  while the chart still runs it; null otherwise. */
+/** The MetricPlots the chart can draw (AK#1828, AK#2327): the picked knob
+ *  analysis's, while the chart still runs it; none otherwise. */
+export function chartMetrics(c: AnalysisChartState): MetricSpec[] {
+  if (c.kind !== "knob" || pickedName(c) === null) return [];
+  const p = c.picked;
+  if (p?.metrics && p.metrics.length > 0) return p.metrics;
+  return p?.metric ? [p.metric] : [];
+}
+
+/** The MetricPlot the chart draws: the one its metric picker holds
+ *  (`knob.metric`, by name), else the first; null with none to draw. A name
+ *  the analysis does not declare (another pick, a link's unknown id) is the
+ *  first. */
 export function chartMetric(c: AnalysisChartState): MetricSpec | null {
-  if (c.kind !== "knob" || pickedName(c) === null) return null;
-  return c.picked?.metric ?? null;
+  const all = chartMetrics(c);
+  return all.find((m) => m.name === c.knob.metric) ?? all[0] ?? null;
+}
+
+/** The index of the metric drawn among `chartMetrics`, or -1 with none. */
+export function chartMetricIndex(c: AnalysisChartState): number {
+  const m = chartMetric(c);
+  return m === null ? -1 : chartMetrics(c).indexOf(m);
+}
+
+/** The chart drawing another of its analysis's metrics (the picker,
+ *  AK#2327). Kept across view switches, reruns and picks: a pick that does
+ *  not declare it draws its first. */
+export function setChartMetric(c: AnalysisChartState, name: string): AnalysisChartState {
+  return { ...c, knob: { ...c.knob, metric: name } };
 }
 
 const patternViewId = (k: number): PatternViewId => `pattern:${k}`;
@@ -625,6 +655,7 @@ export function pickKnob(
   views?: readonly KnobView[],
   metric?: MetricSpec | null,
   hold?: HoldRun | null,
+  metrics?: readonly MetricSpec[],
 ): AnalysisChartState {
   const held = name === null ? null : (hold ?? null);
   // The metric view only with a metric to draw (AK#1828), the Knobs view
@@ -645,7 +676,13 @@ export function pickKnob(
     picked:
       name === null
         ? null
-        : { name, kind: "knob", spec, ...(metric ? { metric } : {}) },
+        : {
+            name,
+            kind: "knob",
+            spec,
+            ...(metric ? { metric } : {}),
+            ...(metric && metrics && metrics.length > 1 ? { metrics: [...metrics] } : {}),
+          },
     knob: { ...c.knob, spec, xLog: null, view, hold: held },
   };
 }
@@ -870,8 +907,13 @@ export function chartRunInputs(
         label: env.label,
         auto: dwell,
         // Read off every point while the chart can show it (AK#1828), so
-        // flipping to the Metric view needs no second sweep.
-        ...(metric ? { metric: metric.spec } : {}),
+        // flipping to the Metric view needs no second sweep; with several,
+        // all of them (AK#2327), so the picker needs none either.
+        ...(chartMetrics(c).length > 1
+          ? { metrics: chartMetrics(c).map((m) => m.spec) }
+          : metric
+            ? { metric: metric.spec }
+            : {}),
         // A held pick's hold rides with every curve's request (step 6).
         ...(chartHold(c) ? { hold: chartHold(c) } : {}),
       },

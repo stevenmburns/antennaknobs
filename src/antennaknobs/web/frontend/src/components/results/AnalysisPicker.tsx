@@ -32,6 +32,9 @@ export type AnalysisPickerProps = {
    *  that no analysis names. Omitted, no entry (a design with no knob). */
   onSweepKnob?: () => void;
   sweepingKnob?: boolean;
+  /** The chart's own note on its metrics (AK#2327): the ones its picker is
+   *  not drawing. */
+  metricNote?: string | null;
 };
 
 // Option values for what is not an analysis: an analysis is named by its
