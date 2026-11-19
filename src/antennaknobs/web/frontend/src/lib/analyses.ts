@@ -73,6 +73,9 @@ export type KnobWorkbench = {
   views?: KnobView[];
   /** Its MetricPlot, when it has one (AK#1828). */
   metric?: MetricSpec | null;
+  /** Every MetricPlot the analysis declares, in order (the chart's metric
+   *  picker), the first being `metric`. Absent from an older server. */
+  metrics?: MetricSpec[];
   /** The hold at every point (step 6), or absent / null: none. */
   hold?: HoldRun | null;
   note: string | null;
@@ -342,6 +345,21 @@ function parseDesign(d: Record<string, unknown>): DesignCross | null {
 }
 
 /** A served MetricPlot, else null. */
+/** What the chart calls a metric where it names it (the view picker, AK#2327):
+ *  its own name, capitalised, as "Metric" alone named nothing. */
+export function metricLabel(m: MetricSpec): string {
+  return m.name ? m.name.charAt(0).toUpperCase() + m.name.slice(1) : "Metric";
+}
+
+/** The chart note naming the metrics it does not draw (one at a time, the
+ *  one its picker holds), or null when it draws the only one. */
+export function metricNote(metrics: readonly MetricSpec[], drawn: MetricSpec | null): string | null {
+  const rest = metrics.filter((m) => m !== drawn);
+  if (metrics.length < 2 || rest.length === 0) return null;
+  const names = rest.map((m) => `'${m.name}'`).join(", ");
+  return `left out: the MetricPlot of ${names} (the chart draws the one picked beside its view; \`antennaknobs analyze\` draws each)`;
+}
+
 export function parseMetric(v: unknown): MetricSpec | null {
   if (!v || typeof v !== "object") return null;
   const o = v as Record<string, unknown>;
@@ -631,6 +649,9 @@ function parseWorkbench(w: unknown): AnalysisWorkbench | null {
         )
       : [];
     const metric = parseMetric(o.metric);
+    const metrics = Array.isArray(o.metrics)
+      ? o.metrics.map(parseMetric).filter((m): m is MetricSpec => m !== null)
+      : [];
     // A Metric view with no metric served has nothing to draw.
     const drawn = metric ? views : views.filter((v) => v !== "Metric");
     return {
@@ -641,6 +662,7 @@ function parseWorkbench(w: unknown): AnalysisWorkbench | null {
       log: o.log === true,
       ...(drawn.length > 0 ? { views: drawn } : {}),
       ...(metric ? { metric } : {}),
+      ...(metric && metrics.length > 1 ? { metrics } : {}),
       ...(hold ? { hold } : {}),
       ...parseListed(o),
       note,

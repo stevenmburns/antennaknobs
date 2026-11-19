@@ -216,6 +216,8 @@ import {
   entryLabel,
   type Listed,
   listRange,
+  metricLabel,
+  metricNote,
 } from "../../lib/analyses";
 import {
   analysesText,
@@ -254,6 +256,8 @@ import {
   chartLinkCut,
   chartListed,
   chartMetric,
+  chartMetricIndex,
+  chartMetrics,
   chartPatternView,
   chartRunInputs,
   chartView,
@@ -281,6 +285,7 @@ import {
   editMapAxis,
   restoreMapAxes,
   setChartCut,
+  setChartMetric,
   setChartView,
   withListed,
 } from "../../lib/analysisChart";
@@ -289,6 +294,7 @@ import {
   defaultKnobSpec,
   DENSITY,
   paramValues as paramLadder,
+  projectMetric,
   type ParamSweepSpec,
   type RxAxisChoice,
   sameSpec,
@@ -3223,7 +3229,7 @@ function DesignSessionBody({
     // A held analysis (step 6) carries its hold onto the chart: every curve
     // re-solves the hold's knobs at each point, on Run.
     const picked = pickCross(
-      pickKnob(m.state, entry.name, next, w.views, w.metric, w.hold ?? null),
+      pickKnob(m.state, entry.name, next, w.views, w.metric, w.hold ?? null, w.metrics),
       w,
     );
     start("param", picked, m.state.kind === "knob" && sameSpec(next, m.spec));
@@ -3771,7 +3777,12 @@ function DesignSessionBody({
       if (!r.ok) {
         linkProblem(r.problem);
       } else {
-        setChartAt(0, (c) => setChartView(c, r.value));
+        setChartAt(0, (c) => {
+          const viewed = setChartView(c, r.value);
+          // The metric the link names (AK#2327); one the analysis does not
+          // declare is its first (`chartMetric`).
+          return deepLink.metric ? setChartMetric(viewed, deepLink.metric) : viewed;
+        });
       }
       // A cut angle is a family's alone (AK#1950): an analysis's views are
       // its own.
@@ -3819,6 +3830,8 @@ function DesignSessionBody({
           }
         : null,
     view: m ? chartView(m.state) : null,
+    // The metric the Metric view draws, where it is not the first (AK#2327).
+    metric: m && chartMetricIndex(m.state) > 0 ? (chartMetric(m.state)?.name ?? null) : null,
     // The family's cut angle, where it is not the view's own (AK#1950).
     cut: m ? chartLinkCut(m.state) : null,
   });
@@ -4643,6 +4656,11 @@ function DesignSessionBody({
     const i = m.i;
     const runners = runnersOf(m);
     const own = runners[0] ?? null;
+    // The metric the chart draws among several (AK#2327): each sweep read
+    // them all, and is drawn as that one (`projectMetric`).
+    const metricAt = chartMetricIndex(m.now);
+    const sweepData = (r: (typeof runners)[number] | undefined) =>
+      projectMetric(r?.param.data ?? null, metricAt);
     const ctl = chartControl(i);
     const setAt = (f: (c: AnalysisChartState) => AnalysisChartState) => setChartAt(i, f);
     const pickedNow = pickedNameOf(m);
@@ -4667,6 +4685,8 @@ function DesignSessionBody({
       ...(zparamKnobs.length > 0 ? { onSweepKnob: () => sweepKnob(knobToSweep(m), i) } : {}),
       // A knob's family of patterns (AK#1935) is still "Sweep a knob".
       sweepingKnob: (m.state.kind === "knob" || chartFamily(m.state)) && pickedNow === null && !m.isDensity,
+      // The metrics the chart is not drawing (AK#2327).
+      metricNote: metricNote(chartMetrics(m.state), chartMetric(m.state)),
     };
     // A tick is asking for the curves it adds or moves: arm the runners
     // whose cell changes, and only those, so an unchanged curve neither
@@ -4955,7 +4975,7 @@ function DesignSessionBody({
       stale: freqState ? r.freq.stale || runStale : !!r.param.data?.stale,
       paramSweep:
         m.state.kind === "knob" && r.param.data?.param === m.runs[k + 1].param.req.param
-          ? r.param.data
+          ? sweepData(r)
           : null,
     }));
     // Every cell by name, in the cross's order; a refused one with why.
@@ -5041,6 +5061,19 @@ function DesignSessionBody({
       views: chartViews(m.state),
       view: chartView(m.state),
       onView: (v: ChartView) => onChartView(v),
+      // The Metric view named by its metric, and with several, each its own
+      // entry (AK#2327).
+      metricPick:
+        chartMetrics(m.state).length > 0
+          ? {
+              labels: chartMetrics(m.state).map(metricLabel),
+              picked: Math.max(0, chartMetricIndex(m.state)),
+              onPick: (k: number) => {
+                const pickedMetric = chartMetrics(m.state)[k];
+                if (pickedMetric) setAt((c) => setChartMetric(c, pickedMetric.name));
+              },
+            }
+          : null,
       // A knob chart offers its family's pattern views (AK#1935) before it
       // holds any pattern of its own.
       ...(m.state.pattern && m.state.kind === "pattern"
@@ -5369,7 +5402,7 @@ function DesignSessionBody({
     );
     // The chart's sweep advisory and refusal: over the stage's lower-left on
     // a phone, over the plot's (above the readout) on a desktop.
-    const p0data = p0?.data ?? null;
+    const p0data = projectMetric(p0?.data ?? null, metricAt);
     // A pattern cell the poor-match gate withheld (the server's 403, as for
     // a sweep): its words, and the approval that re-runs it.
     const withheld = isPattern
@@ -5465,7 +5498,7 @@ function DesignSessionBody({
             ...(c.step !== undefined ? { step: c.step } : {}),
           };
         }),
-        m.drawn.map((_, k) => runners[k]?.param.data ?? null),
+        m.drawn.map((_, k) => sweepData(runners[k])),
         metricSpec.relativeTo !== null,
       ),
     };

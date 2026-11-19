@@ -62,6 +62,10 @@ export type ParamSweepRequest = {
   /** A metric to read off each point's solve (AK#1828), as /analyses
    *  served it (`an.to_data`), for a MetricPlot chart; absent: none. */
   metric?: unknown;
+  /** Several metrics instead (the chart's metric picker, AK#2327): every
+   *  MetricPlot the analysis declares, read off each point's one solve, so a
+   *  pick draws another without a second sweep. */
+  metrics?: unknown[];
   /** A held sweep (AK#1757 step 6): the optimizer re-solves these knobs at
    *  every point, on the server, as `antennaknobs analyze` does. Absent or
    *  null: a plain knob sweep. */
@@ -95,6 +99,11 @@ export type ParamSweepData = {
    *  the request asked for none. */
   metric?: (number | null)[];
   metric_error?: string;
+  /** With `metrics` asked for: each metric's values at each point, and the
+   *  first reason each could not be read (null: none), in the request's
+   *  order. `projectMetric` turns one of them into `metric`. */
+  metrics?: (number | null)[][];
+  metric_errors?: (string | null)[];
   z_re_extrap: number | null;
   z_im_extrap: number | null;
   z_extrap_p?: number | null;
@@ -487,4 +496,17 @@ export const TRACE_DOT_R_SMALL = 1.2;
 export function traceDotRadius(isMobile: boolean, nCurves: number): number {
   if (isMobile) return 0;
   return nCurves >= 3 ? TRACE_DOT_R_SMALL : TRACE_DOT_R;
+}
+
+/** `d` as the chart draws metric `index` of several (the metric picker,
+ *  AK#2327): that metric's values as `metric`, its reason as `metric_error`.
+ *  A sweep that read one metric, or none, comes back as it is. */
+export function projectMetric(d: ParamSweepData | null, index: number): ParamSweepData | null {
+  if (!d || !d.metrics) return d;
+  const values = d.metrics[index] ?? d.values.map(() => null);
+  const why = d.metric_errors?.[index] ?? null;
+  const out: ParamSweepData = { ...d, metric: values };
+  if (why === null) delete out.metric_error;
+  else out.metric_error = why;
+  return out;
 }

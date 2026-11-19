@@ -4,6 +4,9 @@
 //   ?design=<family.design>[:<variant>]   the design, and optionally its variant
 //   &analysis=<name>                      the chart's analysis (own or a study)
 //   &view=<view id>                       the chart's view (Rx, Knobs, Smith, …)
+//   &metric=<name>                        beside view=Metric, the metric its
+//                                         picker draws (AK#2327), by name;
+//                                         absent or unknown, the first
 //   &family=<knob>:<from>:<to>:<points>[:log]
 //                                         a pattern family's knob and range
 //                                         (AK#1935), beside a pattern `view`
@@ -341,6 +344,8 @@ export type DeepLink = {
   variant: string | null;
   analysis: string | null;
   view: string | null;
+  /** The metric a Metric view draws, by name (AK#2327); null: the first. */
+  metric?: string | null;
   run: boolean;
   /** An opened deck the link carries (`deck` + `name`); the shell opens it
    *  and sets `design` to its key before the session reads the link. */
@@ -371,6 +376,7 @@ export const LINK_PARAMS = [
   "design",
   "analysis",
   "view",
+  "metric",
   "run",
   "deck",
   "name",
@@ -424,6 +430,7 @@ export function parseDeepLink(search: string): DeepLink | null {
     variant,
     analysis: param(q, "analysis"),
     view: param(q, "view"),
+    ...(param(q, "metric") !== null ? { metric: param(q, "metric") } : {}),
     run: q.get("run") === "1",
     ...(family ? { family } : {}),
     ...(rawFamily !== null && family === null
@@ -565,6 +572,9 @@ export type LinkState = {
   variant: string | null;
   analysis: string | null;
   view: string | null;
+  /** The metric the Metric view draws, written only where it is not the
+   *  analysis's first (AK#2327). */
+  metric?: string | null;
   /** The opened deck the design is, when it is one: the link carries it in
    *  place of the design's key, when it fits (`decks.shareable`). */
   deck?: DeckPayload | null;
@@ -612,6 +622,7 @@ export function linkSearch(search: string, state: LinkState): string {
   if (state.analysis) {
     q.set("analysis", state.analysis);
     if (state.view) q.set("view", state.view);
+    if (state.view === "Metric" && state.metric) q.set("metric", state.metric);
   } else if (state.family) {
     q.set("family", familyParam(state.family));
     if (state.view) q.set("view", state.view);

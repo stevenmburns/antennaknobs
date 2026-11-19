@@ -49,7 +49,20 @@ function valueAt(s: MetricSeries, x: number): number | null {
   return i >= 0 ? (s.ys[i] ?? null) : null;
 }
 
-const formatValue = (v: number | null) => (v === null ? "—" : v.toFixed(2).replace("-", "−"));
+// Two decimals, as a gain reads; a value below 0.1 (a fill time in seconds,
+// AK#2327) keeps three significant figures, where two decimals read 0.00.
+const formatValue = (v: number | null) =>
+  v === null
+    ? "—"
+    : (v !== 0 && Math.abs(v) < 0.1 ? v.toPrecision(3) : v.toFixed(2)).replace("-", "−");
+
+/** A y tick to the decimals its step needs: ticks 0.002 apart read 0.002,
+ *  0.004, not 0, 0 (the shared `formatTick` rounds to two decimals). */
+function formatYTick(t: number, step: number): string {
+  if (!(step > 0) || step >= 0.01) return formatTick(t);
+  const decimals = Math.min(8, Math.ceil(-Math.log10(step)));
+  return String(Number(t.toFixed(decimals)));
+}
 
 export function MetricPlotChart({
   metric,
@@ -164,7 +177,7 @@ export function MetricPlotChart({
         <g className="metric-plot-ticks">
           {yt.map((t) => (
             <text key={`y${t}`} x={M.l - 6} y={y(t)} textAnchor="end" dominantBaseline="middle">
-              {formatTick(t)}
+              {formatYTick(t, yt.length > 1 ? Math.abs(yt[1] - yt[0]) : 0)}
             </text>
           ))}
           {xt.map((t) => (
