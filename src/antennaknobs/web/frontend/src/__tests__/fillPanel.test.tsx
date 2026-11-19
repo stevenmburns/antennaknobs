@@ -200,3 +200,27 @@ describe("the map without colour", () => {
     expect(screen.getByRole("table", { name: "Pairs per wire block" })).toBeTruthy();
   });
 });
+
+describe("a large map", () => {
+  it("draws 32 × 32 grouped blocks as three marks, not a node per cell", () => {
+    const n = 32;
+    const grid = Array.from({ length: n }, () => Array.from({ length: n }, () => 7));
+    const big: FillReuseMap = {
+      kind: "reuse",
+      rows: Array.from({ length: n }, (_, i) => ({
+        label: `wire ${i * 13 + 1} – wire ${i * 13 + 13}`,
+        first: i * 13,
+        last: i * 13 + 12,
+        wires: 13,
+        segments: 117,
+      })),
+      computed: grid,
+      reused: grid,
+      near: grid,
+    };
+    const { container } = show(report({ map: big }));
+    expect(container.querySelectorAll(".fill-grid path")).toHaveLength(3);
+    expect(container.querySelectorAll(".fill-grid rect").length).toBeLessThan(10);
+    expect(screen.getByText(/Wires are grouped/)).toBeTruthy();
+  });
+});
