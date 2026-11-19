@@ -31,6 +31,7 @@ from ..engine import (
     placement_note,
     vertex_only_names,
 )
+from ..fill_report import FillTally, polyline_names, reads_fill_report
 from ..geometry import flat_wires_to_polylines
 from ..network import (
     PortAtEnd,
@@ -1717,6 +1718,8 @@ class MomwireEngine(SimulationEngine):
             else None
         )
         self._named_wires = [as_wire(t).name for t in tups]
+        self._fill_tally = FillTally()
+        self._fill_authored = self._authored_wire_names(tups)
         translated = flat_wires_to_polylines(
             tups,
             gap_ports=gap_ports,
@@ -2626,14 +2629,48 @@ class MomwireEngine(SimulationEngine):
         tee-junction antennas correctly (one LU + N back-subs per Y).
         Distributed ports solve at sub-feed granularity and contract back
         to one row/column per port (issue #477)."""
-        return self._contract_y(
-            np.asarray(
-                self._make_solver(
-                    wavelength=wavelength, share_z=True
-                ).compute_y_matrix(),
-                dtype=np.complex128,
-            )
+        solver = self._make_solver(wavelength=wavelength, share_z=True)
+        y = np.asarray(solver.compute_y_matrix(), dtype=np.complex128)
+        self._note_fill(solver)
+        return self._contract_y(y)
+
+    def _authored_wire_names(self, tups):
+        """The design's wires as ``(p0, p1, name, tag)``, for the fill report
+        to name what it solved (AK#2327): only those carrying a name or an
+        opened deck's GW tag, so a plain design keeps nothing."""
+        deck = getattr(getattr(self, "builder", None), "file_deck_parsed", None)
+        deck_wires = getattr(deck, "wires", None)
+        tags = (
+            [w.tag for w in deck_wires]
+            if deck_wires is not None and len(deck_wires) == len(tups)
+            else [None] * len(tups)
         )
+        wires = [as_wire(t) for t in tups]
+        return [
+            (w.p0, w.p1, w.name, tag)
+            for w, tag in zip(wires, tags, strict=True)
+            if w.name or tag is not None
+        ]
+
+    def _note_fill(self, solver):
+        """Add a finished solver to this request's fill report (AK#2327). A
+        read of what the solver already recorded: it runs no census. A momwire
+        without `fill_report` leaves the report empty."""
+        if not reads_fill_report(type(solver)):
+            return
+        self._fill_tally.note(solver, len(self._polylines), self._fill_wire_facts)
+
+    def _fill_wire_facts(self):
+        """Each solved wire's display name and segment count."""
+        return (
+            polyline_names(self._polylines, self._fill_authored),
+            [int(sum(edges)) for edges in self._edge_segments],
+        )
+
+    def fill_report(self):
+        """This engine's fills as the workbench's payload
+        (`antennaknobs.fill_report`), or None when no solver reported."""
+        return self._fill_tally.payload(reuse_asked=self._pair_reuse)
 
     def _solved_excited(self, wavelength):
         """Build the excitation-resolved solver and run compute_impedance
@@ -2672,9 +2709,11 @@ class MomwireEngine(SimulationEngine):
             z = np.full(sol.n_ports, complex(np.nan, np.nan))
             z = z[0] if sol.n_ports == 1 else z
             self._solved_cache = (key, (sim, coeffs, z))
+            self._note_fill(sim)
         else:
             z, coeffs = sim.compute_impedance()
             self._solved_cache = (key, (sim, coeffs, z))
+            self._note_fill(sim)
         # _make_excited_solver reset the power bookkeeping either way, so
         # the wire-loss amendment below is applied exactly once per call.
         self._amend_wire_loss(sim, coeffs, z)
@@ -2903,6 +2942,7 @@ class MomwireEngine(SimulationEngine):
                     where=f" at {freq:.6g} MHz",
                 )
                 zs[ki] = np.nan if z is None else z
+            self._note_fill(s)
             return zs
         if self._tls:
             # Batched Y at every frequency, then per-k TL stamping (βL is
@@ -2921,8 +2961,10 @@ class MomwireEngine(SimulationEngine):
             for ki, freq in enumerate(freqs):
                 Y_total = self._apply_tls(Y_swept[ki], self._wavelength_for(freq))
                 zs[ki] = self._impedance_from_y(Y_total)
+            self._note_fill(s)
             return zs
         zs = s.compute_impedance_swept(k_array)
+        self._note_fill(s)
         # Single-feed: (n_k,); multi-feed: (n_k, n_feeds). Normalise to
         # (n_k, n_feeds) to match PyNECEngine.
         zs = np.asarray(zs)

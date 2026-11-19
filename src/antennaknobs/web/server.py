@@ -50,6 +50,7 @@ from fastapi.staticfiles import StaticFiles
 from starlette.websockets import WebSocketState
 from threadpoolctl import threadpool_limits
 
+from antennaknobs.fill_report import merge_sweep
 from antennaknobs.engines.momwire import terrain_utd_power
 from antennaknobs.terrain import Facet, Sector, Terrain, specular_cut
 from antennaknobs import in_medium
@@ -2661,6 +2662,10 @@ def solve(req: dict, cancel=None) -> dict:
         # tick first populated this cache entry.
         out["solve_ms"] = (time.perf_counter() - t0) * 1e3
         out["cache_hit"] = True
+        # The report still describes the solve that filled this entry, and
+        # says so: nothing was filled for this response (AK#2327).
+        if "fill_report" in out:
+            out["fill_report"]["source"] = "cached"
         # AK#1735: z0_ohms is out of the key, so the entry carries whichever
         # reference first filled it. The request's own (or the design's) is
         # the one this response speaks for.
@@ -2799,6 +2804,7 @@ async def sweep_endpoint(req: dict, request: Request):
             yield json.dumps({"done": True, "solver": solver_name}) + "\n"
             return
         clock = _SweepClock()
+        sweep_fill = None
 
         if use_pynec:
             # Per-point loop with disconnect check; lets us bail before the
@@ -2898,6 +2904,7 @@ async def sweep_endpoint(req: dict, request: Request):
             # points allow; a catalog design starts at an eighth.
             chunk_size = 1 if _decks.is_deck(geometry) else max(1, len(freqs) // 8)
             start = 0
+            points_solved = 0
             while start < len(freqs):
                 if await request.is_disconnected():
                     return
@@ -2951,6 +2958,10 @@ async def sweep_endpoint(req: dict, request: Request):
                     # per-feed Z appended. Everything else stays on the
                     # original 2-tuple shape; the legacy z_re / z_im fields
                     # always carry the primary feed for back-compat.
+                    sweep_fill = merge_sweep(
+                        sweep_fill, getattr(sweep_result, "fill_report", None)
+                    )
+                    points_solved += len(pending)
                     if len(sweep_result) == 4:
                         z_re, z_im, feeds_re_chunk, feeds_im_chunk = sweep_result
                     else:
@@ -2977,8 +2988,12 @@ async def sweep_endpoint(req: dict, request: Request):
                 for f in chunk:
                     yield json.dumps(_sweep_record(f, known[f], solver_name)) + "\n"
                 start += len(chunk)
+            if sweep_fill is not None:
+                sweep_fill["points_cached"] = start - points_solved
 
         done = clock.label({"done": True, "solver": solver_name})
+        if sweep_fill is not None:
+            done["fill_report"] = sweep_fill
         if sweep_advisories:
             done["advisories"] = sweep_advisories
         yield json.dumps(done) + "\n"
@@ -5977,6 +5992,11 @@ async def ws_endpoint(ws: WebSocket):
                 if isinstance(exc, _decks.DeckError):
                     # busy / budget / missing / refused: the client words it.
                     result["deck_status"] = exc.deck_status
+                # A deck the sector route refused has no solve to report on:
+                # the Fill view reads the refusal from here (AK#2327).
+                from .adapter import fill_refusal_of
+
+                result.update(fill_refusal_of(exc))
             # Echo the sequence number on EVERY response, error path included —
             # the client keys ordering, RTT accounting, and solving-state off it,
             # and a stuck request would leave `solving` true forever if any path
