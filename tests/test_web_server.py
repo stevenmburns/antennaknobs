@@ -37,6 +37,11 @@ from antennaknobs.web.progress_stream import ProgressStream, ProgressStreamClose
 # ---------------------------------------------------------------------------
 
 
+# Whether the installed momwire reports its fill (AK#2327): a live probe, so the
+# sweep tests hold at the recorded pointer and in dev mode alike.
+_REPORTS_FILL = callable(getattr(momwire.BSplineSolver, "fill_report", None))
+
+
 @pytest.fixture(scope="module")
 def client() -> TestClient:
     return TestClient(server.app)
@@ -1430,6 +1435,11 @@ def test_sweep_endpoint_streams_one_record_per_freq_then_done(client: TestClient
     recs = _ndjson_records(r.text)
     assert len(recs) == len(freqs) + 1
     *points, terminator = recs
+    # The closing record carries the sweep's fill report where the installed
+    # momwire reports its fill (AK#2327), and no such key where it does not.
+    report = terminator.pop("fill_report", None)
+    assert (report is not None) is _REPORTS_FILL
+    assert report is None or report["scope"] == "sweep"
     assert terminator == {"done": True, "solver": "momwire"}
     for f, rec in zip(freqs, points, strict=True):
         assert rec["freq_mhz"] == f
@@ -2065,6 +2075,11 @@ def test_sweep_endpoint_streams_feeds_z_for_multi_feed_geometry(client: TestClie
     assert r.status_code == 200
     recs = _ndjson_records(r.text)
     *points, terminator = recs
+    # The closing record carries the sweep's fill report where the installed
+    # momwire reports its fill (AK#2327), and no such key where it does not.
+    report = terminator.pop("fill_report", None)
+    assert (report is not None) is _REPORTS_FILL
+    assert report is None or report["scope"] == "sweep"
     assert terminator == {"done": True, "solver": "momwire"}
     for rec in points:
         assert "feeds_z_re" in rec

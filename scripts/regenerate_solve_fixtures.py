@@ -231,7 +231,13 @@ def solve_design(spec: dict[str, Any]) -> dict:
     from antennaknobs.web import server
 
     req = {"geometry": spec["geometry"], **spec["request"]}
-    return server.solve(req)
+    out = server.solve(req)
+    # The fill report (AK#2327) is there only where the installed momwire
+    # reports its fill, which the recorded pointer's does not. Left out, the
+    # fixtures are the same whichever momwire wrote them; the report's own
+    # shape is pinned by tests/test_fill_report_2327.py.
+    out.pop("fill_report", None)
+    return out
 
 
 def render_fixtures() -> tuple[dict[str, dict[str, str]], str]:

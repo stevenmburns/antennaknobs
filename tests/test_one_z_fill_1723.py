@@ -116,11 +116,13 @@ def _engine(cls, params, freq, req=None):
 
 
 def _numeric_equal(a, b, path="out"):
-    """Exact equality over a solve's output, timing excluded."""
+    """Exact equality over a solve's output, timing excluded. The fill report
+    (AK#2327) is excluded too: it describes how the answer was produced, and
+    the unshared solve filled four times where the shared one filled once."""
     if isinstance(a, dict):
         assert set(a) == set(b), path
         for k in a:
-            if not k.endswith("_ms"):
+            if not k.endswith("_ms") and k != "fill_report":
                 _numeric_equal(a[k], b[k], f"{path}.{k}")
     elif isinstance(a, (list, tuple)):
         assert len(a) == len(b), path
