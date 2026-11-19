@@ -1,3 +1,4 @@
+import type { FillReport } from "../../lib/fillReport";
 import { getPatternScale } from "../../lib/patternScale";
 import { maxBearingDeg } from "../../lib/peakLobes";
 import {
@@ -1129,6 +1130,9 @@ function DesignSessionBody({
   // selection now (the builder isn't run at registration), so this banner is
   // where they surface. Cleared on every antenna switch.
   const [solveError, setSolveError] = useState<string | null>(null);
+  // A deck the sector route refused (AK#2327): the Fill view's only report
+  // of it, since a refused solve has no result to carry one.
+  const [fillRefusal, setFillRefusal] = useState<FillReport | null>(null);
   // Name of the geometry whose preview has landed (and seeded the backend).
   // Gates the first solve after an antenna switch: we want preview → seed
   // backend → solve, not preview racing the solve. Reset to null on every
@@ -2352,6 +2356,7 @@ function DesignSessionBody({
     previewSigRef,
     setResult: applyResult,
     setSolveError,
+    setFillRefusal,
   });
 
   // --- Pattern compare (pin / ghost overlay) --------------------------------
@@ -2682,6 +2687,7 @@ function DesignSessionBody({
     setResult(null);
     setPreview(null);
     setSolveError(null);
+    setFillRefusal(null);
     setPlane(null); // plane names belong to a design; never carry one over
     setPreviewReady(null); // close the solve gate until this antenna's preview lands
     setSolverWarning(false); // drop any combo warning from the prior design
@@ -5605,6 +5611,8 @@ function DesignSessionBody({
       schematicSvg={schematicSvg}
       schematicUnavailable={schematicUnavailable}
       files={files}
+      fillRefusal={fillRefusal}
+      sweepFill={primaryFreq.stale ? null : primaryFreq.fillReport}
     />
   );
   // `readout` is the floating solve readout when this is the rail's primary

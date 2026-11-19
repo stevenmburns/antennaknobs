@@ -1,3 +1,4 @@
+import type { FillReport } from "../../lib/fillReport";
 import { useEffect, useRef, useState, type MutableRefObject } from "react";
 import type { SolveRequest, SweepData } from "../../lib/api";
 import type { BackendEntry } from "../../lib/backends";
@@ -197,6 +198,8 @@ export type FreqSweepHandle = {
   settled: boolean;
   progress: SweepProgress | null;
   advisories: Advisory[];
+  /** What the base sweep's fills did (AK#2327); null until one closes. */
+  fillReport: FillReport | null;
   /** Drawn for inputs that have since changed (not-auto mode only). */
   stale: boolean;
   /** Why the last sweep failed (the server's refusal), until the next one
@@ -281,6 +284,9 @@ export function useFreqSweep({
   // inside it. Cleared with the sweep, so a stale note never outlives the
   // curve it was about.
   const [sweepAdvisories, setSweepAdvisories] = useState<Advisory[]>([]);
+  // The base sweep's fill report (AK#2327), cleared with the sweep like the
+  // advisories above, so it never outlives the curve it describes.
+  const [sweepFill, setSweepFill] = useState<FillReport | null>(null);
   const [sweepError, setSweepError] = useState<string | null>(null);
   const sweepTimerRef = useRef<number | null>(null);
   const sweepAbortRef = useRef<AbortController | null>(null);
@@ -361,6 +367,7 @@ export function useFreqSweep({
       if (drawnCellRef.current !== cell) {
         setSweep(null);
         setSweepAdvisories([]);
+    setSweepFill(null);
         drawnCellRef.current = cell;
       }
       // eslint-disable-next-line react-hooks/set-state-in-effect
@@ -384,6 +391,7 @@ export function useFreqSweep({
     setSweepRefining(false);
     setSweepProgress(null);
     setSweepAdvisories([]);
+    setSweepFill(null);
     setSweepError(null);
     // Paused (Live off) holds the engine (issue #612): an enabled sweep must
     // not keep solving while the user edits. Clearing above + returning here
@@ -559,6 +567,7 @@ export function useFreqSweep({
         // run against the same limit.
         timeStopped = closing.stopped === "time";
         setSweepAdvisories(closingAdvisories(closing));
+        setSweepFill(closing.fill_report ?? null);
       });
     } catch (e: unknown) {
       if (e instanceof DOMException && e.name === "AbortError") return;
@@ -718,6 +727,7 @@ export function useFreqSweep({
     setSweepRefining(false);
     setSweepProgress(null);
     setSweepAdvisories([]);
+    setSweepFill(null);
     setSweepError(null);
     void runSweep();
   }
@@ -753,6 +763,7 @@ export function useFreqSweep({
     setSweepSettled(true);
     setSweepProgress(null);
     setSweepAdvisories([]);
+    setSweepFill(null);
     setSweepError(null);
   }
 
@@ -771,6 +782,7 @@ export function useFreqSweep({
     settled: sweepSettled,
     progress: sweepProgress,
     advisories: sweepAdvisories,
+    fillReport: sweepFill,
     stale: sweepStale && sweep !== null,
     error: sweepError,
     runNow,

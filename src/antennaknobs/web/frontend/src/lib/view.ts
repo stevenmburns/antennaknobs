@@ -5,6 +5,7 @@ export type View =
   | "combined"
   | "schematic"
   | "files"
+  | "fill"
   | "zparam"
   | ChartCopyView;
 
@@ -131,6 +132,17 @@ export const VIEWS: ViewMeta[] = [
     label: "Files",
     defaultPinned: false,
     staleWhileOptimizing: false,
+    readoutStartsCollapsed: true,
+  },
+  // The Fill view (AK#2327): what the matrix fill of the solve on screen did.
+  // Stale while optimizing: it describes the pre-run solve, not the candidate
+  // being evaluated. Its readout starts minimized, as the card would cover the
+  // map.
+  {
+    id: "fill",
+    label: "Fill",
+    defaultPinned: false,
+    staleWhileOptimizing: true,
     readoutStartsCollapsed: true,
   },
 ];
