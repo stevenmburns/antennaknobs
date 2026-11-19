@@ -812,9 +812,21 @@ an.Analysis(
 in the analysis (`Rx`, `Swr`, `S11`, `Smith` or `Table`) the metric plot is
 `--fn` itself; beside one it is written as `<fn stem>-metrics<suffix>`.
 `--csv` adds `<cell> <metric> (unit)` and
-`<cell> <metric> vs <reference> (dB)` columns. On the workbench the chart has
-a **Metric** view, read off each point's own momwire solve. A frequency sweep's
-metric plot, and any engine but momwire, are `analyze`'s for now.
+`<cell> <metric> vs <reference> (dB)` columns. On the workbench each metric
+plot is a view of the chart, named by its metric and read off each point's own
+momwire solve. A frequency sweep's metric plot, and any engine but momwire, are
+`analyze`'s for now.
+
+**The fill, on the density ladder.** `an.convergence()` carries four fill
+metrics, `an.FILL_METRICS`, each `an.MetricPlot(an.FillMetric(quantity))`:
+`"compression"` (pairs ÷ (computed + near), how far the matrix compressed, not
+the time saved), `"fill_time"`, `"factor_time"` and `"fill_share"` (the fill's
+percentage of the fill and factor time). Each rung's value is read off that
+rung's own solve from momwire's fill report, so the ladder solves nothing more
+for them. `analyze` draws all four against the segments each rung achieved. A
+rung that cannot say has no point, and the reason is printed: compression with
+reuse off or declined, or any of them on an engine that does not report its
+fill. A fill metric is drawn on the density ladder only.
 
 **Your own function.** When no declarative metric says it, write the
 function:
@@ -1791,7 +1803,7 @@ by rounding only (about 1e-15 relative).
 
 Since momwire 0.91.0 the same box is on the `nec42-sinusoidal` tab, where
 momwire's point-matched fill reuses each repeated segment pair (momwire#1911;
-declared drift 3e-12). On W8IO's 4,392-segment ELT whip, 13 frequencies on 8
+declared drift 5e-10). On W8IO's 4,392-segment ELT whip, 13 frequencies on 8
 threads, it took the run from about 18 s to 13 s.
 
 Over Sommerfeld ground, a copy also has to keep its heights. Directors at one

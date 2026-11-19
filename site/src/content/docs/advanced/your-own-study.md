@@ -284,8 +284,8 @@ In the **workbench**, pick the design, then **DX gain vs the vertical** under
 **Studies** in the chart's **analysis** list, and press **run**. A held sweep
 waits for **run** rather than starting on the pick, unless
 [`[workbench.run_on_pick]`](/reference/web/#where-the-workbench-starts-settingstoml)
-says otherwise. The **Metric** view is the DX-gain plot and **Knobs** the top
-wire.
+says otherwise. The **DX gain** view (the analysis's metric view, named by
+its metric) is the DX-gain plot and **Knobs** the top wire.
 
 ## Your own function instead
 

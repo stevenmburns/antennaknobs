@@ -445,8 +445,53 @@ views as thumbnails beside it. The roster is:
 | **Sweep** | the [sweep chart](#the-sweep-chart): a frequency sweep on the Smith chart to start, or on SWR or S11 (dB) against frequency; or a knob sweep as R and X against the knob, or its trail on the Smith chart |
 | **Schematic** | the [feed network as a chain](#the-schematic-view) |
 | **Files** | the design's source, and the deck an external engine ran with the report it printed |
+| **Fill** | what the [matrix fill](#the-fill-view) of the solve on screen did: its times, route and reuse, and a wire-by-wire map of the matrix |
 
 Click a thumbnail to promote it to primary.
+
+### The Fill view
+
+The **Fill** view shows what momwire's matrix fill did on the solve on
+screen, read from momwire's own report of that solve. It is unpinned by
+default: open it from **All views**, and pin it there to keep it in the rail.
+The solve readout starts minimized on it, so the card does not cover the map.
+
+The readout gives:
+
+- **fill**, **factor** and **census** times, and the route the fill took
+  (dense, or the sector route of rotational symmetry). The census is the part
+  of the fill spent finding what repeats, and is included in the fill time.
+- what share of the fill and factor time the fill is. Pair reuse can only
+  shorten the fill, so on a large model, where the factor dominates, it can
+  only shorten the smaller part.
+- the reuse state: **served**, **partial** (with what it left out),
+  **declined** (with momwire's reason, such as a deck too small to repay the
+  search), or **off**.
+- with reuse served, the **compression**, pairs ÷ (computed + near): how far
+  the matrix compressed, which is not the time saved. Beside it are the
+  computed, reused and near pair counts, and per kernel family where there is
+  more than one. A family the fill could not count is named as uncounted,
+  never shown as zero.
+- on the sector route, the sectors, the wires on the axis, the blocks
+  factored and the entries computed against the matrix's total. The sector
+  route shortens the factor as well as the fill, which pair reuse does not.
+
+The **map** draws the matrix wire by wire. Each block shows its share of
+computed, reused and near pairs, solid, hatched and dotted, so it reads
+without colour. Hover a block, or focus the map and use the arrow keys, for
+its counts, and **Show as table** lists every block. Past 32 wires,
+neighbouring wires share a row. On the sector route the map marks the
+computed sector and the axis, and shows every other row as following from
+them by rotation, each row labelled with its sector.
+
+An answer from the solve cache says that its numbers describe the earlier
+solve that produced it. A solve whose matrix was already in memory says that
+no fill ran. A deck the rotational-symmetry box refuses shows momwire's
+refusal sentence. Below, the last frequency sweep's report gives totals over
+the frequencies it solved, with the route and reuse of its last fill.
+
+The view reports and stops there: it suggests no change to the model. Only
+the momwire tabs report a fill; on any other engine the view says so.
 
 ### The sweep chart
 
@@ -873,7 +918,12 @@ link's length. Opening such a link opens the design and selects the analysis:
   study goes by its full `source:name`, or by its source or short name when
   only one study answers to it: the same rule as `analyze --study`.
 - `view=` is the chart's view (`Rx`, `Smith`, `Table`, `Knobs`, `Metric`,
-  `Swr`, `S11`, or a pattern view such as `pattern:0`); optional.
+  `Swr`, `S11`, or a pattern view such as `pattern:0`); optional. `Metric` is
+  an analysis's metric view, whatever the view list names it.
+- `metric=` is the metric a `view=Metric` draws, by its name
+  (`metric=fill%20time`), for an analysis with more than one. Absent, or a
+  name the analysis does not have, it draws the first. **link** writes it only
+  when the chart draws another than the first.
 - `family=` is a pattern family's knob and range, beside a pattern `view=`:
   `knob:from:to:points`, with `:log` for log spacing
   (`family=angle_deg:0:60:6`). The knob is its name, not its label.
@@ -1556,6 +1606,15 @@ only one where the front end finds congruent edge pairs: the sinusoidal
 solver finds its own repeated segment pairs. It stays off by default, and
 moves answers by rounding only.
 
+**The Sinusoidal tab's NEC-2 end-cap box (momwire 0.95.0).** *NEC-2 free-end
+cap (changes the answer)* makes the sinusoidal solver use NEC-2's end
+condition at free wire ends, so its answer can be compared with a NEC-2
+engine's (PyNEC, OpenNEC, NEC-2). It changes the answer on purpose, most on
+fat wires. It is not a better model of a real wire end, and it is not a speed
+option. The box is unticked, and no server setting ticks it for you. It is on
+the hosted app and on Linux and Windows local installs, where momwire
+certifies it, and not on macOS.
+
 **razor-2p and B-spline have the box too (momwire 0.94.0).** momwire's one
 *reuse repeated geometry* switch turns on whatever reuse each solver
 supports: razor-2p's fill-pair reuse, B-spline's offset reuse, the
@@ -2162,6 +2221,16 @@ It is drawn two ways, from one sweep:
 The sweep runs only while the chart is on screen (v0.43.0's view-residency
 gating).
 
+The **convergence** analysis also plots the fill against the ladder, one
+point per rung, read off that rung's own solve (see
+[The Fill view](#the-fill-view)): **fill compression**, **fill time**,
+**factor time** and **fill share**, the fill's percentage of the fill and
+factor time. They are the chart's metric views, each named by its metric
+in the **view** list. Compression has a point only where the rung's fill
+served reuse, in whole or in part; with reuse off or declined that rung has no point and the plot
+says why, while the times are drawn either way. On an engine that does not
+report its fill, none of the four has a point.
+
 ## Z vs parameter
 
 A knob sweep on the [sweep chart](#the-sweep-chart) (its **R / X** view)
@@ -2284,6 +2353,13 @@ beside **from / to**, and its tooltip lists them. Editing **from** or **to**
 makes it a range between the new ends with as many points as the list had.
 The analysis stays picked and the list reads **(edited)**. **↺** puts the
 list back.
+
+A knob analysis's metric plots are views in the same list, each named by its
+metric (**DX gain**, **Fill compression**) rather than *Metric*. An analysis
+with several lists each one. The sweep reads all of them at every point, so
+picking another draws it without solving again, and the pick stays when you
+switch views or run again. The chart's note names the metrics it is not
+drawing; `antennaknobs analyze` draws every one.
 
 What you pick, the switch, the range and the scale last for the session.
 Only the design's `.py` is remembered: to keep a chart's setup, put it in the
