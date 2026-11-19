@@ -29,34 +29,32 @@ import { Card, CardGrid, LinkCard } from "@astrojs/starlight/components";
 {/* What's-new box: refresh as part of the release ritual (bump the version,
     swap the highlights) — a stale "new" box is worse than none. */}
 
-<Card title="New in v0.122.0" icon="star">
-  **On momwire 0.94.0.** razor-2p gains the **reuse repeated geometry** box on
-  the [simulator](https://app.antennaknobs.dev): it fills each class of
-  identical segment pairs once, so long uniform wires over real ground solve
-  in about half the time, with the printed impedance unchanged. Two momwire
-  refinements now run by default where they are certified, moving answers
-  over buried and crossing wires by a few parts in 10¹², far below a printed
-  digit.
+<Card title="New in v0.123.0" icon="star">
+  **On momwire 0.95.0.** A new **Fill** view on the
+  [simulator](https://app.antennaknobs.dev) shows what the matrix fill of the
+  solve on screen did: fill and factor time, whether repeated-geometry reuse
+  served or why it declined, how much it compressed, and a wire-by-wire map of
+  which entries were computed and which were reused. Pair reuse now serves on
+  large decks it used to decline, such as W8IO's 4,392-segment ELT whip.
 
-  **A network design exports as one NEC-5 deck.** `antennaknobs export
-  --dialect nec5` writes a design with a matching network as a single station
-  deck, the network reduced onto its terminals where it has no card of its
-  own, and every number fits the field the licensed binary reads.
+  **Reuse against mesh size.** The convergence sweep plots four fill metrics
+  for each rung: compression, fill time, factor time and fill's share of the
+  solve. A metric chart is now named by what it draws, and a picker switches
+  between an analysis's metrics without solving again. See the
+  [web reference](/reference/web/).
 
-  **Smaller fixes.**
-  - The Smith chart and the antenna view zoom on Ctrl/⌘+wheel or a pinch, so
-    a plain wheel scrolls the page again. The [web
-    reference](/reference/web/) has a gesture table.
-  - A reference impedance you set in the gear menu is marked **Overridden**
-    wherever it is shown, so an old setting can no longer hide a design's own
-    value.
-  - The NEC-5, NEC-2 and NEC-4.2 engines evaluate a design's lines in the
-    design's own speed of light, as those programs do, so a deck-loaded
-    design with a lossy line reads what NEC itself computes.
-  - Opening a `.nec` deck: a `GM` card that moves wires in place with a tag
-    increment renumbers them, so a later source finds the moved wire.
-  - The two-band fan dipole lays its second pair opposite the first, at the
-    feed level.
+  **A new design, `verticals.collinear_stub`.** The co-phased collinear
+  vertical with a λ/4 hairpin stub, beside the stub's usual substitutes (an
+  open circuit, a parallel LC trap, a folded coax stub). Only the hairpin, or
+  a transmission line that carries its common-mode current, puts the two
+  sections in phase and the lobe near the horizon.
+
+  **Smaller changes.**
+  - The sinusoidal tab offers momwire's **NEC-2 free-end cap**, unticked. It
+    changes the answer on purpose, to compare with NEC-2 engines, and is not a
+    speed option.
+  - Opening a `.nec` deck: a `GM` that renumbers the wires it moves keeps the
+    symmetry cell NEC-2 keeps.
 </Card>
 
 ## The whole pitch, in one line
