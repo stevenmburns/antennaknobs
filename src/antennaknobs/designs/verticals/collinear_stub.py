@@ -325,17 +325,20 @@ class Builder(AntennaBuilder):
             an.State("coax sleeve", design=me, variant="coax_sleeve"),
         )
         low = an.ElevationWindow("5-15° gain", 5, 15, step=1.0)
+        group = "Co-phasing"
         return [
             an.Analysis(
                 "the stub and its substitutes",
                 None,
                 cross=an.Cross(states=states),
                 views=(an.Elevation(az=90), an.PatternTable(metrics=(low,))),
+                group=group,
             ),
             an.Analysis(
                 "stub length",
                 an.Sweep("stub_frac", 0.22, 0.28, points=13),
                 cross=an.Cross(states=states[:2]),
                 views=(an.MetricPlot(an.TakeOff()), an.MetricPlot(low), an.Rx()),
+                group=group,
             ),
         ]

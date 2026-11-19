@@ -96,7 +96,10 @@ def test_the_catalog_split_is_what_the_arrayblock_advisory_was_argued_from():
     # 77 since `dipoles.two_wire_doublet`: two sides of unequal length.
     # 78 since `wire.efhw_autotransformer`: radiator, counterpoise and coax
     # shield, no two alike.
-    assert len(no_repeats) == 78, len(no_repeats)
+    # 79 since `verticals.collinear_stub`: the hairpin joins both sections
+    # and the radials into one element, one shape.
+    assert len(no_repeats) == 79, len(no_repeats)
+    assert "verticals.collinear_stub" in no_repeats
     assert "verticals.m0agp_invl" in no_repeats
     # 4 since AK#1707: `wire.beverage`'s ground rods are buried, and the
     # array-block operator refuses a buried deck.
