@@ -5768,3 +5768,86 @@ div.opt-bands-readout {
 .map-set-knobs {
   margin-left: var(--space-2);
 }
+
+/* The Fill view (AK#2327). The map never leans on colour alone: computed is
+   solid, reused hatched and near dotted, in both themes. */
+:root {
+  --fill-computed: #2f5fb0;
+  --fill-reused: #b4570f;
+  --fill-reused-bg: #f7e6d6;
+  --fill-near: #1f7a4d;
+  --fill-near-bg: #dcefe5;
+}
+[data-theme="dark"] {
+  --fill-computed: #76d0ff;
+  --fill-reused: #ffb074;
+  --fill-reused-bg: #3a2616;
+  --fill-near: #7fe0ad;
+  --fill-near-bg: #16301f;
+}
+.fill-panel {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-3);
+  padding: var(--space-4);
+  overflow: auto;
+  color: var(--fg);
+  background: var(--bg);
+}
+.fill-panel-fill {
+  position: absolute;
+  inset: 0;
+  padding: var(--space-6, 16px);
+  padding-bottom: calc(var(--space-6, 16px) + var(--stage-readout-h, 0px));
+}
+.fill-panel h2 { margin: 0; font-size: 15px; }
+.fill-panel h3 { margin: 0 0 4px; font-size: 13px; }
+.fill-section { display: flex; flex-direction: column; gap: 2px; max-width: 460px; }
+.fill-row { display: flex; justify-content: space-between; gap: 16px; font-size: 13px; }
+.fill-row > span:first-child { color: var(--muted); }
+.fill-note, .fill-detail { margin: 2px 0; font-size: 12px; color: var(--muted); max-width: 640px; }
+.fill-detail { min-height: 2.6em; color: var(--fg); }
+.fill-state, .fill-provenance, .fill-refusal { margin: 0; font-size: 13px; max-width: 640px; }
+.fill-provenance, .fill-refusal {
+  padding: 6px 10px;
+  border-left: 3px solid var(--accent);
+  background: var(--accent-soft);
+}
+.fill-sweep {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-3);
+  padding-top: var(--space-3);
+  border-top: 1px dashed var(--muted-2);
+}
+.fill-map { display: flex; flex-direction: column; gap: 6px; max-width: 760px; }
+.fill-map-bar { display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: 8px; }
+.fill-legend { display: flex; flex-wrap: wrap; gap: 12px; margin: 0; padding: 0; list-style: none; font-size: 12px; }
+.fill-legend li { display: inline-flex; align-items: center; gap: 5px; }
+.fill-swatch { display: inline-block; width: 14px; height: 14px; border: 1px solid var(--fg); }
+.fill-swatch-computed { background: var(--fill-computed); }
+.fill-swatch-reused {
+  background: repeating-linear-gradient(45deg, var(--fill-reused) 0 2px, var(--fill-reused-bg) 2px 5px);
+}
+.fill-swatch-near {
+  background-color: var(--fill-near-bg);
+  background-image: radial-gradient(var(--fill-near) 1.5px, transparent 1.7px);
+  background-size: 5px 5px;
+}
+.fill-map-toggle { font-size: 12px; }
+.fill-grid { width: 100%; height: auto; touch-action: none; }
+.fill-grid:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
+.fill-mark-computed { fill: var(--fill-computed); }
+.fill-mark-reused-bg { fill: var(--fill-reused-bg); }
+.fill-mark-reused-line { stroke: var(--fill-reused); stroke-width: 2; }
+.fill-mark-near-bg { fill: var(--fill-near-bg); }
+.fill-mark-near-dot { fill: var(--fill-near); }
+.fill-boundary { stroke: var(--bg); stroke-width: 1; }
+.fill-frame { fill: none; stroke: var(--fg); stroke-width: 1; }
+.fill-focus { fill: none; stroke: var(--fg); stroke-width: 2.5; pointer-events: none; }
+.fill-axis { fill: var(--fg); font-size: 10px; }
+.fill-table-wrap { max-height: 320px; overflow: auto; }
+.fill-table { border-collapse: collapse; font-size: 12px; }
+.fill-table caption { text-align: left; color: var(--muted); padding-bottom: 4px; }
+.fill-table th, .fill-table td { padding: 2px 10px 2px 0; text-align: right; font-weight: 400; }
+.fill-table th:first-child { text-align: left; }
