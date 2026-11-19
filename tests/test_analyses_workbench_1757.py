@@ -125,7 +125,8 @@ def test_every_entry_has_the_documented_shape(invvee):
             }
         elif w["runs"]:
             # `metric`: its MetricPlot as the chart draws it, or None
-            # (AK#1828).
+            # (AK#1828); `metrics`: every one, the chart's metric picker
+            # (AK#2327).
             assert set(w) == {
                 "runs",
                 "kind",
@@ -134,6 +135,7 @@ def test_every_entry_has_the_documented_shape(invvee):
                 "log",
                 "views",
                 "metric",
+                "metrics",
                 # The hold at every point (step 6), None on a plain sweep.
                 "hold",
                 "engines",
@@ -171,12 +173,15 @@ def test_e1_convergence_runs_as_the_density_ladder(invvee):
     # not the server's: the list is served whole).
     assert w["engines"] == ["momwire:bspline", "momwire:razor-2p", "nec5"]
     assert w["grounds"] == ["finite:13,0.005"]
-    # The chart draws the first of its fill metrics (AK#2327) and says which
-    # it leaves to `analyze`.
-    assert w["note"] == (
-        "left out: the MetricPlot of 'fill time', 'factor time', 'fill share' "
-        "(the chart draws the first; `antennaknobs analyze` draws each)"
-    )
+    # The chart's metric picker offers all four fill metrics (AK#2327), the
+    # first by default; the note naming the ones not drawn is the chart's.
+    assert w["note"] is None
+    assert [m["name"] for m in w["metrics"]] == [
+        "fill compression",
+        "fill time",
+        "factor time",
+        "fill share",
+    ]
     # Its views, the Table among them since step 5 unit 5.
     assert w["views"] == ["Rx", "Table", "Smith", "Metric"]
     assert w["metric"]["name"] == "fill compression"

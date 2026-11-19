@@ -515,13 +515,26 @@ def _fixed_reference(a: an.Analysis, state: an.State, builder) -> bool:
 
 
 def _metric_view(a: an.Analysis) -> dict | None:
-    """The first `MetricPlot` as the chart draws it (AK#1828): the metric's
-    name, unit and data (`analyses.to_data`, which ``/param_sweep`` reads
-    back), the cell it is relative to, and the unit of a difference."""
-    plots = an.metric_plots(a)
-    if not plots:
-        return None
-    v = plots[0]
+    """The first `MetricPlot` as the chart draws it by default (AK#1828)."""
+    plots = _metric_views(a)
+    return plots[0] if plots else None
+
+
+def _metric_views(a: an.Analysis) -> list[dict]:
+    """Every `MetricPlot`, in order, as the chart's metric picker offers them:
+    on a density ladder only its fill metrics (AK#2327), which it can draw."""
+    density = any(s.knob == an.DENSITY for s in a.sweeps)
+    return [
+        _metric_entry(v)
+        for v in an.metric_plots(a)
+        if not density or isinstance(v.metric, an.FillMetric)
+    ]
+
+
+def _metric_entry(v: an.MetricPlot) -> dict:
+    """One `MetricPlot` as the chart draws it: the metric's name, unit and
+    data (`analyses.to_data`, which ``/param_sweep`` reads back), the cell it
+    is relative to, and the unit of a difference."""
     m = v.metric
     return {
         "name": m.name,
@@ -915,7 +928,7 @@ def workbench(a: an.Analysis, builder, req: Mapping, *, hosted: bool = False) ->
         # not drawn, as `analyze` does not draw it
         # (`analysis_run._DENSITY_METRIC`).
         # Each view once: several MetricPlots are one Metric view, which
-        # draws the first (`_metric_note` names the rest).
+        # draws the one its picker holds (`metrics`, the first by default).
         "views": list(
             dict.fromkeys(
                 n
@@ -927,22 +940,16 @@ def workbench(a: an.Analysis, builder, req: Mapping, *, hosted: bool = False) ->
         "metric": (
             None if run["density"] and not _fill_metric_first(a) else _metric_view(a)
         ),
+        # Every metric the chart's picker offers, the first being `metric`;
+        # the chart names the ones it is not drawing in its note.
+        "metrics": (
+            [] if run["density"] and not _fill_metric_first(a) else _metric_views(a)
+        ),
         "hold": held,
         **_listed(a),
         **crosses,
-        "note": _note(a, deck_density=density and run["param"] != DENSITY)
-        or _metric_note(a),
+        "note": _note(a, deck_density=density and run["param"] != DENSITY),
     }
-
-
-def _metric_note(a: an.Analysis) -> str | None:
-    """What the chart leaves out of an analysis's metric plots: it draws the
-    first; `analyze` draws every one."""
-    plots = an.metric_plots(a)
-    if len(plots) < 2:
-        return None
-    rest = ", ".join(repr(v.metric.name) for v in plots[1:])
-    return f"left out: the MetricPlot of {rest} (the chart draws the first; `antennaknobs analyze` draws each)"
 
 
 def _hold_entry(a: an.Analysis, builder) -> dict | None:

@@ -3044,6 +3044,47 @@ def _fed_segment_m(res: dict) -> float | None:
     return float(lens[near].min())
 
 
+def _solve_z_and_metrics(req: dict, metrics: tuple, cancel=None):
+    """`_solve_z_only` and every metric of ``metrics`` read off THAT one
+    solve (the chart's metric picker): ``(z, feeds_z, mesh, values, whys)``,
+    one value or None and one reason or None per metric. A pattern metric
+    reads the solve's filed gain (`_solve_z_and_metric`), a fill metric its
+    fill report (`_solve_z_and_fill`)."""
+    from antennaknobs import metrics as mx
+    from antennaknobs.fill_report import fill_metric_value
+
+    from .adapter import capture_solved_metrics
+
+    sink: list = []
+    with capture_solved_metrics() as box:
+        z, feeds_z, mesh = _solve_z_only(req, cancel=cancel, fill_sink=sink)
+    thunk = box[-1] if box else None
+    build = getattr(thunk, "gain", None)
+    src = None
+    values, whys = [], []
+    for metric in metrics:
+        if isinstance(metric, FillMetric):
+            value, why = fill_metric_value(metric.quantity, sink[0] if sink else None)
+        elif build is None:
+            value, why = (
+                None,
+                (
+                    "a metric is read off a momwire solve in the workbench; on "
+                    f"{req.get('solver') or 'this engine'}, `antennaknobs analyze` draws it"
+                ),
+            )
+        else:
+            try:
+                if src is None:
+                    src = mx.EvaluatorSource(build(), thunk.freq)
+                value, why = mx.evaluate(metric, src), None
+            except (ValueError, NotImplementedError) as e:
+                value, why = None, str(e)
+        values.append(value)
+        whys.append(why)
+    return z, feeds_z, mesh, values, whys
+
+
 def _solve_z_and_fill(req: dict, metric, cancel=None):
     """`_solve_z_only` and the fill metric ``metric`` read off THAT solve's
     fill report (AK#2327): ``(z, feeds_z, mesh, value, why)``, ``value``
@@ -3173,6 +3214,10 @@ async def _solve_points(
                         z, feeds_z, mesh = await run_in_threadpool(
                             _shed, _solve_z_only, req_v, cancel=token
                         )
+                    elif isinstance(metric, tuple):
+                        z, feeds_z, mesh, m_value, m_why = await run_in_threadpool(
+                            _shed, _solve_z_and_metrics, req_v, metric, cancel=token
+                        )
                     elif isinstance(metric, FillMetric):
                         z, feeds_z, mesh, m_value, m_why = await run_in_threadpool(
                             _shed, _solve_z_and_fill, req_v, metric, cancel=token
@@ -3210,7 +3255,12 @@ async def _solve_points(
             "z_im": float(z.imag),
             "solver": solver_name,
         }
-        if metric is not None:
+        if isinstance(metric, tuple):
+            # Every metric the chart can pick (its metric picker), off this
+            # one solve, so a pick never solves the sweep again.
+            record["metrics"] = m_value
+            record["metric_errors"] = m_why
+        elif metric is not None:
             if m_why is None:
                 record["metric"] = m_value
             else:
@@ -3338,16 +3388,27 @@ async def param_sweep_endpoint(req: dict, request: Request):
     except (ParamSweepError, UnknownGeometryError) as e:
         raise HTTPException(status_code=422, detail=str(e)) from None
     metric = _request_metric(req.get("metric"))
-    if isinstance(metric, an.FillMetric) and (
-        param != DENSITY or req.get("hold") is not None
-    ):
-        # Each rung's own solve, read where the ladder solves it (AK#2327).
-        raise HTTPException(
-            status_code=422,
-            detail="a fill metric is drawn on the density ladder, with no hold",
-        )
+    if req.get("metrics") is not None:
+        # The chart's metric picker: every metric it can draw, read off each
+        # point's one solve; records carry `metrics` / `metric_errors`.
+        if metric is not None or not isinstance(req["metrics"], list):
+            raise HTTPException(
+                status_code=422, detail="metrics is a list, sent instead of metric"
+            )
+        metric = tuple(_request_metric(m) for m in req["metrics"]) or None
+    for m in metric if isinstance(metric, tuple) else (metric,):
+        if isinstance(m, an.FillMetric) and (
+            param != DENSITY or req.get("hold") is not None
+        ):
+            # Each rung's own solve, read where the ladder solves it (AK#2327).
+            raise HTTPException(
+                status_code=422,
+                detail="a fill metric is drawn on the density ladder, with no hold",
+            )
     base = {
-        k: v for k, v in req.items() if k not in ("param", "values", "metric", "hold")
+        k: v
+        for k, v in req.items()
+        if k not in ("param", "values", "metric", "metrics", "hold")
     }
     if req.get("hold") is not None:
         return _held_sweep_stream(
@@ -3650,8 +3711,12 @@ def _held_sweep_stream(
         }
         if pt.converged:
             rec.update(z_re=pt.z.real, z_im=pt.z.imag, residual=pt.residual)
-            if metric is not None:
-                value, why = held_metric(pt)
+            if isinstance(metric, tuple):
+                read = [held_metric(pt, m) for m in metric]
+                rec["metrics"] = [value for value, _ in read]
+                rec["metric_errors"] = [why for _, why in read]
+            elif metric is not None:
+                value, why = held_metric(pt, metric)
                 if why is None:
                     rec["metric"] = value
                 else:
@@ -3669,7 +3734,7 @@ def _held_sweep_stream(
         if tally["held"] + tally["gaps"] < len(values) and clock.spent():
             raise _SweepOutOfTime
 
-    def held_metric(pt) -> tuple:
+    def held_metric(pt, metric) -> tuple:
         """``metric`` at the point's optimum, off the solve that gave its Z
         (`hold.held_metric`'s words on an engine that files no state)."""
         from antennaknobs import hold as hd
