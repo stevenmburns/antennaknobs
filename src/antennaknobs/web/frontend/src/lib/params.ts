@@ -330,6 +330,7 @@ export const SEARCH_KEYWORDS: Record<string, string> = {
   "wire.vbeam": "v beam traveling wave",
   "wire.lazy_h": "lazy-h collinear",
   "verticals.jpole": "j-pole slim jim",
+  "verticals.collinear_stub": "collinear phasing stub hairpin co-phased",
   "verticals.bobtail": "bobtail curtain",
   "beams.yagi": "yagi-uda beam directional",
   "beams.moxon": "moxon rectangle beam",

@@ -150,6 +150,7 @@ whole shape with a `Drone` — see
 | `verticals.bruce` | Bruce array: a series-fed vertically-polarised curtain (L. B. Cebik, W4RNL) |
 | `verticals.buried_radial_vertical` | Ground-mounted quarter-wave vertical over a BURIED radial screen — the classic 40 m base-fed vertical, modelled with the radials where they actually are: in the dirt (momwire#524 phase 2, the crossing serve) · variants: `bundle`, `detached`, `surface` |
 | `verticals.challenger` | KJ6ER's "Challenger" — off-center-fed halfwave vertical with 4:1 unun · variants: `band10`, `band12`, `band17`, `band20`, `band6`, `plus` |
+| `verticals.collinear_stub` | Two-section collinear vertical (λ/4 under λ/2) and the stub that co-phases it, against three substitutes that do not · variants: `bl_stub`, `bl_stub_diffonly`, `coax_sleeve`, `lc_trap`, `open_circuit` |
 | `verticals.dominator` | KJ6ER's "Dominator" — end-fed halfwave vertical with 49:1 transformer · variants: `band10`, `band12`, `band17`, `plus` |
 | `verticals.elevated_buried_counterpoise` | Elevated vertical with elevated radials over a DETACHED buried ground screen — every conductor wholly above or wholly below the soil, nothing at the interface (momwire#553, the buried serve) |
 | `verticals.elt_whip` | Parametric rebuild of the ELT whip on a 96-inch rounded ground-plane grid — the heavier of the two classic NEC performance benchmarks (``whip_antenna_8ft_groundplane.nec`` from the W8IO NEC benchmarks page, http://www.w8io.com/nec-benchmarks.htm): 434 deck wires, ~4,400 segments · variants: `coarse`, `hex6`, `sym4` |
