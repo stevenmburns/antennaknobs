@@ -168,6 +168,13 @@ describe("the sector route", () => {
     expect(screen.getByText("5,616 of 13,689")).toBeTruthy();
     expect(screen.getByText(/shortens the fill and the factor/)).toBeTruthy();
   });
+  it("labels each row with its sector", () => {
+    const { container } = show(sector);
+    const labels = [...container.querySelectorAll(".fill-axis")].map((t) => t.textContent);
+    expect(labels).toContain("1 wire 1 · sector 1");
+    expect(labels).toContain("2 wire 2 · sector 2");
+    expect(container.querySelectorAll(".fill-sector-edge")).toHaveLength(1);
+  });
   it("marks computed rows and rotated rows in words in its table", () => {
     show(sector);
     fireEvent.click(screen.getByRole("button", { name: "Show as table" }));

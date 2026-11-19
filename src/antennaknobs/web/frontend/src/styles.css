@@ -5843,6 +5843,7 @@ div.opt-bands-readout {
 .fill-mark-near-bg { fill: var(--fill-near-bg); }
 .fill-mark-near-dot { fill: var(--fill-near); }
 .fill-boundary { stroke: var(--bg); stroke-width: 1; }
+.fill-sector-edge { stroke: var(--fg); stroke-width: 1.5; }
 .fill-frame { fill: none; stroke: var(--fg); stroke-width: 1; }
 .fill-focus { fill: none; stroke: var(--fg); stroke-width: 2.5; pointer-events: none; }
 .fill-axis { fill: var(--fg); font-size: 10px; }
