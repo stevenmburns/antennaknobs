@@ -4980,7 +4980,7 @@ def _symmetry_cell_pairs(wires, pairs, cell):
     return out, dropped
 
 
-def _symmetry_after(mnemonic, card, wires, segs_before, cell):
+def _symmetry_after(mnemonic, card, first_tag, segs_before, cell):
     """The symmetry cell (in segments) after a geometry card, or None for
     no symmetry — the preserve/destroy rules, from the NEC-2 Fortran.
 
@@ -5004,8 +5004,13 @@ def _symmetry_after(mnemonic, card, wires, segs_before, cell):
     if mnemonic in ("GW", "GA", "GH", "CW"):
         return None
     if mnemonic == "GM":
+        # The block starts at the first segment exactly when the first wire
+        # carried ITS before the card ran (``first_tag``). ITS cannot be looked
+        # up again afterwards: an in-place GM has renumbered the block by then
+        # (AK#2124), so the old tag no longer answers. `_gm` has already
+        # refused an ITS no wire carries. As momwire#2001 reads it.
         its = int(card.f(8) + 0.5)
-        if card.i(1) == 0 and _first_wire_with_tag(wires, its, card) == 0:
+        if card.i(1) == 0 and (its <= 0 or first_tag == its):
             return cell
         return None
     if mnemonic == "GS":
@@ -6822,6 +6827,7 @@ def parse_nec(
             if limits is not None:
                 limits.admit_card(mnemonic, card, wires)
             segs_before = sum(w[1] for w in wires)
+            first_tag = wires[0][0] if wires else None
             if mnemonic in ("GC", "GH"):
                 # NEC-4 and NEC-5 lay these two cards out differently from
                 # NEC-2 (AK#1296, AK#1297). The reading is settled by now for
@@ -6840,7 +6846,7 @@ def parse_nec(
                 geometry[mnemonic](card, wires)
             # GX/GR leave the structure symmetric, which changes how NEC
             # resolves anything entering the matrix (#946).
-            sym_cell = _symmetry_after(mnemonic, card, wires, segs_before, sym_cell)
+            sym_cell = _symmetry_after(mnemonic, card, first_tag, segs_before, sym_cell)
         elif mnemonic == "GE":
             # A zero-radius GW is only legal as the announcement of a GC that
             # carries the taper (#1294). If the geometry closes with one still
