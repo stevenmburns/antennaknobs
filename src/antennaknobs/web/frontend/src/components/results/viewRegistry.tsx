@@ -32,6 +32,8 @@ import type { ExtraCurve, PinCurve } from "../charts/curves";
 import { ChartFrequency, ChartKnobSmith, knobTable } from "./ChartFrequency";
 import { ChartLegend, type ChartLegendData, legendShown, refusedCount } from "./ChartLegend";
 import { FilesPanel, type FilesViewData } from "./FilesPanel";
+import { FillPanel } from "./FillPanel";
+import type { FillReport } from "../../lib/fillReport";
 import { type PatternCellRow, PatternCellsTable } from "./PatternCellsTable";
 import type { BandMarks } from "../../lib/optBands";
 import type { SmithBandPicker } from "../charts/SmithBandToggles";
@@ -131,6 +133,10 @@ export type ViewRenderProps = {
   /** The Files view's texts (AK#1428). Optional: thumbnail call sites omit
    *  it, and the panel's thumb carries no text anyway. */
   files?: FilesViewData | null;
+  /** The Fill view's refusal and sweep reports (AK#2327). The solve's own
+   *  report rides on `result`. Optional: thumbnails omit them. */
+  fillRefusal?: FillReport | null;
+  sweepFill?: FillReport | null;
   /** The combined Az + El view's fill and its highlighted designs (AK#1730).
    *  Optional: omitted, the plot is unfilled with nothing highlighted. */
   combinedFill?: CombinedFill;
@@ -351,6 +357,15 @@ export const VIEW_RENDERERS: Record<View, (p: ViewRenderProps) => ReactElement> 
     />
   ),
   files: (p) => <FilesPanel data={p.files ?? null} size={p.size} fill={p.fill} />,
+  fill: (p) => (
+    <FillPanel
+      report={p.result?.fill_report ?? null}
+      refusal={p.fillRefusal ?? null}
+      sweep={p.sweepFill ?? null}
+      size={p.size}
+      fill={p.fill}
+    />
+  ),
   // The analysis chart (AK#1757 step 5): a frequency sweep on its Swr, S11
   // or Smith view (the old standalone views, unit 3), or a knob sweep as R/X
   // against the knob (docs/design/z-vs-param-view.md) or as its trail on the

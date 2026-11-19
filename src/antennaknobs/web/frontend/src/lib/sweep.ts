@@ -1,3 +1,4 @@
+import type { FillReport } from "./fillReport";
 import type { SweepData } from "./api";
 import { tunedInt } from "./tuning";
 import { backendSupportsGround, type BackendEntry } from "./backends";
@@ -486,6 +487,8 @@ export type SweepClosing = {
   advisories?: { category: string; text: string }[];
   stopped?: string | null;
   time_budget_s?: number | null;
+  /** What the sweep's fills did (AK#2327); absent when no solver ran. */
+  fill_report?: FillReport;
 };
 
 /** The advisory category the time-limit note travels under. */

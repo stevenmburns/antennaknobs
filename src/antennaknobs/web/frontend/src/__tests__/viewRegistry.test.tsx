@@ -44,6 +44,7 @@ const EVERY_VIEW: Record<View, true> = {
   combined: true,
   schematic: true,
   files: true,
+  fill: true,
   zparam: true,
   zparam2: true,
   zparam3: true,
@@ -91,6 +92,7 @@ describe("view metadata", () => {
       ["zparam", "Sweep"],
       ["schematic", "Schematic"],
       ["files", "Files"],
+      ["fill", "Fill"],
     ]);
   });
 
@@ -114,19 +116,20 @@ describe("view metadata", () => {
   // exactly right.
   it("marks every pre-run view stale while optimizing, and only those", () => {
     const stale = VIEWS.filter((v) => v.staleWhileOptimizing).map((v) => v.id);
-    expect(stale.sort()).toEqual(["antenna", "azimuth", "combined", "elevation"]);
+    expect(stale.sort()).toEqual(["antenna", "azimuth", "combined", "elevation", "fill"]);
     expect(VIEW_META.zparam.staleWhileOptimizing).toBe(false);
     expect(VIEW_META.schematic.staleWhileOptimizing).toBe(false);
   });
 
   // The stage readout floats over every view. It starts minimized only where
   // the view's own content already carries the numbers and the card would
-  // cover it: the Files view's printout. The analysis chart's default is the
+  // cover it: the Files view's printout and the Fill view's map. The analysis chart's default is the
   // session's, by what it shows (open on the Smith chart it opens on,
   // minimized on a knob sweep's R/X plot).
-  it("starts the readout minimized only on the Files view", () => {
+  it("starts the readout minimized only on the Files and Fill views", () => {
     expect(VIEWS.filter((v) => v.readoutStartsCollapsed).map((v) => v.id)).toEqual([
       "files",
+      "fill",
     ]);
   });
 });
@@ -168,6 +171,7 @@ const MARKERS: Record<View, string> = {
   combined: "canvas.farfield[data-fill]",
   schematic: ".schematic-fill",
   files: ".files-fill",
+  fill: ".fill-panel-fill",
   zparam: "canvas.zparam",
   zparam2: "canvas.zparam",
   zparam3: "canvas.zparam",

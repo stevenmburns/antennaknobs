@@ -1,3 +1,4 @@
+import type { FillReport } from "../../lib/fillReport";
 import { useEffect, useRef, useState, type MutableRefObject } from "react";
 import { withDeck } from "../../lib/decks";
 import {
@@ -54,6 +55,7 @@ export function useSolveChannel({
   previewSigRef,
   setResult,
   setSolveError,
+  setFillRefusal,
 }: {
   active: boolean;
   controlsRef: MutableRefObject<SolveRequest | null>;
@@ -80,6 +82,8 @@ export function useSolveChannel({
    *  for a clear (null) or a response whose send this socket never saw. */
   setResult: (r: SolveResponse | null, req?: SolveRequest) => void;
   setSolveError: (e: string | null) => void;
+  /** The sector route's refusal of this deck (AK#2327), or null. */
+  setFillRefusal?: (r: FillReport | null) => void;
 }) {
   const [status, setStatus] = useState<"connecting" | "open" | "closed">(
     "connecting",
@@ -427,9 +431,11 @@ export function useSolveChannel({
             // message and clear stale plot data rather than rendering an empty
             // result on top of the last antenna.
             setSolveError(data.error);
+            setFillRefusal?.(data.fill_report ?? null);
             setResultRef.current(null);
           } else {
             setSolveError(null);
+            setFillRefusal?.(null);
             setResultRef.current(data, req);
           }
         }

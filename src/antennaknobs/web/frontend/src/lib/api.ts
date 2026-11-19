@@ -1,3 +1,4 @@
+import type { FillReport } from "./fillReport";
 import type { GroundModel, SoilParams } from "./ground";
 import type { Projection } from "./view";
 
@@ -87,6 +88,9 @@ export type BandZ = {
 };
 
 export type SolveResponse = {
+  /** What the matrix fill did (AK#2327). Absent on an engine, or a momwire,
+   *  that cannot report it. */
+  fill_report?: FillReport;
   geometry: string;
   /** Which backend actually produced this response ("momwire" | "pynec" | "opennec").
    *  Not a strict union — kept a plain string so a retired/renamed backend
