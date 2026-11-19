@@ -315,14 +315,17 @@ class Builder(AntennaBuilder):
         swept, as the take-off angle. A far-field metric cannot read the
         current phase (no metric kind reads currents), but the take-off angle
         is its signature here: on the horizon co-phased, near 40° not."""
-        me = "verticals.collinear_stub"
+        # Knob overrides on the design the analysis runs on (no `design=`), not
+        # registry variants: the same file then works opened through the
+        # app's Open... as well as from the catalog, where a variant would
+        # need the catalog name. Each state is its variant's own params.
         states = (
-            an.State("hairpin", design=me),
-            an.State("BalancedLine", design=me, variant="bl_stub"),
-            an.State("BL diff-only", design=me, variant="bl_stub_diffonly"),
-            an.State("open", design=me, variant="open_circuit"),
-            an.State("LC trap", design=me, variant="lc_trap"),
-            an.State("coax sleeve", design=me, variant="coax_sleeve"),
+            an.State("hairpin", stub="wire"),
+            an.State("BalancedLine", **self.bl_stub_params),
+            an.State("BL diff-only", **self.bl_stub_diffonly_params),
+            an.State("open", **self.open_circuit_params),
+            an.State("LC trap", **self.lc_trap_params),
+            an.State("coax sleeve", **self.coax_sleeve_params),
         )
         low = an.ElevationWindow("5-15° gain", 5, 15, step=1.0)
         group = "Co-phasing"
