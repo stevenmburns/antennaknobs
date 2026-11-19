@@ -147,8 +147,15 @@ def _misfit(v: an.View, a: an.Analysis) -> str | None:
             f"{name} of a two-sweep map: a map draws Map and Table; cross the "
             "second knob as a family (an.Cross(step=...)) to draw curves"
         )
-    if isinstance(v, an.MetricPlot) and any(s.knob == an.DENSITY for s in a.sweeps):
-        return _DENSITY_METRIC
+    density = any(s.knob == an.DENSITY for s in a.sweeps)
+    if isinstance(v, an.MetricPlot):
+        fill = isinstance(v.metric, an.FillMetric)
+        if density and not fill:
+            return _DENSITY_METRIC
+        if fill and not density:
+            return _FILL_OFF_DENSITY
+        if fill and v.relative_to is not None:
+            return f"the fill metric {v.metric.name!r}: relative_to is not in v1"
     return None
 
 
@@ -157,6 +164,13 @@ def _misfit(v: an.View, a: an.Analysis) -> str | None:
 _DENSITY_METRIC = (
     "the MetricPlot view of a density ladder: a metric's convergence is not "
     "in v1 (AK#1828); sweep a knob or the frequency"
+)
+
+# A fill metric reads each rung's own solve, which only the ladder's route
+# keeps (AK#2327).
+_FILL_OFF_DENSITY = (
+    "the MetricPlot of a fill metric: it is drawn on the density ladder "
+    "(an.convergence()), one point per rung"
 )
 
 
@@ -1126,8 +1140,10 @@ def run(
                 refused[p.label] = str(e)
                 prepared.remove(p)
     plots = [v for v in a.views if isinstance(v, an.MetricPlot) and _draws(v, a)]
-    if plots and density:
-        print(f"  runs without {_DENSITY_METRIC}")
+    # The density ladder draws its fill metrics off the rungs' own solves
+    # (AK#2327), below; `_draws` has already refused any other metric there.
+    fill_plots = plots if density else []
+    if density:
         plots = []
     metric_cols: dict[str, list] = {}
     if plots:
@@ -1188,16 +1204,18 @@ def run(
     # real error and propagates.
     if density:
         rungs, ladder, _marked, drawn = density_rungs(s)
-        per, fed = {}, {}
+        per, fed, fills = {}, {}, {}
         for p in prepared:
+            reports: list = []
             try:
                 rows, lens, n = sw._convergence_rows(
-                    p.builder, p.factory, rungs, p.knobs[0]
+                    p.builder, p.factory, rungs, p.knobs[0], fills=reports
                 )
             except (ValueError, NotImplementedError) as e:
                 refused[p.label] = str(e)
                 continue
             per[p.label], fed[p.label] = rows, lens
+            fills[p.label] = reports
             nports = max(nports, n)
             out["curves"][p.label] = ([r[0] for r in rows], [r[2] for r in rows])
             curves.append((p.label, [r[1] for r in rows], [r[2] for r in rows]))
@@ -1236,6 +1254,11 @@ def run(
                 refused=list(refused),
             )
             _references(axes, a.references)
+        if fill_plots:
+            # The fill metrics (AK#2327): each rung's own fill report, against
+            # the segments it achieved, as the R/X ladder is drawn.
+            out["metrics"] = _fill_metric_curves(a, fill_plots, per, fills, builder)
+            plots = fill_plots
     else:
         log = s.spacing == "log"
         if frequency:
@@ -1374,7 +1397,17 @@ def run(
         )
         save_or_show(plt, _views_fn(fn) if _has(a, an.Rx) else fn)
     if plots:
-        _metric_figure(a, plots, out["metrics"], builder, knob, list(refused))
+        _metric_figure(
+            a,
+            plots,
+            out["metrics"],
+            builder,
+            knob,
+            list(refused),
+            # The ladder's fill metrics stand on the segments each rung
+            # achieved, as its R/X do (AK#2327).
+            xlabel="segments achieved" if density else None,
+        )
         save_or_show(plt, _views_fn(fn, "-metrics"))
     if a.hold is not None and _has(a, an.Knobs) and not density:
         _knobs_figure(held, xlabel=xlabel, log_x=log, a=a, refused=list(refused))
@@ -2154,6 +2187,30 @@ def _run_metric_plots(
     return out, {label: (xs, c) for label, (xs, c) in cols.items() if xs}
 
 
+def _fill_metric_curves(a, plots, per, fills, builder) -> dict:
+    """The density ladder's `FillMetric` plots: ``{metric name: {label:
+    MetricCurve}}`` against the achieved segment count, each value read off
+    that rung's fill report (`fill_report.fill_metric_value`). A rung that
+    cannot say has no value (None), and the first reason a curve has a gap is
+    printed with it; it is never drawn as zero."""
+    from .fill_report import fill_metric_value
+
+    out: dict = {}
+    for v in plots:
+        curves: dict[str, MetricCurve] = {}
+        for label, rows in per.items():
+            read = [fill_metric_value(v.metric.quantity, r) for r in fills[label]]
+            curves[label] = MetricCurve(
+                tuple(r[1] for r in rows), tuple(value for value, _ in read)
+            )
+            why = next((w for _, w in read if w is not None), None)
+            if why is not None:
+                print(f"  {label}: {v.metric.name}: {why}")
+        out[v.metric.name] = curves
+        _print_metric_table(a, v, curves, builder, xname="N achieved")
+    return out
+
+
 def _ref_at(base: MetricCurve, x) -> float | None:
     """The reference's value at ``x``: its one value when fixed, else its
     point at that x (None when it has none there)."""
@@ -2178,10 +2235,15 @@ def _metric_heading(m: an.PatternMetric) -> str:
     return f"{m.name} ({m.unit})" if m.unit else m.name
 
 
-def _print_metric_table(a, v: an.MetricPlot, per: dict, builder) -> None:
+def _print_metric_table(
+    a, v: an.MetricPlot, per: dict, builder, xname: str | None = None
+) -> None:
     """A metric plot's numbers: one block per cell, x and the metric (and
-    the difference from its reference), or a fixed reference's one value."""
-    xname = "MHz" if a.sweep.knob == an.FREQUENCY else _step_name(a.sweep, builder)
+    the difference from its reference), or a fixed reference's one value.
+    ``xname`` names x where it is not the swept knob's value (the density
+    ladder's achieved segment count)."""
+    if xname is None:
+        xname = "MHz" if a.sweep.knob == an.FREQUENCY else _step_name(a.sweep, builder)
     for label, c in per.items():
         print(f"== {_metric_heading(v.metric)} vs {xname}: {label} ==")
         if c.reference is not None and c.reference != label:
@@ -2205,18 +2267,21 @@ def _fmt_metric(v) -> str:
     return "—" if v is None else f"{v:.3f}"
 
 
-def _metric_figure(a, plots, results, builder, knob, refused) -> None:
+def _metric_figure(a, plots, results, builder, knob, refused, xlabel=None) -> None:
     """One panel per `MetricPlot`: each cell's metric (or its difference
-    from its reference) against x, a fixed reference as a flat line."""
+    from its reference) against x, a fixed reference as a flat line.
+    ``xlabel`` names x where it is not the swept knob (the density ladder's
+    achieved segment count)."""
     import matplotlib.pyplot as plt
 
     sw = _sweep_module()
     fig, axs = plt.subplots(
         1, len(plots), figsize=(6.2 * len(plots), 4.6), squeeze=False
     )
-    xlabel = (
-        "frequency (MHz)" if a.sweep.knob == an.FREQUENCY else sw._param_label(knob)
-    )
+    if xlabel is None:
+        xlabel = (
+            "frequency (MHz)" if a.sweep.knob == an.FREQUENCY else sw._param_label(knob)
+        )
     for ax, v in zip(axs[0], plots, strict=True):
         per = results[v.metric.name]
         span = [float(x) for c in per.values() for x in c.xs]
@@ -2249,7 +2314,14 @@ def _metric_figure(a, plots, results, builder, knob, refused) -> None:
                 continue  # refused by the impedance views only
             ax.plot([], [], linestyle="None", marker="x", color="0.5",
                     label=f"{r}: refused")  # fmt: skip
-        ax.legend(frameon=False, fontsize=7)
+        if ax.get_legend_handles_labels()[0]:
+            ax.legend(frameon=False, fontsize=7)
+        else:
+            # Nothing was read at any point (a fill metric with reuse off,
+            # AK#2327): the panel says so rather than standing empty.
+            ax.text(0.5, 0.5, "no value at any point\n(the table says why)",
+                    ha="center", va="center", transform=ax.transAxes,
+                    color="0.4", fontsize=9)  # fmt: skip
         ax.grid(alpha=0.3)
     fig.suptitle(a.name, fontsize=11)
     fig.tight_layout()
