@@ -38,9 +38,11 @@ describe("modelOptionsForRequest", () => {
     // the sinusoidal solver takes, `false` by default; each only removes
     // work, and on, moves Z only in the last digits.
     // ADDED with momwire 0.91.0 (#1911, #1912): fill reuse and the sector
-    // route, `false` by default.
+    // route, `false` by default. ADDED with momwire 0.95.0 (#2041): the NEC-2
+    // free-end cap, `false` by default and never seeded.
     expect(Object.keys(result).sort()).toEqual([
       "n_qp_const",
+      "nec2_end_cap",
       "pair_reuse",
       "point_cplx_staged",
       "rotational_symmetry",
@@ -52,6 +54,7 @@ describe("modelOptionsForRequest", () => {
       pair_reuse: false,
       transmitted_anchors: false,
       point_cplx_staged: false,
+      nec2_end_cap: false,
     });
     expect(result).not.toHaveProperty("feed_model");
   });
@@ -212,10 +215,11 @@ describe("modelOptionsForRequest", () => {
       '"enrichment_variant":"raw","tikhonov_lambda":0.1,' +
       '"auto_tap_ratio_threshold":0.3,"n_qp_sing":32,"enrichment_min_k":3}';
     // The two buried-fill switches joined with momwire 0.88.0 (#1847, #1849);
-    // the sector route and fill reuse with 0.91.0 (#1912, #1911).
+    // the sector route and fill reuse with 0.91.0 (#1912, #1911); the NEC-2
+    // free-end cap with 0.95.0 (#2041).
     expect(stock("sinusoidal")).toBe(
       '{"n_qp_const":8,"rotational_symmetry":false,"pair_reuse":false,' +
-        '"transmitted_anchors":false,"point_cplx_staged":false}',
+        '"transmitted_anchors":false,"point_cplx_staged":false,"nec2_end_cap":false}',
     );
     // "point" since momwire#654 made it the solver's default — the wire
     // format still carries the value explicitly, so a request says which

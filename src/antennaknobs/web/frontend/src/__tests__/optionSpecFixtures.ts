@@ -334,6 +334,17 @@ export const SERVED_OPTION_SPECS: ModelOptionSpecs =
     "shown_when_value": null,
     "description": "Solve nec5-bspline's and nec42-bspline's junction conservation by eliminating one wire end per junction before the factor, instead of carrying the constraints through the solve. Fewer unknowns and no extra solves on junction-dense designs (coils, cages, grids). Results change only in the last digits."
   },
+  "nec2_end_cap": {
+    "kind": "bool",
+    "label": "NEC-2 free-end cap (changes the answer)",
+    "default": false,
+    "auto_when_null": false,
+    "shown_when": null,
+    "gate_label": null,
+    "gate_on_value": null,
+    "shown_when_value": null,
+    "description": "Uses NEC-2's end condition at free wire ends, so the sinusoidal solver can be compared with NEC-2 engines. This deliberately changes the answer, most on fat wires, and is not a better model of a real wire end. This changes the answer on purpose and is not a speed option: leave it off for the solver's own answer."
+  },
   "rotational_symmetry": {
     "kind": "bool",
     "label": "rotational symmetry (radial screens)",
