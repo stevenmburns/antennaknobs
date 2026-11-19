@@ -899,6 +899,14 @@ class FeatureInfo(NamedTuple):
 # serves them, the hosted app included.
 LAST_DIGITS_DRIFT = 1e-6
 
+# A declared drift of 1.0 or more is not a bound: momwire writes 1.0 for a
+# feature that changes the answer on purpose, such as `nec2_end_cap`
+# (momwire#2033), which swaps in NEC-2's free-end condition to compare with
+# NEC-2 engines. It is not a speed option, so it is labelled as changing the
+# answer rather than as faster, and like every feature over
+# `LAST_DIGITS_DRIFT` no seed turns it on.
+CHANGES_ANSWER_DRIFT = 1.0
+
 
 def _derive_features(registry) -> dict[str, FeatureInfo] | None:
     """The offered features of momwire's ``FEATURES`` registry, or None when
