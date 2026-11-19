@@ -80,7 +80,8 @@ describe("defaultOptsFor", () => {
     // not EXPOSE it here. Its Galerkin sibling does — asserted below.
     // The two buried-fill switches joined with momwire 0.88.0 (#1847, #1849),
     // off by default. The sector route and fill reuse joined with momwire
-    // 0.91.0 (#1912, #1911), off by default too.
+    // 0.91.0 (#1912, #1911), off by default too, and the NEC-2 free-end cap
+    // with 0.95.0 (#2041), off and never seeded.
     expect(opts.model).toEqual({
       n_qp_const: 8,
       extended_kernel: false,
@@ -88,6 +89,7 @@ describe("defaultOptsFor", () => {
       pair_reuse: false,
       transmitted_anchors: false,
       point_cplx_staged: false,
+      nec2_end_cap: false,
     });
     expect(
       defaultOptsFor(entry("sinusoidal-galerkin"), SERVED_OPTION_SPECS).model
