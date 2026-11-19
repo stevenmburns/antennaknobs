@@ -70,6 +70,8 @@ REFUSED = {
     ("dipoles.invvee_endport:classic_edz", None): "PortAtEnd",
     ("dipoles.invvee_endport:dipole", None): "PortAtEnd",
     ("dipoles.invvee_endport:three_halves", None): "PortAtEnd",
+    ("verticals.collinear_stub:bl_stub", None): "PortAtEnd",
+    ("verticals.collinear_stub:bl_stub_diffonly", None): "PortAtEnd",
     ("wire.sterba_bl", None): "distributed",
     ("wire.sterba_tl", None): "distributed",
     ("wire.zepp", None): "distributed",
