@@ -80,6 +80,7 @@ SAMPLE = {
     "fill_reuse": False,
     "transmitted_anchors": False,
     "point_cplx_staged": False,
+    "nec2_end_cap": False,
     "factored_columns": False,
     "height_sheet_recal": False,
     "crossing_table": False,
