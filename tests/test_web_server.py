@@ -1430,6 +1430,8 @@ def test_sweep_endpoint_streams_one_record_per_freq_then_done(client: TestClient
     recs = _ndjson_records(r.text)
     assert len(recs) == len(freqs) + 1
     *points, terminator = recs
+    # The closing record carries the sweep's fill report (AK#2327).
+    assert terminator.pop("fill_report")["scope"] == "sweep"
     assert terminator == {"done": True, "solver": "momwire"}
     for f, rec in zip(freqs, points, strict=True):
         assert rec["freq_mhz"] == f
@@ -2065,6 +2067,8 @@ def test_sweep_endpoint_streams_feeds_z_for_multi_feed_geometry(client: TestClie
     assert r.status_code == 200
     recs = _ndjson_records(r.text)
     *points, terminator = recs
+    # The closing record carries the sweep's fill report (AK#2327).
+    assert terminator.pop("fill_report")["scope"] == "sweep"
     assert terminator == {"done": True, "solver": "momwire"}
     for rec in points:
         assert "feeds_z_re" in rec

@@ -62,7 +62,7 @@ export const invveeShape = {
   "design_freq_mhz": 28.47,
   "measurement_freq_mhz": 28.481,
   "lambda_design_m": 10.53011794871795,
-  "solve_ms": 6.521443836390972,
+  "solve_ms": 17.360919999191537,
   "kernel": "reduced",
   "ground": false,
   "height_m": 0.0,
@@ -76,6 +76,27 @@ export const invveeShape = {
   "radiation_efficiency": 1.0,
   "power_budget": [],
   "input_power_w": 0.008799486072186034,
+  "fill_report": {
+    "version": 1,
+    "scope": "solve",
+    "source": "fresh",
+    "solved_at": 1795096842.8704653,
+    "solver": "BSplineSolver",
+    "fills": 1,
+    "frequencies": 1,
+    "times": {
+      "fill_s": 0.013771944999461994,
+      "factor_s": 0.00029324600473046303,
+      "census_s": 0.0
+    },
+    "no_fill": false,
+    "points_cached": 0,
+    "route": "dense",
+    "reuse_asked": false,
+    "reuse": null,
+    "sector": null,
+    "map": null
+  },
   "solver": "momwire",
   "k_meas_m_inv": 0.5969176207020584,
   "ground_eps_im": -0.0,
@@ -121,11 +142,11 @@ export const doubletLadderTunerShape = {
       ],
       "knot_currents_re": [
         0.0,
-        0.0008685875604828514
+        0.0008718062391934744
       ],
       "knot_currents_im": [
         0.0,
-        -0.0004960829403459348
+        -0.0005016954003259461
       ]
     }
   ],
@@ -146,12 +167,12 @@ export const doubletLadderTunerShape = {
       ] as [number, number, number]
     }
   ],
-  "z_in_re": 51.31067762129089,
-  "z_in_im": 9.663598555302398,
+  "z_in_re": 51.002032425380776,
+  "z_in_im": 9.905527852674034,
   "design_freq_mhz": 7.1,
   "measurement_freq_mhz": 7.15,
   "lambda_design_m": 42.22428985915493,
-  "solve_ms": 6.574232829734683,
+  "solve_ms": 14.606132011977024,
   "kernel": "reduced",
   "ground": false,
   "height_m": 0.0,
@@ -162,11 +183,11 @@ export const doubletLadderTunerShape = {
   "design_z0_ohms": 50.0,
   "multi_feed": false,
   "default_view": "yz" as Projection,
-  "radiation_efficiency": 0.919896718955422,
+  "radiation_efficiency": 0.9266099344167726,
   "power_budget": [
     {
       "label": "TL li\u2192feed",
-      "watts": 0.00035133688923586794,
+      "watts": 0.0002863132562924177,
       "path": "",
       "key": "TL li\u2192feed"
     },
@@ -177,16 +198,37 @@ export const doubletLadderTunerShape = {
       "key": "tuner: TwoPort rig\u2192m"
     }
   ],
-  "input_power_w": 0.009410759973648803,
+  "input_power_w": 0.009447176338016245,
   "plane": "rig",
   "planes": [
     "rig",
     "li"
   ],
+  "fill_report": {
+    "version": 1,
+    "scope": "solve",
+    "source": "fresh",
+    "solved_at": 1795096842.891016,
+    "solver": "BSplineSolver",
+    "fills": 1,
+    "frequencies": 1,
+    "times": {
+      "fill_s": 0.0042022809939226136,
+      "factor_s": 0.0001719870197121054,
+      "census_s": 0.0
+    },
+    "no_fill": false,
+    "points_cached": 0,
+    "route": "dense",
+    "reuse_asked": false,
+    "reuse": null,
+    "sector": null,
+    "map": null
+  },
   "solver": "momwire",
   "k_meas_m_inv": 0.14985291906954523,
   "ground_eps_im": -0.0,
-  "directivity_norm": 35.76814564810112,
+  "directivity_norm": 35.630268913501865,
   "cache_hit": false,
   "solve_id": "6227dedce17ac72c6cd97fe045051119",
   "cuts": {
@@ -195,12 +237,12 @@ export const doubletLadderTunerShape = {
     "n_dir": 180,
     "floor_dbi": -999.0,
     "azimuth": [
-      2.094,
-      2.085
+      2.126,
+      2.116
     ],
     "elevation": [
-      2.094,
-      2.094
+      2.126,
+      2.126
     ],
     "diffraction": false
   }
@@ -258,7 +300,7 @@ export const invveeCatenaryShape = {
   "design_freq_mhz": 28.47,
   "measurement_freq_mhz": 28.489,
   "lambda_design_m": 10.53011794871795,
-  "solve_ms": 17.63199595734477,
+  "solve_ms": 26.527826994424686,
   "kernel": "reduced",
   "ground": false,
   "height_m": 0.0,
@@ -307,6 +349,27 @@ export const invveeCatenaryShape = {
       "group": "rigging"
     }
   ],
+  "fill_report": {
+    "version": 1,
+    "scope": "solve",
+    "source": "fresh",
+    "solved_at": 1795096842.9240627,
+    "solver": "BSplineSolver",
+    "fills": 1,
+    "frequencies": 1,
+    "times": {
+      "fill_s": 0.021754740009782836,
+      "factor_s": 0.00011705599899869412,
+      "census_s": 0.0
+    },
+    "no_fill": false,
+    "points_cached": 0,
+    "route": "dense",
+    "reuse_asked": false,
+    "reuse": null,
+    "sector": null,
+    "map": null
+  },
   "solver": "momwire",
   "k_meas_m_inv": 0.5970852883038147,
   "ground_eps_im": -0.0,
