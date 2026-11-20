@@ -1020,7 +1020,10 @@ def _echo_fixed_frequency_nt(builder, make, args, npoints):
         return
     deck = getattr(builder, "file_deck_parsed", None)
     advise = getattr(deck, "fixed_frequency_advisory", None)
-    if advise is None:
+    cards = getattr(deck, "fixed_frequency_nts", None)
+    # Nothing to say without the cards, so nothing is computed: the sweep's
+    # own `design_range` read stays the only one (AK#1757's gate counts it).
+    if advise is None or cards is None or not cards():
         return
     antenna = make()
     if args.swr and (args.range, args.center, args.fraction) == (None, None, None):
