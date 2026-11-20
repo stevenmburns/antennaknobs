@@ -193,3 +193,54 @@ def test_ladder_z_inf_needs_three_rungs():
 
     est = zinf_estimate([1, 3], [1 + 1j, 1 + 2j])
     assert est.status == "insufficient" and est.z_inf is None
+
+
+# A NEC-5 TL/NT field names a segment END, a knot (AK#1579), where NEC-2's
+# and NEC-4.2's name a segment centre. An L with its network landing on the
+# bend knot and on an interior knot, the shape EZNEC's NEC-5 writer gives a
+# feed network on a corner.
+L_NEC5 = (
+    "GW 1 5 0 0 4 2 0 4 .001\nGW 2 5 2 0 4 2 0 0.5 .001\nGE 0\n"
+    "EX 0 2 2 2 1 0\n{net}\nFR 0 1 0 0 28 0\nEN\n"
+)
+L_NEC5_X3 = (
+    "GW 1 15 0 0 4 2 0 4 .001\nGW 2 15 2 0 4 2 0 0.5 .001\nGE 0\n"
+    "EX 0 2 6 2 1 0\n{net}\nFR 0 1 0 0 28 0\nEN\n"
+)
+
+
+@pytest.mark.parametrize(
+    "card, card_x3",
+    [
+        ("NT 1 5 2 4 0 0.02 0 0 0 0.01", "NT 1 15 2 12 0 0.02 0 0 0 0.01"),
+        ("TL 1 5 2 4 300 1.5 0 0 0 0", "TL 1 15 2 12 300 1.5 0 0 0 0"),
+        ("NT 1 -2 2 -4 0 0.02 0 0 0 0.01", "NT 1 -4 2 -10 0 0.02 0 0 0 0.01"),
+    ],
+)
+def test_a_nec5_network_end_keeps_its_knot(card, card_x3):
+    a, b = _pair(L_NEC5.format(net=card), L_NEC5_X3.format(net=card_x3))
+    assert a.dialect == "nec5"
+    assert {t.edge_a for t in (*a.tls, *a.nts)} != {0}
+    _same(a, b)
+
+
+def _ports(tmp_path, text, r):
+    import re
+
+    from antennaknobs.file_designs import builder_from_file
+
+    deck = tmp_path / f"L{r}.nec"
+    deck.write_text(text)
+    net = repr(builder_from_file(str(deck), refine=r)().build_network())
+    return sorted(re.findall(r"Port(?:AtVertex|OnWire)\([^()]*\)", net))
+
+
+def test_every_port_stands_in_the_same_place_on_every_rung(tmp_path):
+    """The engines place a port exactly (`PortOnWire(at=)`, `PortAtVertex`),
+    so a ladder is a mesh study only if every rung hands them the same
+    places. Before the fix the NT end on the bend left the vertex for
+    at=0.933 and the interior end went 0.8 -> 0.733 at r=3."""
+    text = L_NEC5.format(net="NT 1 5 2 4 0 0.02 0 0 0 0.01")
+    one = _ports(tmp_path, text, 1)
+    assert "PortAtVertex(wire='nt1a', end='p1')" in one
+    assert _ports(tmp_path, text, 3) == one == _ports(tmp_path, text, 9)

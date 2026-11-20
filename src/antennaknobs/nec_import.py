@@ -893,8 +893,9 @@ class NecDeck:
         port, not a refinement (antennaknobs#1456).
 
         References move with the mesh: a centre attachment (feed, lumped load,
-        TL/NT end) goes to the middle piece of its old segment, and a knot
-        source or NEC-5 knot load keeps its knot. A lumped load stays ONE element. Per-wire
+        NEC-2 TL/NT end) goes to the middle piece of its old segment, and a
+        knot (a knot source, a NEC-5 knot load or TL/NT end) keeps its knot.
+        A lumped load stays ONE element. Per-wire
         materials are per-wire and do not move. A virtualized wire (a #427 TL
         anchor, an AK#1577 EZNEC virtual wire) has no mesh to refine and keeps
         its segments, so the nodes its ports name stay where they were.
@@ -907,17 +908,27 @@ class NecDeck:
             return self
         anchors = self.virtual_anchors
 
-        def centre(wire: int, seg: int) -> int:
-            return seg if wire in anchors else (seg - 1) * r + (r + 1) // 2
+        def at(wire: int, seg: int, edge: int) -> int:
+            """The refined segment that names the same place: a centre goes to
+            its middle piece, a knot (end 1 or end 2 of its segment) to the
+            same knot. Every attachment kind goes through here. A NEC-5 TL/NT
+            end is a knot like a load (AK#1579); sent to its segment's middle
+            piece it moved by up to half an old segment per rung, so the rungs
+            of a ladder were different decks."""
+            if wire in anchors:
+                return seg
+            if edge == 1:
+                return (seg - 1) * r + 1
+            if edge == 2:
+                return seg * r
+            return (seg - 1) * r + (r + 1) // 2
 
-        def feed(f: NecFeed) -> NecFeed:
-            if f.wire in anchors:
-                return f
-            if f.edge == 1:
-                return replace(f, seg=(f.seg - 1) * r + 1)
-            if f.edge == 2:
-                return replace(f, seg=f.seg * r)
-            return replace(f, seg=centre(f.wire, f.seg))
+        def link(t):
+            return replace(
+                t,
+                seg_a=at(t.wire_a, t.seg_a, t.edge_a),
+                seg_b=at(t.wire_b, t.seg_b, t.edge_b),
+            )
 
         return replace(
             self,
@@ -925,25 +936,12 @@ class NecDeck:
                 w if i in anchors else replace(w, n_seg=w.n_seg * r)
                 for i, w in enumerate(self.wires)
             ),
-            feeds=tuple(feed(f) for f in self.feeds),
+            feeds=tuple(replace(f, seg=at(f.wire, f.seg, f.edge)) for f in self.feeds),
             loads=tuple(
-                replace(ld, seg=(ld.seg - 1) * r + 1 if ld.edge == 1 else ld.seg * r)
-                if ld.edge
-                else replace(ld, seg=centre(ld.wire, ld.seg))
-                for ld in self.loads
+                replace(ld, seg=at(ld.wire, ld.seg, ld.edge)) for ld in self.loads
             ),
-            tls=tuple(
-                replace(
-                    t, seg_a=centre(t.wire_a, t.seg_a), seg_b=centre(t.wire_b, t.seg_b)
-                )
-                for t in self.tls
-            ),
-            nts=tuple(
-                replace(
-                    t, seg_a=centre(t.wire_a, t.seg_a), seg_b=centre(t.wire_b, t.seg_b)
-                )
-                for t in self.nts
-            ),
+            tls=tuple(link(t) for t in self.tls),
+            nts=tuple(link(t) for t in self.nts),
             symmetry_cell=None
             if self.symmetry_cell is None
             else self.symmetry_cell * r,
