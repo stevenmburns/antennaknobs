@@ -29,32 +29,20 @@ import { Card, CardGrid, LinkCard } from "@astrojs/starlight/components";
 {/* What's-new box: refresh as part of the release ritual (bump the version,
     swap the highlights) — a stale "new" box is worse than none. */}
 
-<Card title="New in v0.123.0" icon="star">
-  **On momwire 0.95.0.** A new **Fill** view on the
-  [simulator](https://app.antennaknobs.dev) shows what the matrix fill of the
-  solve on screen did: fill and factor time, whether repeated-geometry reuse
-  served or why it declined, how much it compressed, and a wire-by-wire map of
-  which entries were computed and which were reused. Pair reuse now serves on
-  large decks it used to decline, such as W8IO's 4,392-segment ELT whip.
+<Card title="New in v0.123.1" icon="star">
+  **A fix to `antennaknobs ladder` on NEC-5 decks.** In a NEC-5 deck, a `TL`
+  or `NT` card connects at a segment END, a knot. Refining the deck moved
+  those connection points by up to half an original segment per rung, so the
+  rungs were not the same antenna. Every connection now stays where the deck
+  put it at every rung. NEC-2 and NEC-4.2 decks were never affected.
 
-  **Reuse against mesh size.** The convergence sweep plots four fill metrics
-  for each rung: compression, fill time, factor time and fill's share of the
-  solve. A metric chart is now named by what it draws, and a picker switches
-  between an analysis's metrics without solving again. See the
-  [web reference](/reference/web/).
+  **`verticals.collinear_stub` gets length knobs.** `lower_frac`, `upper_frac`
+  and `radial_frac` trim the lower section, the upper section and the radials,
+  in wavelengths at the design frequency like `stub_frac`. The defaults are
+  the same antenna as before.
 
-  **A new design, `verticals.collinear_stub`.** The co-phased collinear
-  vertical with a λ/4 hairpin stub, beside the stub's usual substitutes (an
-  open circuit, a parallel LC trap, a folded coax stub). Only the hairpin, or
-  a transmission line that carries its common-mode current, puts the two
-  sections in phase and the lobe near the horizon.
-
-  **Smaller changes.**
-  - The sinusoidal tab offers momwire's **NEC-2 free-end cap**, unticked. It
-    changes the answer on purpose, to compare with NEC-2 engines, and is not a
-    speed option.
-  - Opening a `.nec` deck: a `GM` that renumbers the wires it moves keeps the
-    symmetry cell NEC-2 keeps.
+  Still on momwire 0.95.0. The [v0.123.0](https://github.com/stevenmburns/antennaknobs/releases/tag/v0.123.0)
+  notes cover the Fill view and the rest of that release.
 </Card>
 
 ## The whole pitch, in one line
