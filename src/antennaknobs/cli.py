@@ -1008,6 +1008,36 @@ _ECHOED_SUMMARY = (
 )
 
 
+def _echo_fixed_frequency_nt(builder, make, args, npoints):
+    """AK#1681's note on stderr for a frequency sweep of a deck whose NT cards
+    were written for one frequency (an EZNEC/AutoEZ export): the web app
+    attaches it to every solve response, and the CLI printed nothing, so a
+    sweep of such a deck read as a normal sweep while the networks were
+    wrong away from their frequency. The frequencies are the ones the sweep
+    solves: the design's own span when `--swr` is given none, else
+    `gen_xs`'s, which every sweep path uses."""
+    if args.param != "freq":
+        return
+    deck = getattr(builder, "file_deck_parsed", None)
+    advise = getattr(deck, "fixed_frequency_advisory", None)
+    if advise is None:
+        return
+    antenna = make()
+    if args.swr and (args.range, args.center, args.fraction) == (None, None, None):
+        from .frequency_range import design_range
+
+        xs = design_range(antenna._params).grid(args.npoints)
+    else:
+        from .sweep import gen_xs
+
+        xs = gen_xs(
+            antenna.freq, args.range, args.center, args.fraction, npoints, log=args.log
+        )
+    note = advise(list(xs))
+    if note is not None:
+        print(f"advisory: {note['text']}", file=sys.stderr)
+
+
 class _FeedPlacementEcho:
     """Prints each distinct FeedPlacement advisory of the engines a command
     builds to stderr, once (AK#1510), so stdout stays the command's own output.
@@ -1693,6 +1723,7 @@ def cli(arguments=None):
             if is_density_study or len(engines) > 1
             else next(iter(engines.values()))
         )
+        _echo_fixed_frequency_nt(builder, make, args, npoints)
         if args.patterns:
             sweep_patterns(
                 make(),

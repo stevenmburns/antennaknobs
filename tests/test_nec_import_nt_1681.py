@@ -246,3 +246,35 @@ def test_the_source_on_the_virtual_wire_is_the_rig():
     assert [s.port for s in net.sources] == ["rig"]
     assert isinstance(net.ports["rig"], PortVirtual)
     assert "feed" not in net.ports
+
+
+def test_the_cli_sweep_says_so_too(capsys):
+    """The CLI's sweep printed nothing for such a deck, so a sweep of an
+    AutoEZ/EZNEC export read as a normal sweep. `run_sweep` now prints the
+    note the app attaches, for the frequencies the sweep solves (gen_xs's),
+    and nothing at the deck's own frequency or for a non-frequency sweep.
+    Called with the arguments `run_sweep` passes, without the solve."""
+    from types import SimpleNamespace
+
+    from antennaknobs.cli import _echo_fixed_frequency_nt
+
+    builder = builder_from_file(str(DECK))
+
+    def echo(param="freq", rng=None, npoints=21):
+        args = SimpleNamespace(
+            param=param,
+            swr=False,
+            range=rng,
+            center=None,
+            fraction=None,
+            npoints=npoints,
+            log=False,
+        )
+        _echo_fixed_frequency_nt(builder, builder, args, npoints)
+        return capsys.readouterr().err
+
+    err = echo(rng=[13.0, 15.0], npoints=3)
+    assert "advisory: The deck's NT cards #1, #3, #4" in err
+    assert "over 13–15 MHz" in err
+    assert "NT card" not in echo(rng=[FREQ, FREQ], npoints=1)
+    assert "NT card" not in echo(param="nominal_nsegs", rng=[11, 21], npoints=3)
