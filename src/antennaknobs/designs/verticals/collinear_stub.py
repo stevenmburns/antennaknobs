@@ -171,12 +171,11 @@ class Builder(AntennaBuilder):
             "base": 0.5,
             # Three λ/4 radials at 120°, the first along +x, under the hairpin.
             "n_radials": 3,
-            # The two sections as factors on their nominal λ/4 (below the
-            # stub) and λ/2 (above it) at design_freq, for trimming each one.
-            # The radials are a factor on λ/4 of their own.
-            "lower_length_factor": 1.0,
-            "upper_length_factor": 1.0,
-            "radial_length_factor": 1.0,
+            # Lengths in wavelengths at design_freq, as stub_frac: the section
+            # below the stub, the section above it, and each radial.
+            "lower_frac": 0.25,
+            "upper_frac": 0.5,
+            "radial_frac": 0.25,
             # Stub length (wavelengths) and the hairpin's leg spacing (m),
             # which is also the break between the sections at A in every
             # variant, so the vertical geometry is the same in all of them.
@@ -202,9 +201,9 @@ class Builder(AntennaBuilder):
                     "stub": {"enum_options": STUBS},
                     "cable": {"enum_options": tuple(sorted(CABLES))},
                     "n_radials": {"min": 1, "max": 16, "step": 1},
-                    "lower_length_factor": {"min": 0.8, "max": 1.2, "step": 0.005},
-                    "upper_length_factor": {"min": 0.8, "max": 1.2, "step": 0.005},
-                    "radial_length_factor": {"min": 0.8, "max": 1.2, "step": 0.005},
+                    "lower_frac": {"min": 0.2, "max": 0.3, "step": 0.002},
+                    "upper_frac": {"min": 0.4, "max": 0.6, "step": 0.002},
+                    "radial_frac": {"min": 0.2, "max": 0.3, "step": 0.002},
                     "stub_frac": {"min": 0.2, "max": 0.3, "step": 0.002},
                     "spacing": {"min": 0.02, "max": 0.5, "step": 0.01},
                     "zcomm": {"min": 0.0, "max": 800.0, "step": 25.0},
@@ -225,9 +224,9 @@ class Builder(AntennaBuilder):
         """``(z_feed_top, z_a, z_b, z_top)``: the feed gap's top, the lower
         section's top (A), the upper section's foot and its top, in metres."""
         wl = self.design_wavelength
-        z_a = self.base + 0.25 * self.lower_length_factor * wl
+        z_a = self.base + self.lower_frac * wl
         z_b = z_a + self.spacing
-        z_top = z_b + 0.5 * self.upper_length_factor * wl
+        z_top = z_b + self.upper_frac * wl
         return self.base + FEED_GAP_FRAC * wl, z_a, z_b, z_top
 
     def section_centres(self):
@@ -249,7 +248,7 @@ class Builder(AntennaBuilder):
             Wire((0, 0, z_ft), (0, 0, z_a), name="lower" if jn else None),
             Wire((0, 0, z_b), (0, 0, z_top), name="upper" if jn else None),
         ]
-        r_len = 0.25 * self.radial_length_factor * self.design_wavelength
+        r_len = self.radial_frac * self.design_wavelength
         n = max(1, round(self.n_radials))
         for i in range(n):
             # Evenly spaced from +x, as verticals.vertical spaces them.
