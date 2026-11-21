@@ -469,9 +469,12 @@ The readout gives:
   search), or **off**.
 - with reuse served, the **compression**, pairs ÷ (computed + near): how far
   the matrix compressed, which is not the time saved. Beside it are the
-  computed, reused and near pair counts, and per kernel family where there is
-  more than one. A family the fill could not count is named as uncounted,
-  never shown as zero.
+  computed, reused and near pair counts. Over a ground they come in two
+  sections: **without ground terms**, the free-space (direct) term, and the
+  **ground terms**, the image and the Sommerfeld remainder. Those depend on
+  the wires' heights as well as their spacing, so fewer pairs share them. A
+  term the fill could not count is named as not counted, never shown as zero,
+  and a total over all terms appears only when every term is counted.
 - on the sector route, the sectors, the wires on the axis, the blocks
   factored and the entries computed against the matrix's total. The sector
   route shortens the factor as well as the fill, which pair reuse does not.
@@ -479,8 +482,11 @@ The readout gives:
 The **map** draws the matrix wire by wire. Each block shows its share of
 computed, reused and near pairs, solid, hatched and dotted, so it reads
 without colour. Hover a block, or focus the map and use the arrow keys, for
-its counts, and **Show as table** lists every block. Past 32 wires,
-neighbouring wires share a row. On the sector route the map marks the
+its counts, and **Show as table** lists every block. The map counts wires
+as momwire solves them: wires joined end to end with nothing else at the
+joint are solved as one, so a row can hold several of the design's wires,
+and is labelled by the design's wire numbers it holds (`wires 1–14, 16–20`).
+Past 32 wires, neighbouring wires share a row. On the sector route the map marks the
 computed sector and the axis, and shows every other row as following from
 them by rotation, each row labelled with its sector.
 
