@@ -29,20 +29,22 @@ import { Card, CardGrid, LinkCard } from "@astrojs/starlight/components";
 {/* What's-new box: refresh as part of the release ritual (bump the version,
     swap the highlights) — a stale "new" box is worse than none. */}
 
-<Card title="New in v0.123.1" icon="star">
-  **A fix to `antennaknobs ladder` on NEC-5 decks.** In a NEC-5 deck, a `TL`
-  or `NT` card connects at a segment END, a knot. Refining the deck moved
-  those connection points by up to half an original segment per rung, so the
-  rungs were not the same antenna. Every connection now stays where the deck
-  put it at every rung. NEC-2 and NEC-4.2 decks were never affected.
+<Card title="New in v0.123.2" icon="star">
+  **On momwire 0.95.1.** Its Windows zip adds the NEC-2 engines, and pair
+  reuse is certified on more platforms. No default changes.
 
-  **`verticals.collinear_stub` gets length knobs.** `lower_frac`, `upper_frac`
-  and `radial_frac` trim the lower section, the upper section and the radials,
-  in wavelengths at the design frequency like `stub_frac`. The defaults are
-  the same antenna as before.
+  **The Fill view's map names the design's wires.** Wires joined end to end
+  are solved as one, so a curtain's twenty wires solve as two. Those rows now
+  read `wire 15` and `wires 1–14, 16–20` instead of `wire 1` and `wire 2`.
+  Over a ground, the reuse counts come in two sections, the free-space term
+  and the ground terms, so the free-space numbers are not read as the whole
+  fill.
 
-  Still on momwire 0.95.0. The [v0.123.0](https://github.com/stevenmburns/antennaknobs/releases/tag/v0.123.0)
-  notes cover the Fill view and the rest of that release.
+  **A PyNEC fix.** A PyNEC engine solved twice at different frequencies
+  answered the second solve with the first one's results. It reads its own
+  run now. Fresh engines, the usual path, were never affected.
+
+  Full notes: [v0.123.2](https://github.com/stevenmburns/antennaknobs/releases/tag/v0.123.2).
 </Card>
 
 ## The whole pitch, in one line
