@@ -79,6 +79,16 @@ def alive(pid: int) -> bool:
         return False
 
 
+def cmdline(pid: str) -> str:
+    """A process's command line, or "" when it exited between the listing of
+    /proc and the read: other processes on the runner come and go."""
+    try:
+        with open(f"/proc/{pid}/cmdline", "rb") as f:
+            return f.read().decode(errors="replace")
+    except OSError:
+        return ""
+
+
 def test_one_worker_answers_every_knob_turn(pool):
     src = design(PID)
     pids = {pid_of(ask(pool, src, mode=m)) for m in range(5)}
@@ -165,12 +175,7 @@ def test_a_worker_whose_design_forked_is_replaced_and_its_children_are_gone(pool
     first_host = host(pool, src)
     assert pid_of(ask(pool, src, mode=1)) == first  # it answers, then goes
     time.sleep(0.5)
-    orphans = [
-        p
-        for p in os.listdir("/proc")
-        if p.isdigit()
-        and marker in open(f"/proc/{p}/cmdline", "rb").read().decode(errors="replace")
-    ]
+    orphans = [p for p in os.listdir("/proc") if p.isdigit() and marker in cmdline(p)]
     assert not orphans
     assert not alive(first_host)
     assert pid_of(ask(pool, src)) != first
