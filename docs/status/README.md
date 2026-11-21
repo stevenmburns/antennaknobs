@@ -66,3 +66,4 @@ Dated records of studies that settled a question: what was measured, on which bu
 | [2026-09-11-corpus-census-momwire-nec5.md](2026-09-11-corpus-census-momwire-nec5.md) | momwire bs2 against NEC-5 over the public NEC corpus | not yet reviewed |
 | [2026-09-15-catalog-razor-nec5-bs2.md](2026-09-15-catalog-razor-nec5-bs2.md) | razor-2p, NEC-5 and momwire bs2 over the antennaknobs catalog | not yet reviewed |
 | [2026-11-21-point-gap-ladder-creep.md](2026-11-21-point-gap-ladder-creep.md) | The slow tail of a refinement ladder: a zero-width feed gap, on every engine | current |
+| [2026-11-21-w8io-whip-nec2-launcher.md](2026-11-21-w8io-whip-nec2-launcher.md) | The W8IO ELT whip on momwire's NEC-2 launcher: 0.95.1 against 0.96.0 | current |
