@@ -301,55 +301,97 @@ function MapSection({ map }: { map: FillMap | null }) {
   return <MapGrid map={map} />;
 }
 
-function ReuseCounts({ report }: { report: FillReport }) {
-  const reuse = report.reuse;
-  if (!reuse || reuse.state === "declined") return null;
-  const ratio = compression(reuse);
-  const families = Object.entries(reuse.families);
+// Over a ground a matrix entry is a sum of terms that repeat under different
+// symmetries: the direct (free-space) term depends on a pair's relative
+// geometry only; the image and the Sommerfeld remainder depend on the wires'
+// heights too, so fewer pairs share them. The view keeps the two apart, so
+// the free-space counts are never read as the whole fill. A term the solver
+// fills but does not count reads as not counted, never as zero.
+const DIRECT = "direct";
+
+function CountRows({ counts }: { counts: { pairs: number | null; computed: number | null; reused: number | null; near: number | null } }) {
+  const ratio = compression(counts);
   return (
-    <section className="fill-section" aria-label="fill reuse">
-      <h3>Fill reuse: {reuse.state}</h3>
+    <>
       <Row
         label="compression"
         value={ratio === null ? "—" : `${ratio.toFixed(2)}×`}
         title="pairs ÷ (computed + near). This is how far the matrix compressed, not the time saved."
       />
-      <p className="fill-note">Compression is pairs ÷ (computed + near). It is not the time saved.</p>
-      <Row label="pairs" value={formatCount(reuse.pairs)} />
-      <Row label="computed" value={formatCount(reuse.computed)} />
-      <Row label="reused" value={formatCount(reuse.reused)} />
-      <Row label="near" value={formatCount(reuse.near)} />
-      {families.length > 1 && (
-        <div className="fill-table-wrap">
-          <table className="fill-table">
-            <caption>By kernel family</caption>
-            <thead>
-              <tr>
-                <th scope="col">Family</th>
-                <th scope="col">Pairs</th>
-                <th scope="col">Computed</th>
-                <th scope="col">Reused</th>
-                <th scope="col">Near</th>
-              </tr>
-            </thead>
-            <tbody>
-              {families.map(([name, f]) => (
-                <tr key={name}>
-                  <th scope="row">{name}</th>
-                  <td>{formatCount(f.pairs)}</td>
-                  <td>{formatCount(f.computed)}</td>
-                  <td>{formatCount(f.reused)}</td>
-                  <td>{formatCount(f.near)}</td>
-                </tr>
-              ))}
-            </tbody>
-          </table>
-        </div>
+      <Row label="pairs" value={formatCount(counts.pairs)} />
+      <Row label="computed" value={formatCount(counts.computed)} />
+      <Row label="reused" value={formatCount(counts.reused)} />
+      <Row label="near" value={formatCount(counts.near)} />
+    </>
+  );
+}
+
+function ReuseCounts({ report }: { report: FillReport }) {
+  const reuse = report.reuse;
+  if (!reuse || reuse.state === "declined") return null;
+  const families = Object.entries(reuse.families);
+  const direct = reuse.families[DIRECT];
+  const ground = families.filter(([name]) => name !== DIRECT);
+  const hasGround = ground.length > 0 || reuse.uncounted.length > 0;
+  return (
+    <>
+      <section className="fill-section" aria-label="fill reuse">
+        <h3>Fill reuse: {reuse.state}</h3>
+        <p className="fill-note">Compression is pairs ÷ (computed + near). It is not the time saved.</p>
+        {hasGround && reuse.uncounted.length === 0 && (
+          <>
+            <h4>All terms</h4>
+            <CountRows counts={reuse} />
+          </>
+        )}
+      </section>
+      <section className="fill-section" aria-label="reuse without ground terms">
+        <h4>{hasGround ? "Without ground terms: the free-space (direct) term" : "Reuse"}</h4>
+        <CountRows counts={direct ?? reuse} />
+      </section>
+      {hasGround && (
+        <section className="fill-section" aria-label="reuse of the ground terms">
+          <h4>Ground terms</h4>
+          <p className="fill-note">
+            The image and the ground&apos;s remainder depend on the wires&apos; heights as well as their spacing, so
+            fewer pairs share them than share the free-space term.
+          </p>
+          {ground.length > 0 && (
+            <div className="fill-table-wrap">
+              <table className="fill-table">
+                <caption>By ground term</caption>
+                <thead>
+                  <tr>
+                    <th scope="col">Term</th>
+                    <th scope="col">Pairs</th>
+                    <th scope="col">Computed</th>
+                    <th scope="col">Reused</th>
+                    <th scope="col">Near</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {ground.map(([name, f]) => (
+                    <tr key={name}>
+                      <th scope="row">{name}</th>
+                      <td>{formatCount(f.pairs)}</td>
+                      <td>{formatCount(f.computed)}</td>
+                      <td>{formatCount(f.reused)}</td>
+                      <td>{formatCount(f.near)}</td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+          )}
+          {reuse.uncounted.length > 0 && (
+            <p className="fill-note fill-uncounted">
+              Not counted by this fill: {reuse.uncounted.join(", ")}. This solver fills them without reporting their
+              reuse, so the fill saves less than the free-space compression suggests.
+            </p>
+          )}
+        </section>
       )}
-      {reuse.uncounted.length > 0 && (
-        <p className="fill-note">Not counted by this fill: {reuse.uncounted.join(", ")}.</p>
-      )}
-    </section>
+    </>
   );
 }
 

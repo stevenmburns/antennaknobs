@@ -89,7 +89,7 @@ export function formatCount(n: number | null | undefined): string {
 }
 
 /** pairs ÷ (computed + near): how far the matrix compressed. Not time saved. */
-export function compression(reuse: FillReuse | null): number | null {
+export function compression(reuse: Pick<FillReuse, "pairs" | "computed" | "near"> | null): number | null {
   if (!reuse || reuse.pairs === null) return null;
   const paid = (reuse.computed ?? 0) + (reuse.near ?? 0);
   return paid > 0 ? reuse.pairs / paid : null;

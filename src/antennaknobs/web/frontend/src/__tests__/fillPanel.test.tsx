@@ -107,7 +107,29 @@ describe("the readout", () => {
   });
   it("never shows an uncounted family as zero", () => {
     show(report({ reuse: { ...REUSE, uncounted: ["remainder"] } }));
-    expect(screen.getByText("Not counted by this fill: remainder.")).toBeTruthy();
+    expect(screen.getByText(/Not counted by this fill: remainder\./)).toBeTruthy();
+  });
+  it("over a ground, keeps the free-space term apart from the ground terms", () => {
+    const bspline = { ...REUSE, families: { direct: REUSE.families.direct }, uncounted: ["image", "remainder"] };
+    show(report({ reuse: bspline }));
+    expect(screen.getByText("Without ground terms: the free-space (direct) term")).toBeTruthy();
+    expect(screen.getByText("Ground terms")).toBeTruthy();
+    expect(screen.getByText(/Not counted by this fill: image, remainder\./)).toBeTruthy();
+    // with a term uncounted there is no all-terms total to read as the whole fill
+    expect(screen.queryByText("All terms")).toBeNull();
+  });
+  it("shows each counted ground term in its own row, and the all-terms total", () => {
+    const razor = {
+      ...REUSE,
+      families: { direct: REUSE.families.direct, remainder: { pairs: 40, computed: 30, reused: 10, near: 0, kernel_evals: 30 } },
+    };
+    show(report({ reuse: razor }));
+    expect(screen.getByText("remainder")).toBeTruthy();
+    expect(screen.getByText("All terms")).toBeTruthy();
+  });
+  it("has no ground section in free space", () => {
+    show(report({ reuse: { ...REUSE, families: { direct: REUSE.families.direct } } }));
+    expect(screen.queryByText("Ground terms")).toBeNull();
   });
   it("says a cached answer's numbers are an earlier solve's", () => {
     show(report({ source: "cached" }));
