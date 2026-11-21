@@ -86,8 +86,12 @@ def polyline_names(polylines, authored) -> list[str]:
     ``(p0, p1, name, tag)``: a wire the design named reads by that name, an
     opened deck's by its GW tag, and any other by its number.
 
-    The walk merges straight runs, so one solved wire can hold several authored
-    ones; they are matched on their end points."""
+    The walk merges every run of wires joined end to end with nothing else at
+    the joint, bends included, so one solved wire can hold several authored
+    ones; they are matched on their end points. An unnamed, untagged solved
+    wire reads by the DESIGN's wire numbers it holds ("wires 2–20"), not by
+    its own index: a Sterba curtain's 20 wires solve as 2, and "wire 1, wire
+    2" read as if the design had two wires."""
     owner = {}
     for index, polyline in enumerate(polylines):
         points = [_point_key(p) for p in polyline]
@@ -95,10 +99,12 @@ def polyline_names(polylines, authored) -> list[str]:
             owner[frozenset((a, b))] = index
     names: list[list[str]] = [[] for _ in polylines]
     tags: list[list[str]] = [[] for _ in polylines]
-    for p0, p1, name, tag in authored:
+    numbers: list[list[int]] = [[] for _ in polylines]
+    for number, (p0, p1, name, tag) in enumerate(authored, start=1):
         index = owner.get(frozenset((_point_key(p0), _point_key(p1))))
         if index is None:
             continue
+        numbers[index].append(number)
         if name and name not in names[index]:
             names[index].append(str(name))
         if tag is not None and str(tag) not in tags[index]:
@@ -110,9 +116,27 @@ def polyline_names(polylines, authored) -> list[str]:
         elif tags[index]:
             word = "tag" if len(tags[index]) == 1 else "tags"
             out.append(_short(f"{word} {'+'.join(tags[index])}"))
+        elif numbers[index]:
+            out.append(_short(_wire_numbers(numbers[index])))
         else:
             out.append(f"wire {index + 1}")
     return out
+
+
+def _wire_numbers(numbers: list[int]) -> str:
+    """``[2, 3, 4, 9]`` as ``"wires 2–4, 9"``; one number as ``"wire 7"``."""
+    numbers = sorted(set(numbers))
+    if len(numbers) == 1:
+        return f"wire {numbers[0]}"
+    runs, start, prev = [], numbers[0], numbers[0]
+    for n in numbers[1:] + [None]:
+        if n is not None and n == prev + 1:
+            prev = n
+            continue
+        runs.append(f"{start}" if start == prev else f"{start}–{prev}")
+        if n is not None:
+            start = prev = n
+    return "wires " + ", ".join(runs)
 
 
 def _spans(n: int) -> list[tuple[int, int]]:

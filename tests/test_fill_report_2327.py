@@ -382,3 +382,33 @@ def test_another_engine_sends_no_report(solver):
     pytest.importorskip("PyNEC")
     out = _solve({"geometry": YAGI, "solver": solver})
     assert "fill_report" not in out
+
+
+def test_an_unnamed_solved_wire_reads_by_the_design_wires_it_holds():
+    """The walk solves a run of wires joined end to end as one wire, so a
+    Sterba curtain's 20 wires solve as 2. The map's rows read by the design's
+    wire numbers they hold, not "wire 1" / "wire 2", which read as if the
+    design had two wires."""
+    polylines = [
+        np.array([[0.0, 0.0, 0.0], [1.0, 0.0, 0.0], [2.0, 0.0, 0.0], [3.0, 0.0, 0.0]]),
+        np.array([[0.0, 1.0, 0.0], [1.0, 1.0, 0.0]]),
+    ]
+    authored = [
+        ((0.0, 1.0, 0.0), (1.0, 1.0, 0.0), None, None),
+        ((0.0, 0.0, 0.0), (1.0, 0.0, 0.0), None, None),
+        ((2.0, 0.0, 0.0), (1.0, 0.0, 0.0), None, None),
+        ((2.0, 0.0, 0.0), (3.0, 0.0, 0.0), None, None),
+    ]
+    assert fr.polyline_names(polylines, authored) == ["wires 2–4", "wire 1"]
+    assert fr._wire_numbers([9, 2, 3, 4, 11, 12]) == "wires 2–4, 9, 11–12"
+
+
+def test_the_sterba_curtain_names_its_design_wires():
+    """`wire.sterba` itself: 20 design wires, solved as 2. Built only, no
+    solve: the names come from the walk and the design."""
+    from antennaknobs.cli import get_builder
+
+    eng = MomwireEngine(get_builder("wire.sterba")())
+    names = fr.polyline_names(eng._polylines, eng._fill_authored)
+    # Wire 15 is solved on its own; the other 19 are one solved wire.
+    assert names == ["wire 15", "wires 1–14, 16–20"]

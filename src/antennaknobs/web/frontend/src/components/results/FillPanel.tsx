@@ -92,6 +92,9 @@ function MapGrid({ map }: { map: FillReuseMap | FillSectorMap }) {
   const paths = useMemo(() => (reuse ? reusePaths(reuse) : null), [reuse]);
   const rows = useMemo(() => (sector ? sectorPaths(sector) : null), [sector]);
   const grouped = map.rows.some((row) => row.wires > 1);
+  // A solved wire holding several design wires reads "wires 2–20": the walk
+  // solves wires joined end to end as one (a Sterba curtain's 20 as 2).
+  const merged = map.rows.some((row) => row.label.startsWith("wires "));
 
   const detail =
     at === null
@@ -148,6 +151,12 @@ function MapGrid({ map }: { map: FillReuseMap | FillSectorMap }) {
       </div>
       {grouped && (
         <p className="fill-note">Wires are grouped so that the map stays readable; each row adds up its group.</p>
+      )}
+      {merged && (
+        <p className="fill-note">
+          The map counts wires as momwire solves them: wires joined end to end are solved as one, so a row can hold
+          several of the design's wires.
+        </p>
       )}
       {asTable ? (
         <div className="fill-table-wrap">

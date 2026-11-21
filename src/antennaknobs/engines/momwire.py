@@ -2643,9 +2643,10 @@ class MomwireEngine(SimulationEngine):
         return self._contract_y(y)
 
     def _authored_wire_names(self, tups):
-        """The design's wires as ``(p0, p1, name, tag)``, for the fill report
-        to name what it solved (AK#2327): only those carrying a name or an
-        opened deck's GW tag, so a plain design keeps nothing."""
+        """The design's wires as ``(p0, p1, name, tag)``, in the design's
+        order, for the fill report to name what it solved (AK#2327). Every
+        wire, named or not: an unnamed solved wire reads by the design's wire
+        NUMBERS it holds, so the list's positions must be the design's."""
         deck = getattr(getattr(self, "builder", None), "file_deck_parsed", None)
         deck_wires = getattr(deck, "wires", None)
         tags = (
@@ -2654,11 +2655,7 @@ class MomwireEngine(SimulationEngine):
             else [None] * len(tups)
         )
         wires = [as_wire(t) for t in tups]
-        return [
-            (w.p0, w.p1, w.name, tag)
-            for w, tag in zip(wires, tags, strict=True)
-            if w.name or tag is not None
-        ]
+        return [(w.p0, w.p1, w.name, tag) for w, tag in zip(wires, tags, strict=True)]
 
     def _note_fill(self, solver):
         """Add a finished solver to this request's fill report (AK#2327). A

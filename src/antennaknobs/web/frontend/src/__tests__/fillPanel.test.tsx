@@ -87,6 +87,15 @@ describe("the readout", () => {
     expect(screen.getByText(/The fill is 75% of the fill and factor time/)).toBeTruthy();
     expect(screen.getByText(/Pair reuse shortens the fill only/)).toBeTruthy();
   });
+  it("says when a row holds several of the design's wires, and only then", () => {
+    const merged = { ...MAP, rows: [{ ...MAP.rows[0], label: "wire 15" }, { ...MAP.rows[1], label: "wires 1–14, 16–20" }] };
+    show(report({ map: merged }));
+    expect(screen.getByText(/wires joined end to end are solved as one/)).toBeTruthy();
+  });
+  it("adds no merged-wire note when every row is one design wire", () => {
+    show(report());
+    expect(screen.queryByText(/wires joined end to end are solved as one/)).toBeNull();
+  });
   it("draws a family it has never heard of", () => {
     show(report());
     expect(screen.getByText("a-family-nobody-named-yet")).toBeTruthy();
