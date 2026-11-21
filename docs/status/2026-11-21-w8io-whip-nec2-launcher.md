@@ -48,11 +48,26 @@ Run with `MOMWIRE_X_NEC2_FAR_APPROX=1`, 0.96.0's launcher stops before solving (
 ERROR: nec2_far_approx is not certified for the dropin route on linux (support level 4, dropin-linux-windows; it reaches level 1, ak-linux-avx2); unset MOMWIRE_X_NEC2_FAR_APPROX to run without it
 ```
 
-That is the feature system working as designed, not a defect. 0.95.1 predates the switch and ignores the variable, so its "far approx" runs were default runs and are not reported. The approximation's own measurements (fill-only, on whips of 1,400–4,400 segments: 0.52–0.68 of the exact fill's time, nec2c's printed digits reproduced) are in momwire#2085. A whole-deck time for it needs the Python route or a wider reach.
+That is the feature system working as designed, not a defect. 0.95.1 predates the switch and ignores the variable, so its "far approx" runs were default runs and are not reported. The approximation's own measurements (fill-only, on whips of 1,400–4,400 segments: 0.52–0.68 of the exact fill's time, nec2c's printed digits reproduced) are in momwire#2085.
+
+The standalone executable does not carry it either: the C++ kernel (`_sinusoidal_far_core.cpp`) is reached only from Python, and the `nec2c_sin` build does not compile it in.
+
+**Measured on the Python route instead.** On this machine, Python with the avx2 accelerator is level 1, where the feature is certified. A driver parses the deck with `parse_nec2`, then for each of the 13 frequencies calls `build_solver(model, basis="sinusoidal", frequency_mhz=f)` and `compute_impedance()`, with the end cap on. Same threads, three repeats interleaved:
+
+| run | wall | per frequency | \|ΔZ\|/\|Z\| against exact |
+|---|---|---|---|
+| exact | 11.23 s (11.17–11.38) | 861 ms | — |
+| `nec2_far_approx` | 11.69 s (11.58–11.80) | 896 ms | 3.0e-5 at 400 MHz, 1.6e-5 at 412 |
+| exact + `pair_reuse` | 9.86 s (9.82–10.24) | 755 ms | 7e-14 |
+| `nec2_far_approx` + `pair_reuse` | 9.94 s (9.83–10.15) | 762 ms | 3.0e-5 |
+
+On the whip the approximation is **4 % slower**, not faster. The cause is in `sinusoidal.py`: with it on, the fused fill from #2080 declines (the far pairs are lumped inside the field tensor, which the fused pass does not call), so the fill takes the two-pass route that the fusion replaced. #2085's 0.52–0.68 was measured against the unfused fill. Putting the lumping inside the fused kernel is what would turn it into a gain; that is an estimate, not a measurement.
+
+Two caveats on this table. `compute_impedance()` on the bare solver leaves out the deck's two `LD` loads (a series 90 nH and a series 3 pF), so its impedances are the unloaded whip's (1.33 + j33.21 Ω at 400 MHz, against the launcher's loaded 61.26 − j1.54 Ω); the loads touch only the small reduction over the port rows, not the 4,392-segment fill and factor timed here. And this route factors Z in place, which is why it is 1.3 s faster than the launcher's 12.56 s: that difference is, mostly, momwire#2071's copy.
 
 ## What this leaves
 
-* **momwire#2071** (open): `compute_port_solution`, the launcher's path, copies Z to Fortran order and takes its 1-norm before the LU; `compute_impedance` already factors in place. The fused fill (#2080) can write either order, so the remaining work is an in-place `_lapack.solve` and a threaded in-place 1-norm. Its share of the 585 ms factor line is not separated by these printouts; measure it before and after.
+* **momwire#2071** (open), the largest exact item: the Python route's in-place factor runs the same deck about 1.3 s faster than the launcher (above). `compute_port_solution`, the launcher's path, copies Z to Fortran order and takes its 1-norm before the LU; `compute_impedance` already factors in place. The fused fill (#2080) can write either order, so the remaining work is an in-place `_lapack.solve` and a threaded in-place 1-norm. Its share of the 585 ms factor line is not separated by these printouts; measure it before and after.
 * The no-Python NEC-2 executable (`momwire-nec2c-sinusoidal` standalone, momwire#2078) is built and gated in momwire's `linux-nec2c` CI job but is not attached to any release yet, so it is not in this comparison.
 
 ## Rerun
