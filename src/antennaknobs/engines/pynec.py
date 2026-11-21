@@ -1262,11 +1262,33 @@ class PyNECEngine(SimulationEngine):
                 "solve — the reducer path serves current sources."
             )
 
+    def _count_runs(self, freqs=0, patterns=0):
+        """Record ``freqs`` frequency runs and ``patterns`` RP runs just made
+        on ``self.c``; return the result indices the first of them got.
+
+        PyNEC numbers results per context, across every run made on it: each
+        frequency an XQ solves adds one input-parameter and one structure-
+        current set, and each RP one pattern. A reader that indexed from 0
+        read the FIRST run's rows on an engine solved twice (AK#2342: a second
+        sweep answered with the first sweep's impedances). The count is kept,
+        not probed (a binding need not answer past the end), and restarts on a
+        new context: every context ``self.c`` names starts with no run
+        (`_excited_real_context` leaves FR to its caller), and every run on it
+        that this engine reads back is made here. (The web pattern endpoint
+        excites a fresh engine's context itself and reads its own index 0.)
+        """
+        ctx, n_freq, n_rp = self.__dict__.get("_run_counts", (None, 0, 0))
+        if ctx is not self.c:
+            n_freq = n_rp = 0
+        self._run_counts = (self.c, n_freq + freqs, n_rp + patterns)
+        return n_freq, n_rp
+
     def _set_freq_and_execute(self):
         self._refuse_export_only()
         self._warn_if_somm_low_wires(C_LIGHT / (self.builder.freq * 1e6))
         self.c.fr_card(0, 1, self.builder.freq, 0)
         self.c.xq_card(0)
+        self._last_run = self._count_runs(freqs=1)[0]
 
     def _input_parameters_at(self, freq_index):
         """NEC's ANTENNA INPUT PARAMETERS block for one frequency: one row
@@ -1305,7 +1327,7 @@ class PyNECEngine(SimulationEngine):
             self._warn_if_somm_low_wires(wl)
             return self._reducer.driven_impedance(self._compute_y_matrix(wl), wl)
         self._set_freq_and_execute()
-        return self._impedances_at(0, sum_currents=sum_currents)
+        return self._impedances_at(self._last_run, sum_currents=sum_currents)
 
     def impedance_sweep(self, freqs, sum_currents=False):
         freqs = np.asarray(freqs, dtype=float)
@@ -1337,9 +1359,10 @@ class PyNECEngine(SimulationEngine):
                 )
         self.c.fr_card(0, freqs.size, float(freqs[0]), del_freq)
         self.c.xq_card(0)
+        base = self._count_runs(freqs=freqs.size)[0]
         return np.array(
             [
-                self._impedances_at(i, sum_currents=sum_currents)
+                self._impedances_at(base + i, sum_currents=sum_currents)
                 for i in range(freqs.size)
             ]
         )
@@ -1356,7 +1379,7 @@ class PyNECEngine(SimulationEngine):
         if self._use_reducer:
             self.c = self._excited_real_context(C_LIGHT / (self.builder.freq * 1e6))
         self._set_freq_and_execute()
-        sc = self.c.get_structure_currents(0)
+        sc = self.c.get_structure_currents(self._last_run)
         (
             self._excited_efficiency,
             self._excited_p_in,
@@ -1480,10 +1503,11 @@ class PyNECEngine(SimulationEngine):
 
         thetas = np.linspace(0, 90 - del_theta, n_theta)
         phis = np.linspace(0, 360, n_phi + 1)
+        rp = self._count_runs(patterns=1)[1]
 
         rings = [
             [
-                self.c.get_gain(0, theta_index, phi_index)
+                self.c.get_gain(rp, theta_index, phi_index)
                 for phi_index, _ in enumerate(phis)
             ]
             for theta_index, _ in enumerate(thetas)
@@ -1491,8 +1515,8 @@ class PyNECEngine(SimulationEngine):
 
         return FarField(
             rings=rings,
-            max_gain=self.c.get_gain_max(0),
-            min_gain=self.c.get_gain_min(0),
+            max_gain=self.c.get_gain_max(rp),
+            min_gain=self.c.get_gain_min(rp),
             thetas=thetas,
             phis=phis,
         )
