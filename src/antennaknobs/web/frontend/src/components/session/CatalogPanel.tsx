@@ -24,8 +24,12 @@ export function CatalogPanel({
   reloadBusy,
   advisories,
   onOpenDeck,
+  onResetKnobs,
   canRescan = true,
 }: {
+  /** Put every knob of the selected design back on the design's own values
+   *  (a user design's file is re-read first). */
+  onResetKnobs?: () => void;
   /** The ⟳ has a design folder to read (AK#2096): false on the hosted
    *  instance, where it could never find a file, so it is not shown. */
   canRescan?: boolean;
@@ -90,6 +94,20 @@ export function CatalogPanel({
             ⟳
           </button>
         ))}
+        {onResetKnobs && currentExample && (
+          // Knob values outlive a reload, a design switch and the address
+          // bar's link (they are the panel's, not the file's); this is the
+          // way back to what the design itself says.
+          <button
+            type="button"
+            className="design-reload-btn deck-open-btn"
+            onClick={onResetKnobs}
+            disabled={reloadBusy}
+            title="Put every knob back on this design's own values: its file's defaults (re-read from disk for your own designs), or the selected variant's"
+          >
+            Reset knobs
+          </button>
+        )}
         {onOpenDeck && (
           // Your own model, from 4nec2 / EZNEC as a .nec deck, a
           // SimNEC .ssn, an MMANA-GAL .maa (AK#1897) or an EZNEC .ez

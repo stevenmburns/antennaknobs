@@ -2,6 +2,7 @@ import {
   useCallback,
   useEffect,
   useMemo,
+  useRef,
   useState,
   useSyncExternalStore,
   type Dispatch,
@@ -47,6 +48,9 @@ export function useDesignCatalog({
   // User designs that failed to load (bad Python, no Builder, geometry error).
   // Surfaced from /examples so the author / Claude can see and fix them.
   const [loadErrors, setLoadErrors] = useState<DesignLoadError[]>([]);
+  // Each design's defaults as last served: the merge below lets a knob still
+  // at its old default follow an edited file to the new one.
+  const lastSeeded = useRef<Record<string, ParamValueBag>>({});
 
   // Load (or reload) the design catalog. Extracted so a trust action can
   // re-fetch it — trusting a design registers it server-side, and re-fetching
@@ -63,12 +67,16 @@ export function useDesignCatalog({
       // something to render against on first show. Designs already seen
       // merge-seed instead (issue #867): tuned values survive, but params
       // an edited user design just grew get their defaults filled in.
+      const seeds: Record<string, ParamValueBag> = {};
+      for (const ex of list) seeds[ex.name] = seedDefaults(ex.param_schema);
+      const previous = lastSeeded.current;
+      lastSeeded.current = { ...previous, ...seeds };
       setParamValues((prev) => {
         const next = { ...prev };
         for (const ex of list) {
-          const seeded = seedDefaults(ex.param_schema);
+          const seeded = seeds[ex.name];
           next[ex.name] = next[ex.name]
-            ? mergeSeededDefaults(seeded, next[ex.name])
+            ? mergeSeededDefaults(seeded, next[ex.name], previous[ex.name])
             : seeded;
         }
         return next;

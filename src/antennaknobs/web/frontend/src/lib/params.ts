@@ -423,20 +423,30 @@ export function seedDefaults(
 // existing group instance lands too; a shrunk max_repeats drops the surplus
 // instances with it. Returns `existing` by identity when nothing merged, so
 // unchanged bags don't churn state identity on every /examples fetch.
+//
+// `previous` is the seed this bag was last merged with (the file's defaults
+// as they were). A knob still AT that old default was never moved, so it
+// follows the file to its new default: editing a default on disk and
+// reloading shows the new value. A knob the user (or a run) moved keeps its
+// value; "Reset knobs" puts every knob back on the file's values.
 export function mergeSeededDefaults(
   seeded: ParamValueBag,
   existing: ParamValueBag,
+  previous?: ParamValueBag,
 ): ParamValueBag {
   let changed = false;
   const out: ParamValueBag = { ...existing };
   for (const [key, seedVal] of Object.entries(seeded)) {
     const cur = existing[key];
+    const was = previous?.[key];
     if (cur === undefined) {
       out[key] = seedVal;
       changed = true;
     } else if (Array.isArray(seedVal) && Array.isArray(cur)) {
       const merged = seedVal.map((inst, i) =>
-        cur[i] !== undefined ? mergeSeededDefaults(inst, cur[i]) : inst,
+        cur[i] !== undefined
+          ? mergeSeededDefaults(inst, cur[i], Array.isArray(was) ? was[i] : undefined)
+          : inst,
       );
       if (
         merged.length !== cur.length ||
@@ -445,6 +455,15 @@ export function mergeSeededDefaults(
         out[key] = merged;
         changed = true;
       }
+    } else if (
+      was !== undefined &&
+      !Array.isArray(was) &&
+      !Array.isArray(cur) &&
+      cur === was &&
+      seedVal !== was
+    ) {
+      out[key] = seedVal;
+      changed = true;
     }
   }
   return changed ? out : existing;

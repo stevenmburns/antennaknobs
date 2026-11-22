@@ -703,6 +703,25 @@ function DesignSessionBody({
       }
     }
   }
+  // "Reset knobs": every knob of the selected design back on the design's own
+  // values, its defaults with the selected variant's values over them (the
+  // same baseline the link writer measures "moved" from). A user design's
+  // file is re-read after: the bag then sits on the old defaults, so the
+  // catalog merge moves every knob on to the file's current ones. A run in
+  // flight is stopped, or it would put its trial back when it settles.
+  function resetKnobs() {
+    if (!currentExample) return;
+    optAbortRef.current?.abort();
+    const vv = currentExample.variant_values?.[currentVariant] ?? {};
+    setParamValues((prev) => {
+      const base = seedDefaults(currentExample.param_schema);
+      for (const k of Object.keys(base)) {
+        if (k in vv) base[k] = vv[k] as never;
+      }
+      return { ...prev, [geometry]: base };
+    });
+    if (geometry.startsWith("user.")) void reloadDesigns();
+  }
   // Stable, primitive-only signature of the active antenna's params for
   // useEffect dependency arrays. Object identity isn't reliable because
   // setParamValues replaces the inner object on every onChange.
@@ -4097,6 +4116,7 @@ function DesignSessionBody({
           onReloadDesign={reloadDesigns}
           reloadBusy={reloadBusy}
           onOpenDeck={openDeckFromFile}
+          onResetKnobs={resetKnobs}
           canRescan={userDesigns}
         />
 
