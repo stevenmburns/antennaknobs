@@ -39,10 +39,12 @@ describe("modelOptionsForRequest", () => {
     // work, and on, moves Z only in the last digits.
     // ADDED with momwire 0.91.0 (#1911, #1912): fill reuse and the sector
     // route, `false` by default. ADDED with momwire 0.95.0 (#2041): the NEC-2
-    // free-end cap, `false` by default and never seeded.
+    // free-end cap, `false` by default and never seeded. ADDED with momwire
+    // 0.96.0 (#2085): NEC-2's far-pair approximation, `false` by default.
     expect(Object.keys(result).sort()).toEqual([
       "n_qp_const",
       "nec2_end_cap",
+      "nec2_far_approx",
       "pair_reuse",
       "point_cplx_staged",
       "rotational_symmetry",
@@ -55,6 +57,7 @@ describe("modelOptionsForRequest", () => {
       transmitted_anchors: false,
       point_cplx_staged: false,
       nec2_end_cap: false,
+      nec2_far_approx: false,
     });
     expect(result).not.toHaveProperty("feed_model");
   });
@@ -219,7 +222,7 @@ describe("modelOptionsForRequest", () => {
     // free-end cap with 0.95.0 (#2041).
     expect(stock("sinusoidal")).toBe(
       '{"n_qp_const":8,"rotational_symmetry":false,"pair_reuse":false,' +
-        '"transmitted_anchors":false,"point_cplx_staged":false,"nec2_end_cap":false}',
+        '"transmitted_anchors":false,"point_cplx_staged":false,"nec2_end_cap":false,"nec2_far_approx":false}',
     );
     // "point" since momwire#654 made it the solver's default — the wire
     // format still carries the value explicitly, so a request says which
