@@ -345,6 +345,17 @@ export const SERVED_OPTION_SPECS: ModelOptionSpecs =
     "shown_when_value": null,
     "description": "Uses NEC-2's end condition at free wire ends, so the sinusoidal solver can be compared with NEC-2 engines. This deliberately changes the answer, most on fat wires, and is not a better model of a real wire end. This changes the answer on purpose and is not a speed option: leave it off for the solver's own answer."
   },
+  "nec2_far_approx": {
+    "kind": "bool",
+    "label": "NEC-2 far-pair approximation (faster, approximate)",
+    "default": false,
+    "auto_when_null": false,
+    "shown_when": null,
+    "gate_label": null,
+    "gate_on_value": null,
+    "shown_when_value": null,
+    "description": "Uses NEC-2's interaction approximation: segment pairs more than a wavelength apart (or a deck's KH range) are filled from a lumped current, as NEC-2 does. A faster fill on large decks, and closer to NEC-2 engines there, at the cost of the answer's last digits. Results move by up to 1e-03 relative: compare against a solve with this off before trusting them."
+  },
   "rotational_symmetry": {
     "kind": "bool",
     "label": "rotational symmetry (radial screens)",
