@@ -118,7 +118,10 @@ def test_reading_the_report_runs_no_census(monkeypatch):
     having missed it. The core keeps plans process-wide, so it starts empty:
     an earlier test's plan would otherwise serve this solve with no census."""
     calls = []
-    pr = getattr(momwire, "_sin_pair_reuse", None)
+    try:  # imported on first use by sinusoidal, so not reliably yet
+        import momwire._sin_pair_reuse as pr
+    except ImportError:
+        pr = None
     if pr is not None and hasattr(pr, "shared"):
         pr.clear_shared_plans()
         real_shared = pr.shared
