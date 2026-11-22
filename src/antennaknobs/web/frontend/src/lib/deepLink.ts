@@ -337,6 +337,40 @@ export function linkKnobsOf(
   return out;
 }
 
+/** What a link cannot carry yet (AK#2321, interim): the members of a
+ *  repeated group (a fan dipole's `bands`) moved off their defaults
+ *  (`defaults`, the variant's). `linkKnobsOf` writes flat knobs only, so a
+ *  retuned multiband design would otherwise be shared as the stock one with
+ *  nothing said. One sentence naming the instances, or null when every
+ *  shown instance is the design's own. */
+export function linkOmission(
+  schema: readonly SchemaItem[],
+  values: Readonly<Record<string, unknown>>,
+  defaults: Readonly<Record<string, unknown>>,
+): string | null {
+  const moved: string[] = [];
+  for (const item of schema) {
+    if (!isGroup(item)) continue;
+    const rows = values[item.name];
+    const base = defaults[item.name];
+    if (!Array.isArray(rows)) continue;
+    const count = values[item.repeat_count];
+    const n = typeof count === "number" ? Math.min(count, rows.length) : rows.length;
+    for (let i = 0; i < n; i++) {
+      const row = rows[i] as Record<string, unknown> | undefined;
+      const own = (Array.isArray(base) ? base[i] : undefined) as Record<string, unknown> | undefined;
+      if (!row) continue;
+      const off = item.params.some((p) => !isGroup(p) && row[p.name] !== own?.[p.name]);
+      if (off) moved.push(item.label_template.replace("{i}", String(i + 1)));
+    }
+  }
+  if (moved.length === 0) return null;
+  return (
+    `This link leaves out ${moved.join(", ")}: a link carries a design's single knobs only, so it opens ` +
+    "with the design's own settings there. Save the design or export a deck to share them"
+  );
+}
+
 /** A parsed link. Every field is optional: an absent one is not part of the
  *  link. `run` is true only for `run=1`. */
 export type DeepLink = {
