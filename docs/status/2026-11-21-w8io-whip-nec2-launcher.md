@@ -83,3 +83,14 @@ grep -A1 "MATRIX TIMING" out.txt
 ```
 
 Each run gets its own `XDG_CACHE_HOME` and `MOMWIRE_SOMM_CACHE_DIR` per version, so one version's caches never serve the other.
+
+## Addendum, 2026-11-22: momwire#2071 was a memory fix, not the 1.3 s
+
+The text above calls the Python route's 1.3 s lead over the launcher "mostly momwire#2071's copy". **That attribution was wrong.** Two measurements on the same machine, with the same deck, threads and launcher as above, show the copy was worth about 25 ms per frequency, not 100.
+
+* **Fill in Fortran order, then factor in place** (a trial branch, never merged). Fill per frequency 252 → 317 ms (the strided writes cost more than the copy did), factor 581 → 556 ms, whole run 12.41 → 12.96 s: a net loss of 4 %.
+* **Factor Zᵀ in Z's own storage** (momwire#2108, merged; ships in 0.97.0). The fill writes Z row-major, which LAPACK reads as Zᵀ, so the launcher now factors that in place and solves with the transpose, keeping one dense matrix where it held two. Five alternating pairs, median: whole run 12.33 → 12.24 s, fill 253 → 262 ms per frequency, factor 578 → 561 ms. The printout is the same.
+
+What #2071 did change is memory. The launcher's peak RSS on this deck went from 876–888 MB to **586 MB**. momwire's bound for a solve is one dense Z plus 512 MB, 806 MB here, which the copy broke and #2108 meets.
+
+The rest of the Python route's lead is not attributed. That route also skips the two `LD` loads and the printout (see the caveats above), so the two runs do not do the same work, and no measurement here separates the pieces.
