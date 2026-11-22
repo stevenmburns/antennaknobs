@@ -306,7 +306,7 @@ export const SERVED_SLOT_SEEDS: ServedSlotSeed[] = [
 ];
 
 /** Retired backend names, as served. */
-export const SERVED_ALIASES: Record<string, string> = {"triangular": "bs2"};
+export const SERVED_ALIASES: Record<string, string> = {"triangular": "bs2", "bspline": "bs2", "sinusoidal-galerkin": "sg", "razor-2p": "razor2p"};
 
 
 /** The composition line's served vocabulary (#1006 G2-7). Generated; pinned

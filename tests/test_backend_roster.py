@@ -167,11 +167,11 @@ def test_backend_roster_served_shape(client):
     assert {n: e["panel"] for n, e in by_name.items()} == {
         "sinusoidal": None,
         "sg": "sin-galerkin",
-        "bs2": "bs2",
+        "bs2": "bspline",
         # #1148: pulse takes no model kwargs at all, so it serves no panel.
         "pulse": None,
-        "hmatrix": "bs2",
-        "arrayblock": "bs2",
+        "hmatrix": "bspline",
+        "arrayblock": "bspline",
         "razor2p": None,
         "pynec": "pynec",
         "nec5": "nec5",
