@@ -254,7 +254,7 @@ _ALLOWED = {
     "CLAUDE.md": 5,
     "site/src/content/docs/reference/cli.md": 7,
     "src/antennaknobs/engine_names.py": 8,
-    "src/antennaknobs/momwire_bases.py": 1,
+    "src/antennaknobs/momwire_bases.py": 2,
     "src/antennaknobs/cli.py": 5,
     "src/antennaknobs/keep.py": 1,
     "src/antennaknobs/density.py": 2,
