@@ -34,6 +34,7 @@ from test_pair_reuse_hint_2165 import fed_yagi
 TABS = {
     "transmitted_anchors": ("bs2", "sinusoidal"),
     "point_cplx_staged": ("sinusoidal",),
+    "nec2_far_approx": ("sinusoidal",),
     "factored_columns": ("bs2", "razor2p"),
     "height_sheet_recal": ("bs2", "razor2p"),
     "crossing_table": ("bs2", "razor2p"),

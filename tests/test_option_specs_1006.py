@@ -81,6 +81,7 @@ def test_the_baseline_is_not_empty_and_covers_every_kwarg():
         "crossing_above_rule",
         "kcl_nullspace",
         "nec2_end_cap",
+        "nec2_far_approx",
     } == set(_HOSTED_MODEL_OPTIONS)
     assert set(_HOSTED_MODEL_OPTIONS) == set(_OPTION_SPECS)
     assert len(BASELINE) == 14
@@ -198,8 +199,8 @@ def test_the_catalogue_serves_every_option_and_is_json():
 
     served = model_option_specs()
     assert set(served) == set(_OPTION_SPECS)
-    assert len(served) == 26  # + PyNEC's fill_reuse, momwire 0.91.0's kcl_nullspace,
-    # momwire 0.95.0's nec2_end_cap
+    assert len(served) == 27  # + PyNEC's fill_reuse, momwire 0.91.0's kcl_nullspace,
+    # momwire 0.95.0's nec2_end_cap, momwire 0.96.0's nec2_far_approx
     assert json.loads(json.dumps(served)) == served
 
 

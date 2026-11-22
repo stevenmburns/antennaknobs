@@ -101,6 +101,7 @@ def test_every_other_served_spec_keeps_its_description_field_and_it_is_usually_n
             "crossing_above_rule",
             "kcl_nullspace",
             "nec2_end_cap",
+            "nec2_far_approx",
         ):
             assert row["description"] is None
 
