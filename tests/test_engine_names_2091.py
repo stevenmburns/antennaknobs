@@ -263,6 +263,8 @@ _ALLOWED = {
     "src/antennaknobs/web/frontend/src/lib/chartCells.ts": 1,
     "src/antennaknobs/web/frontend/src/__tests__/noEngineNames.test.ts": 5,
     "src/antennaknobs/web/frontend/src/__tests__/chartCells.test.ts": 1,
+    "src/antennaknobs/web/frontend/src/__tests__/backendFixtures.ts": 3,
+    "src/antennaknobs/web/frontend/src/__tests__/engineRename2091.test.ts": 3,
 }
 
 

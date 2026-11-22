@@ -673,8 +673,8 @@ export type BackendOpts = {
   /** Solver kwargs, keyed by the SERVER'S OWN kwarg name (#1006 G2-6).
    *
    *  One flat map, deliberately. This used to be `schema` (the generic
-   *  numeric knobs) plus `bs2` (a bespoke panel's state) plus two loose
-   *  fields, and `opts.bspline` is an engine name in the data model — so a
+   *  numeric knobs) plus a bespoke panel's state, keyed by the B-spline
+   *  engine's name, plus two loose fields, and `opts.bspline` is an engine name in the data model — so a
    *  renderer over that shape could never be generic, and a grep for engine
    *  names would have passed only because the name was a property rather
    *  than a string literal.
