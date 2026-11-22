@@ -184,6 +184,11 @@ def test_an_old_settings_slot_opens_on_the_new_tab(monkeypatch, tmp_path):
     assert seeds["C"]["backend"] == "sg"
 
 
+def _engines(a: an.Analysis) -> tuple:
+    c = a.cross
+    return (c if isinstance(c, an.Cross) else c[0]).engines
+
+
 def test_an_old_analysis_reads_as_the_new_names():
     """A study, a kept file and a shared link's `analyses=` all build their
     analyses through these constructors, so an old spelling is read once
@@ -194,7 +199,7 @@ def test_an_old_analysis_reads_as_the_new_names():
         cross=(an.Cross(engines=("momwire:bspline", "momwire:razor-2p", "nec5")),),
         engine="momwire:sinusoidal-galerkin",
     )
-    assert a.cross[0].engines == ("momwire:bs2", "momwire:razor2p", "nec5")
+    assert _engines(a) == ("momwire:bs2", "momwire:razor2p", "nec5")
     assert a.engine == "momwire:sg"
     cell = an.Cell(engine="momwire:bspline-d1")
     assert cell.engine == "momwire:bs1"
@@ -207,7 +212,7 @@ def test_an_old_analysis_reads_as_the_new_names():
         "cross=(an.Cross(engines=('momwire:bspline', 'momwire:razor-2p')),))"
     )
     (got,) = analyses_text.read_link(old_link)
-    assert got.cross[0].engines == ("momwire:bs2", "momwire:razor2p")
+    assert _engines(got) == ("momwire:bs2", "momwire:razor2p")
     # A kept file's data form, written before the rename.
     data = an.to_data(a)
     blob = json.dumps(data).replace("momwire:bs2", "momwire:bspline")
