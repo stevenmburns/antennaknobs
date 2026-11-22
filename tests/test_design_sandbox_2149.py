@@ -189,13 +189,16 @@ def test_the_forked_children_do_not_outlive_the_run():
     """
     sb.run_design(design(body), "o.py", limits=FAST)
     time.sleep(0.5)
-    alive = [
-        p
-        for p in os.listdir("/proc")
-        if p.isdigit()
-        and marker in Path(f"/proc/{p}/cmdline").read_bytes().decode(errors="replace")
-    ]
-    assert not alive
+    assert not [p for p in os.listdir("/proc") if p.isdigit() and marker in _cmdline(p)]
+
+
+def _cmdline(pid: str) -> str:
+    """A process's command line, or "" when it exited after the listing (other
+    xdist workers start and reap processes while this test scans /proc)."""
+    try:
+        return Path(f"/proc/{pid}/cmdline").read_bytes().decode(errors="replace")
+    except (FileNotFoundError, ProcessLookupError):
+        return ""
 
 
 def test_a_forked_copy_of_the_design_cannot_add_a_second_reply():
