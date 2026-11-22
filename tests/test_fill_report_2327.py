@@ -112,16 +112,32 @@ def test_the_payload_agrees_with_the_solver(model):
 @needs_report
 def test_reading_the_report_runs_no_census(monkeypatch):
     """Reads add no census. The counter is proved live first: sinusoidal's
-    census goes through `timed_census`, so a count of zero could not pass here
-    by the instrument having missed it."""
+    census goes through `timed_census` (momwire 0.96.0), or through the reuse
+    core's `_sin_pair_reuse.shared`, which says whether it ran one (momwire
+    #2063 stage 2), so a count of zero could not pass here by the instrument
+    having missed it. The core keeps plans process-wide, so it starts empty:
+    an earlier test's plan would otherwise serve this solve with no census."""
     calls = []
-    real = momwire._fill_report.timed_census
+    pr = getattr(momwire, "_sin_pair_reuse", None)
+    if pr is not None and hasattr(pr, "shared"):
+        pr.clear_shared_plans()
+        real_shared = pr.shared
 
-    def counted(solver, build):
-        calls.append(type(solver).__name__)
-        return real(solver, build)
+        def counted_shared(*args, **kwargs):
+            plan, built = real_shared(*args, **kwargs)
+            if built:
+                calls.append("SinusoidalSolver")
+            return plan, built
 
-    monkeypatch.setattr(momwire._fill_report, "timed_census", counted)
+        monkeypatch.setattr(pr, "shared", counted_shared)
+    else:
+        real = momwire._fill_report.timed_census
+
+        def counted(solver, build):
+            calls.append(type(solver).__name__)
+            return real(solver, build)
+
+        monkeypatch.setattr(momwire._fill_report, "timed_census", counted)
     engine = _served_engine("sinusoidal")
     assert calls, "the census counter never fired, so it proves nothing"
     solver = engine._solved_cache[1][0]
