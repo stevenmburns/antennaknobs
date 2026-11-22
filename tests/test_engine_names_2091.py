@@ -238,7 +238,7 @@ _OLD = re.compile(
 # Not engine names: the B-spline PANEL id (served as `panel`, and the
 # frontend's panel state), and paths that carry an old name.
 _NOT_NAMES = re.compile(
-    r'panel(?:=|: | ===? | !==? )"bspline"|opts\.bspline|bsplineOpts'
+    r'panel"?(?:=|: | ===? | !==? )"bspline"|opts\.bspline|bsplineOpts'
     r"|import bspline|getattr\(bspline|docs/sinusoidal-galerkin[\w.-]*"
 )
 
@@ -303,6 +303,7 @@ def test_the_census_sees_every_old_name():
         "`bspline-${d}`",
         "getattr(bspline, name)",
         'panel="bspline"',
+        '"panel": "bspline"',
         "bs2",
         "razor2p",
         "docs/sinusoidal-galerkin-instrument-report.md",
