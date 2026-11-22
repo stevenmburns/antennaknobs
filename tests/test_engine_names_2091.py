@@ -252,6 +252,9 @@ _NOT_NAMES = re.compile(
 # fails, so a new old name is red and so is a stale entry here.
 _ALLOWED = {
     "CLAUDE.md": 5,
+    # the v0.124.0 what's-new card, which explains the rename by naming the
+    # old spellings; drop this entry when the card rotates out
+    "site/src/content/docs/index.mdx": 5,
     "site/src/content/docs/reference/cli.md": 7,
     "src/antennaknobs/engine_names.py": 8,
     "src/antennaknobs/momwire_bases.py": 2,
