@@ -91,8 +91,8 @@ def test_feed_mesh_step_matches_the_shared_vectors(case):
 
 def test_the_feed_mesh_vectors_name_a_jump_a_held_step_and_nothing():
     steps = {c["name"]: c["expected_step"] for c in FEED_MESH_CASES}
-    assert steps["invvee bspline: 1 -> 3 segments between N 65 and 95"] == 4
-    assert steps["invvee razor-2p: the 2 -> 4 jump beats the held step"] == 5
+    assert steps["invvee bs2: 1 -> 3 segments between N 65 and 95"] == 4
+    assert steps["invvee razor2p: the 2 -> 4 jump beats the held step"] == 5
     assert steps["held throughout the window"] is not None
     assert steps["uniform refinement"] is None
 

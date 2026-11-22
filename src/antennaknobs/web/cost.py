@@ -30,6 +30,8 @@ from __future__ import annotations
 import os
 from dataclasses import dataclass
 
+from ..engine_names import canonical_model
+
 
 def _env_int(name: str, default: int) -> int:
     try:
@@ -174,9 +176,9 @@ def admit(
     if hosted and est is not None:
         if use_pynec:
             cap, engine, compressed = MAX_BASIS_PYNEC, "PyNEC", False
-        elif req.get("momwire_model") in COMPRESSED_MODELS:
+        elif canonical_model(req.get("momwire_model")) in COMPRESSED_MODELS:
             cap = MAX_BASIS_COMPRESSED
-            engine, compressed = str(req.get("momwire_model")), True
+            engine, compressed = str(canonical_model(req.get("momwire_model"))), True
         else:
             cap, engine, compressed = MAX_BASIS, "momwire", False
         if est > cap:
@@ -204,13 +206,13 @@ def admit(
         est is not None
         and est > WARN_MIN_BASIS
         and not use_pynec
-        and req.get("momwire_model", "bspline") != "sinusoidal"
+        and canonical_model(req.get("momwire_model", "bs2")) != "sinusoidal"
     ):
         noun = f"a batch of {points} solves" if points > 1 else "a solve"
         return Admission(
             "warn",
             f"This design needs ~{est} basis functions — {noun} with the "
-            f"'{req.get('momwire_model', 'bspline')}' solver here can take "
+            f"'{canonical_model(req.get('momwire_model', 'bs2'))}' solver here can take "
             "minutes each. Switch to the Sinusoidal solver (recommended), or "
             "re-send with _approved: true to run anyway.",
             est,

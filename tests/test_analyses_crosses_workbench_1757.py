@@ -228,7 +228,7 @@ def test_a_served_plane_cell_is_the_clis_curve_at_that_plane(
     w = _served(client, {"geometry": e5_user}, "planes")
     runs = _capture_run(monkeypatch)
     cli(["analyze", "--builder", f"@{E5_DECK}", "--analysis", "planes",
-         "--ground", "free", "--engine", "momwire:bspline",
+         "--ground", "free", "--engine", "momwire:bs2",
          "--nominal-nsegs", "15", "--fn", str(tmp_path / "p.png")])  # fmt: skip
     capsys.readouterr()
     worst = 0.0
@@ -240,7 +240,7 @@ def test_a_served_plane_cell_is_the_clis_curve_at_that_plane(
         body = {
             "geometry": e5_user,
             "solver": "momwire",
-            "momwire_model": "bspline",
+            "momwire_model": "bs2",
             "n_per_wire": 15,
             "ground": False,
             "freqs_mhz": [float(x) for x in xs],
@@ -270,7 +270,7 @@ def test_a_served_design_cell_is_the_clis_curve_for_that_design(
         sweep=ladder,
         cross=(
             an.Cross(designs=(INVVEE, APEX)),
-            an.Cross(engines=("momwire:bspline",)),
+            an.Cross(engines=("momwire:bs2",)),
         ),
     )
     _offer(monkeypatch, _invvee_cls(), [a])  # invvee_apex inherits it
@@ -281,7 +281,7 @@ def test_a_served_design_cell_is_the_clis_curve_for_that_design(
     capsys.readouterr()
     worst = 0.0
     for d in w["designs"]:
-        label = f"{d['name']}, momwire:bspline"
+        label = f"{d['name']}, momwire:bs2"
         rungs, want = runs[0]["curves"][label]
         assert d["values"] == rungs == [8, 12, 17]
         # The chart's design cell: that design at its own defaults (a fresh
@@ -294,7 +294,7 @@ def test_a_served_design_cell_is_the_clis_curve_for_that_design(
             "design_freq_mhz": 28.47,
             "measurement_freq_mhz": 28.47,
             "solver": "momwire",
-            "momwire_model": "bspline",
+            "momwire_model": "bs2",
             "ground": False,
             "param": d["param"],
             "values": d["values"],
@@ -303,8 +303,8 @@ def test_a_served_design_cell_is_the_clis_curve_for_that_design(
         got = [complex(r["z_re"], r["z_im"]) for r in recs]
         worst = max(worst, _max_rel(got, want))
     assert worst <= REL, worst
-    bridge = runs[0]["curves"][f"{INVVEE}, momwire:bspline"][1][-1]
-    apex = runs[0]["curves"][f"{APEX}, momwire:bspline"][1][-1]
+    bridge = runs[0]["curves"][f"{INVVEE}, momwire:bs2"][1][-1]
+    apex = runs[0]["curves"][f"{APEX}, momwire:bs2"][1][-1]
     assert abs(bridge - apex) > 1.0, (bridge, apex)
 
 
@@ -323,7 +323,7 @@ def test_a_served_family_cell_is_the_clis_curve_at_that_step(
     w = _served(client, {"geometry": INVVEE}, "fam")
     runs = _capture_run(monkeypatch)
     cli(["analyze", "--builder", INVVEE, "--analysis", "fam", "--ground", "free",
-         "--engine", "momwire:bspline", "--nominal-nsegs", "15",
+         "--engine", "momwire:bs2", "--nominal-nsegs", "15",
          "--fn", str(tmp_path / "f.png")])  # fmt: skip
     capsys.readouterr()
     step = w["step"]
@@ -340,7 +340,7 @@ def test_a_served_family_cell_is_the_clis_curve_at_that_step(
             "design_freq_mhz": 28.47,
             "measurement_freq_mhz": 28.47,
             "solver": "momwire",
-            "momwire_model": "bspline",
+            "momwire_model": "bs2",
             "n_per_wire": 15,
             "ground": False,
             "param": w["param"],
@@ -385,7 +385,7 @@ def test_a_frequency_design_cell_sweeps_the_clis_grid_on_its_own_band(
     assert w["runs"] is True and w["axes"] == ["designs"]
     runs = _capture_run(monkeypatch)
     cli(["analyze", "--builder", INVVEE, "--analysis", "bands", "--ground", "free",
-         "--engine", "momwire:bspline", "--nominal-nsegs", "15",
+         "--engine", "momwire:bs2", "--nominal-nsegs", "15",
          "--fn", str(tmp_path / "b.png")])  # fmt: skip
     capsys.readouterr()
     worst = 0.0
@@ -405,7 +405,7 @@ def test_a_frequency_design_cell_sweeps_the_clis_grid_on_its_own_band(
             "design_freq_mhz": design_f,
             "measurement_freq_mhz": meas_f,
             "solver": "momwire",
-            "momwire_model": "bspline",
+            "momwire_model": "bs2",
             "n_per_wire": 15,
             "ground": False,
             "freqs_mhz": d["freqs"],

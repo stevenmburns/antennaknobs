@@ -97,7 +97,7 @@ def _parity_for_solver(solver, solver_kwargs):
         # basis), so they share the degree-driven parity. Getting this right
         # matters for cross-solver comparison: a mismatched parity would build
         # a *different* mesh and silently invalidate any A/B against the dense
-        # bspline path.
+        # bs2 path.
         degree = (solver_kwargs or {}).get("degree", 2)
         return "even" if int(degree) == 1 else "odd"
     if name == "RazorSolver":
@@ -110,7 +110,7 @@ def _parity_for_solver(solver, solver_kwargs):
         # knot" — a knot sits exactly at the physical centre only when the
         # segment count is even (N segments, N+1 knots, centre knot index
         # N/2), so an odd count would force the feed to snap off-centre to
-        # the nearest knot instead. `nec5_quadrature` (the `razor-nec5`
+        # the nearest knot instead. `nec5_quadrature` (the `razor2p`
         # variant) only changes how ∫A·dl is evaluated, not where the basis
         # or the feed live, so both roster entries share this rule.
         return "even"
@@ -794,7 +794,7 @@ def pair_reuse_parts(solver_cls) -> tuple[str, ...]:
     """The parts of momwire's one ``pair_reuse`` switch that ``solver_cls``
     carries (momwire#1982): the registry's features with
     ``part_of == "pair_reuse"`` whose keyword the class's constructor takes
-    (bspline's ``offset_reuse``, razor-2p's ``razor_pair_reuse``). Empty for
+    (bs2's ``offset_reuse``, razor2p's ``razor_pair_reuse``). Empty for
     a class whose reuse is the switch itself (the sinusoidal solver), and on
     a momwire whose registry has no parts. A live probe of the installed
     registry and constructor, never a version compare or a list of names."""
@@ -1482,7 +1482,7 @@ class MomwireEngine(SimulationEngine):
           path) rule — see momwire/docs/razor-solver.md and this repo's
           `/reference/solver` doc for the measured performance guidance.
           `solver_kwargs={"nec5_quadrature": True}` (the CLI's
-          `momwire:razor-2p`) is the interactive lane and the only one on
+          `momwire:razor2p`) is the interactive lane and the only one on
           the CLI roster. The default Gauss-Legendre quadrature — the much
           slower convergence/certification lane — is off the roster since
           momwire#753 (2026-09-02); reach it by constructing
@@ -1632,7 +1632,7 @@ class MomwireEngine(SimulationEngine):
                 asked = feature_default(name)
             if feature_served(self._solver, name):
                 self._feature_kwargs[feature_kwarg(name)] = bool(asked)
-        # Per-instance parity: sinusoidal wants odd, bspline depends on
+        # Per-instance parity: sinusoidal wants odd, bs2 depends on
         # degree. Set before _coerce_wire_tuples runs.
         self.segment_parity = _parity_for_solver(self._solver, self._solver_kwargs)
         # A solver with a grid parity meshes a positioned port the way its

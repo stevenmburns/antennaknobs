@@ -196,7 +196,7 @@ def test_mike_deck_held_sweep_runs_and_converges(client, fresh_decks):
             "design_freq_mhz": MIKE_FREQ,
             "measurement_freq_mhz": MIKE_FREQ,
             "solver": "momwire",
-            "momwire_model": "bspline",
+            "momwire_model": "bs2",
             "ground": False,
             "param": "sy_long_ft",
             "values": [30.0, 32.0, 34.0, 36.0],

@@ -13,8 +13,8 @@ reject the very runs we're trying to measure.
 Usage:
     python scripts/measure_solve_memory.py <geometry> <engine> <N> [<N> ...]
 
-    engine ∈ {sinusoidal, bspline, hmatrix, arrayblock, pynec}
-    (retired names, e.g. "triangular", fall back to bspline)
+    engine ∈ {sinusoidal, bs2, hmatrix, arrayblock, pynec}
+    (retired names, e.g. "triangular", fall back to bs2)
 
 Example:
     python scripts/measure_solve_memory.py arrays.bowtiearray2x4 arrayblock 21 41 81

@@ -146,8 +146,8 @@ def test_nec5_rescaled_ld5_is_the_folded_conductor():
 
 @needs_nec5
 def test_nec5_matches_razor_2p_on_a_jacketed_catalog_design(monkeypatch):
-    """The catalog's worst razor-2p vs NEC-5 row was dipoles.pota_invvee, and
-    the jacket drove it. razor-2p is momwire's formulation matched to NEC-5, so
+    """The catalog's worst razor2p vs NEC-5 row was dipoles.pota_invvee, and
+    the jacket drove it. razor2p is momwire's formulation matched to NEC-5, so
     given the same pair the two agree: measured 0.10 % in free space (0.09 %
     over the default ground), against 14.4 % with the inductance-only
     spelling."""

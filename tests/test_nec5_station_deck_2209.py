@@ -141,7 +141,7 @@ def _read_back(text):
 
 
 def _z(builder):
-    return complex(make_engine_factory("momwire:bspline", None)(builder).impedance()[0])
+    return complex(make_engine_factory("momwire:bs2", None)(builder).impedance()[0])
 
 
 def _cards(text, mnemonic):
@@ -299,11 +299,11 @@ def _printout_rounding(z):
 
 
 def _dropin():
-    exe = pathlib.Path(sys.executable).parent / "momwire-nec5-bspline"
-    return str(exe) if exe.is_file() else shutil.which("momwire-nec5-bspline")
+    exe = pathlib.Path(sys.executable).parent / "momwire-nec5-bs2"
+    return str(exe) if exe.is_file() else shutil.which("momwire-nec5-bs2")
 
 
-@pytest.mark.skipif(_dropin() is None, reason="momwire-nec5-bspline not installed")
+@pytest.mark.skipif(_dropin() is None, reason="momwire-nec5-bs2 not installed")
 def test_momwires_nec5_drop_in_runs_the_deck():
     """The drop-in's answer against the station reduced on the drop-in's own
     antenna (its antenna-only deck's Z), so the field solver is the same on

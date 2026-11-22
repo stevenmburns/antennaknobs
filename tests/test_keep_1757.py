@@ -47,8 +47,8 @@ from antennaknobs.web.examples import example_for
 INVVEE = "dipoles.invvee"
 APEX = "dipoles.invvee_apex"
 FAN = "multiband.fandipole"
-BSPLINE = "momwire:bspline"
-RAZOR = "momwire:razor-2p"
+BSPLINE = "momwire:bs2"
+RAZOR = "momwire:razor2p"
 N = 15
 
 
@@ -84,7 +84,7 @@ def _record(monkeypatch, module, name):
     return calls
 
 
-def _req(design, variant=None, model="bspline", **knobs) -> dict:
+def _req(design, variant=None, model="bs2", **knobs) -> dict:
     """A solve request as the workbench sends one for a design at its
     variant's defaults with ``knobs`` turned: every knob a top-level field
     (a group as a list of dicts), the two frequencies in fields of their
@@ -175,7 +175,7 @@ def test_sweep_pins_that_are_no_product_keep_as_cells_and_rerun_bit_equal(
     and the rerun's two curves are the pins, bit for bit."""
     a_pin, a_z = _knob_pin(client, _req(INVVEE, base=5.0),
                            "length_factor", [0.95, 0.975, 1.0])  # fmt: skip
-    b_pin, b_z = _knob_pin(client, _req(INVVEE, "dipole", "razor-2p", base=12.0),
+    b_pin, b_z = _knob_pin(client, _req(INVVEE, "dipole", "razor2p", base=12.0),
                            "length_factor", [0.95, 1.0])  # fmt: skip
     body = {"origin": "sweep pins", "name": "two pins", "pins": [a_pin, b_pin]}
     saved = _save(client, body, "feeds/two")
@@ -207,7 +207,7 @@ def test_sweep_pins_that_are_no_product_keep_as_cells_and_rerun_bit_equal(
     assert _bit_equal(curves[0], a_pin, a_z)
     assert _bit_equal(curves[1], b_pin, b_z)
     # The variant is not a no-op: the default variant's curve is another.
-    _, default_z = _knob_pin(client, _req(INVVEE, None, "razor-2p", base=12.0),
+    _, default_z = _knob_pin(client, _req(INVVEE, None, "razor2p", base=12.0),
                              "length_factor", [0.95, 1.0])  # fmt: skip
     assert default_z != b_z
 
@@ -293,7 +293,7 @@ def test_a_kept_study_is_served_on_the_tab_of_every_design_it_names(client, fold
         [
             {"req": _req(INVVEE, base=5.0),
              "x": {"kind": "knob", "name": "length_factor"}, "xs": [0.95, 1.0]},
-            {"req": _req(INVVEE, "dipole", "razor-2p", base=12.0),
+            {"req": _req(INVVEE, "dipole", "razor2p", base=12.0),
              "x": {"kind": "knob", "name": "length_factor"}, "xs": [0.95, 1.0]},
         ],
         kind="sweep",
@@ -348,21 +348,21 @@ def test_a_pin_is_its_design_variant_changed_knobs_engine_ground_and_plane():
 @pytest.mark.parametrize(
     ("req", "engine", "ground"),
     [
-        ({}, "momwire:bspline", "free"),
-        ({"model_options": {"degree": 2}}, "momwire:bspline", "free"),
-        ({"model_options": {"degree": 1}}, "momwire:bspline-d1", "free"),
-        ({"momwire_model": "razor-2p"}, "momwire:razor-2p", "free"),
+        ({}, "momwire:bs2", "free"),
+        ({"model_options": {"degree": 2}}, "momwire:bs2", "free"),
+        ({"model_options": {"degree": 1}}, "momwire:bs1", "free"),
+        ({"momwire_model": "razor2p"}, "momwire:razor2p", "free"),
         ({"solver": "nec5"}, "nec5", "free"),
-        ({"ground": True, "ground_model": "pec"}, "momwire:bspline", "pec"),
-        ({"ground": True, "ground_model": "fast"}, "momwire:bspline", "finite-fast"),
+        ({"ground": True, "ground_model": "pec"}, "momwire:bs2", "pec"),
+        ({"ground": True, "ground_model": "fast"}, "momwire:bs2", "finite-fast"),
         # A bare ground=True is the built-in ground, Sommerfeld (AK#1856).
-        ({"ground": True}, "momwire:bspline", "finite"),
+        ({"ground": True}, "momwire:bs2", "finite"),
         (
             {"ground": True, "ground_model": "sommerfeld", "soil": {"eps_r": 5, "sigma": 0.001}},
-            "momwire:bspline",
+            "momwire:bs2",
             "finite:5,0.001",
         ),
-        ({"ground": True, "ground_model": "mininec"}, "momwire:bspline", "mininec"),
+        ({"ground": True, "ground_model": "mininec"}, "momwire:bs2", "mininec"),
     ],
 )  # fmt: skip
 def test_a_pins_engine_and_ground_are_read_off_its_request(req, engine, ground):
@@ -373,12 +373,12 @@ def test_a_pins_engine_and_ground_are_read_off_its_request(req, engine, ground):
 
 def test_an_engine_option_off_its_default_is_noted_not_dropped_silently():
     notes: list[str] = []
-    req = {"momwire_model": "bspline", "model_options": {"degree": 2, "n_qp_source": 32,
+    req = {"momwire_model": "bs2", "model_options": {"degree": 2, "n_qp_source": 32,
            "feed_smoothing_factor": None, "extended_kernel": False}}  # fmt: skip
     assert keep.engine_of(req, "pin 2", notes) == BSPLINE
     assert notes == [
         "pin 2 was solved with n_qp_source set on its slot; --engine "
-        "momwire:bspline runs the engine's defaults for them."
+        "momwire:bs2 runs the engine's defaults for them."
     ]
 
 
@@ -632,7 +632,7 @@ def test_copy_as_analysis_is_the_charts_code_for_its_own_design(client):
     # The engines and grounds its curves were solved on go with it (read
     # off their requests), and an edited range as the points it solved.
     fast = {"ground": True, "ground_model": "fast"}
-    cells = [{**_req(INVVEE), **fast}, {**_req(INVVEE, model="razor-2p"), **fast}]
+    cells = [{**_req(INVVEE), **fast}, {**_req(INVVEE, model="razor2p"), **fast}]
     body = {**body, "cells": cells, "values": [28.5, 28.0]}
     a = eval(client.post("/keep", json=body).json()["code"], {"an": an})
     assert an.Cross(engines=(BSPLINE, RAZOR)) in a.crosses

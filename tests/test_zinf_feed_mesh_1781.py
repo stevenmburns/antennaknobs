@@ -6,7 +6,7 @@ and then jumps (AK#1767). ``zinf.feed_mesh_step`` names that step from the
 fed segment's length at each rung; the vectors in ``test_zinf_vectors_1781``
 gate the rule in both languages. What is gated here is the plumbing, on the
 design that prompted it (``dipoles.invvee``, whose 0.1 m gap wire goes 1 -> 3
-on bspline and 2 -> 4 on razor-2p inside the app's ladder):
+on bs2 and 2 -> 4 on razor2p inside the app's ladder):
 
   1. the workbench's fed length (``server._fed_segment_m``, measured from
      the solve result's knots) is the CLI's (``fed_segments()``) at every
@@ -35,7 +35,7 @@ REQ = {
 }
 
 
-@pytest.mark.parametrize("model", ["bspline", "razor-2p"])
+@pytest.mark.parametrize("model", ["bs2", "razor2p"])
 @pytest.mark.parametrize("n", [34, 40, 48, 68])
 def test_the_workbench_measures_the_fed_segment_the_cli_reports(model, n):
     _, _, mesh = server._solve_z_only({**REQ, "momwire_model": model, "n_per_wire": n})
@@ -58,7 +58,7 @@ def test_param_sweep_records_carry_the_fed_segment():
         "/param_sweep",
         json={
             **REQ,
-            "momwire_model": "bspline",
+            "momwire_model": "bs2",
             "param": "n_per_wire",
             "values": [34, 40],
         },
@@ -72,7 +72,7 @@ def test_param_sweep_records_carry_the_fed_segment():
 def test_the_cli_study_names_the_feed_mesh_step(capsys):
     ant.cli(
         "sweep --builder dipoles.invvee --param nominal_nsegs "
-        "--engine momwire:bspline,momwire:razor-2p --fn /dev/null".split()
+        "--engine momwire:bs2,momwire:razor2p --fn /dev/null".split()
     )
     out = capsys.readouterr().out
     assert (

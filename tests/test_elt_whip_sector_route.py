@@ -55,7 +55,7 @@ def _engine(variant, backend, *, rotational_symmetry, plane_radius=None):
         "ground": False,
         "model_options": {"rotational_symmetry": rotational_symmetry},
     }
-    if backend == "bspline":
+    if backend == "bs2":
         req["model_options"]["degree"] = 1
     if plane_radius is not None:
         req["plane_radius"] = plane_radius
@@ -114,7 +114,7 @@ def _gate(variant, backend, plane_radius):
 
 
 @pytest.mark.parametrize("variant", ["sym4", "hex6"])
-@pytest.mark.parametrize("backend", ["sinusoidal", "bspline"])
+@pytest.mark.parametrize("backend", ["sinusoidal", "bs2"])
 def test_sector_route_agrees_with_dense_on_the_cut_plane(variant, backend):
     _gate(variant, backend, SMALL_RADIUS)
 

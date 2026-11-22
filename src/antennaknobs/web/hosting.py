@@ -91,6 +91,7 @@ import threading
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 from urllib.parse import parse_qs
 
+from ..engine_names import canonical_model
 from . import decks as _decks
 
 _logger = logging.getLogger("antennaknobs.client_error")
@@ -343,7 +344,7 @@ def engine_label(req: dict, momwire_models) -> str:
     if solver in _EXTERNAL_ENGINES:
         return solver
     if solver in (None, "momwire"):
-        model = req.get("momwire_model")
+        model = canonical_model(req.get("momwire_model"))
         if model is None:
             return "momwire"
         return model if model in momwire_models else "other"

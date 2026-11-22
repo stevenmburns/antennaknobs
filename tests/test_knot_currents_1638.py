@@ -3,7 +3,7 @@
 
 Two defects, found on AC6LA's `Cardioidmodnec5.nec` (two lambda/4 verticals
 over PEC, `EX 4` forcing 1.414 A at each base), whose NEC-5 trace peaked at
-5.41 dBi against EZNEC's 6.78 and razor-2p's 6.782:
+5.41 dBi against EZNEC's 6.78 and razor2p's 6.782:
 
 * a wire end on the ground plane was read as a FREE end, so the base knot
   carrying the forced current rendered and radiated as 0 A, on NEC-5, NEC-2
@@ -239,7 +239,7 @@ def test_the_cardioids_nec5_trace_is_razor_2ps():
     }
     outs = [
         ex.nec5_solve(dict(req)),
-        ex.momwire_solve(dict(req, momwire_model="razor-2p")),
+        ex.momwire_solve(dict(req, momwire_model="razor2p")),
     ]
     peaks = []
     for out in outs:

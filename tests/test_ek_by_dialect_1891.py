@@ -178,7 +178,7 @@ _BURIED_NEC4 = (
 
 def test_a_buried_wire_falls_back_with_an_advisory():
     # The point-matched sinusoidal basis still refuses the extended kernel
-    # beside a buried wire (momwire#1636); razor-2p did until momwire 0.82 and
+    # beside a buried wire (momwire#1636); razor2p did until momwire 0.82 and
     # the sinusoidal Galerkin one until 0.83 (momwire#1626).
     cls = builder_from_text("b.nec", _BURIED_NEC4)
     assert cls.file_extended_kernel_default is True
@@ -197,7 +197,7 @@ def test_a_buried_wire_falls_back_with_an_advisory():
     "solver", [BSplineSolver, RazorSolver, SinusoidalGalerkinSolver]
 )
 def test_a_partial_solver_keeps_the_kernel_above_a_buried_wire(solver):
-    # B-spline (momwire 0.78, momwire#1170), razor-2p (momwire 0.82,
+    # B-spline (momwire 0.78, momwire#1170), razor2p (momwire 0.82,
     # momwire#1614) and Sin-Galerkin (momwire 0.83, momwire#1626) serve the
     # kernel on the above-ground pairs, so the deck's default is taken and
     # nothing falls back.
@@ -226,7 +226,7 @@ def _analyze(path, *extra):
     try:
         ant.cli(
             ["analyze", "--builder", f"@{path}", "--analysis", "band SWR",
-             "--engine", "momwire:razor-2p", "--fn", "/dev/null", *extra]
+             "--engine", "momwire:razor2p", "--fn", "/dev/null", *extra]
         )  # fmt: skip
     finally:
         plt.close("all")
@@ -299,7 +299,7 @@ def test_a_fat_nec5_deck_moves_toward_nec5(tmp_path, capsys):
     for label, extra in (("default", ()), ("reduced", ("--no-extended-kernel",))):
         try:
             ant.cli(
-                ["sweep", "--builder", f"@{path}", "--engine", "momwire:razor-2p",
+                ["sweep", "--builder", f"@{path}", "--engine", "momwire:razor2p",
                  "--npoints", "1", "--range", "28", "28", "--fn", "/dev/null",
                  *extra]
             )  # fmt: skip
@@ -339,7 +339,7 @@ def _cell(client, key, **kw):
     body = {
         "geometry": key,
         "solver": "momwire",
-        "momwire_model": "razor-2p",
+        "momwire_model": "razor2p",
         "n_per_wire": 40,
         "ground": False,
         "design_freq_mhz": 28.0,
@@ -357,7 +357,7 @@ def test_an_opened_nec5_deck_is_served_with_the_default(client):
     assert opened["example"]["extended_kernel_default"] is True
 
 
-# NEC-4's centre feed in the solves below: the web withholds razor-2p from a
+# NEC-4's centre feed in the solves below: the web withholds razor2p from a
 # segment-end (vertex) port (`adapter._VERTEX_PORT_WITHHELD`), which a NEC-5
 # deck's knot feed is.
 @pytest.mark.parametrize(

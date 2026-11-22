@@ -188,7 +188,7 @@ def test_a_decoded_design_solves_bit_for_bit_like_the_original(name):
             def build_network(self):
                 return net
 
-        engine = cli.make_engine_factory("momwire:bspline", "free")
+        engine = cli.make_engine_factory("momwire:bs2", "free")
         f = float(cls.default_params["freq"])
         z_orig = engine(cls()).impedance_sweep([f])
         z_data = engine(FromData()).impedance_sweep([f])

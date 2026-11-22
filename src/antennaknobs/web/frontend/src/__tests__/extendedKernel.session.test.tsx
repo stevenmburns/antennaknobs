@@ -71,7 +71,7 @@ describe("the extended-kernel toggle, slot by slot (#849)", () => {
     expect(lastModelOptions()).toHaveProperty("extended_kernel", true);
     // The rest of the request is untouched: same basis, same mesh — which is
     // what makes the A/B difference readable as the kernel and nothing else.
-    expect(geometryPosts.at(-1)?.momwire_model).toBe("bspline");
+    expect(geometryPosts.at(-1)?.momwire_model).toBe("bs2");
     expect(geometryPosts.at(-1)?.n_per_wire).toBe(15);
     expect(lastModelOptions().degree).toBe(2);
 
@@ -118,7 +118,7 @@ describe("the extended-kernel toggle, slot by slot (#849)", () => {
     expect(box).toHaveProperty("checked", false);
     await user.click(screen.getByRole("button", { name: "Close" }));
 
-        expect(geometryPosts.at(-1)?.momwire_model).toBe("sinusoidal-galerkin");
+        expect(geometryPosts.at(-1)?.momwire_model).toBe("sg");
     expect(lastModelOptions()).not.toHaveProperty("extended_kernel");
   });
 });

@@ -32,7 +32,7 @@ from antennaknobs.cli import cli, get_builder
 from antennaknobs.web import decks, server
 
 INVVEE = "dipoles.invvee"
-ENGINE = "momwire:bspline"
+ENGINE = "momwire:bs2"
 
 
 @pytest.fixture()
@@ -176,7 +176,7 @@ def _cell_body(**over) -> dict:
         "design_freq_mhz": 28.47,
         "measurement_freq_mhz": 28.47,
         "solver": "momwire",
-        "momwire_model": "bspline",
+        "momwire_model": "bs2",
         "n_per_wire": 15,
         "ground": False,
         "elev_az_deg": 0,
@@ -308,7 +308,7 @@ def test_a_deck_family_cell_moves_the_pattern_with_its_sy_knob(client):
     base = {
         "geometry": key,
         "solver": "momwire",
-        "momwire_model": "bspline",
+        "momwire_model": "bs2",
         "n_per_wire": 15,
         "ground": True,
         "ground_model": "pec",

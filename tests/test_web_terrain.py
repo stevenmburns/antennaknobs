@@ -290,7 +290,7 @@ def test_norm_check_terrain_radiated_is_pec_facet_referenced():
             {
                 "geometry": "dipoles.invvee",
                 "measurement_freq_mhz": f,
-                "momwire_model": "bspline",
+                "momwire_model": "bs2",
                 "ground": True,
                 "ground_model": "terrain",
                 "terrain": {"preset": "levee"},
@@ -305,7 +305,7 @@ def test_norm_check_terrain_radiated_is_pec_facet_referenced():
         {
             "geometry": "dipoles.invvee",
             "measurement_freq_mhz": 28.47,
-            "momwire_model": "bspline",
+            "momwire_model": "bs2",
             "ground": True,
             "ground_model": "sommerfeld",
         }
@@ -332,7 +332,7 @@ def test_ws_solve_with_terrain(client: TestClient):
         {
             "geometry": "dipoles.invvee",
             "measurement_freq_mhz": 21.2,
-            "momwire_model": "bspline",
+            "momwire_model": "bs2",
             "ground": True,
             "ground_model": "terrain",
             "terrain": {"preset": "levee", "water_azimuth_deg": 0.0},
@@ -387,7 +387,7 @@ def test_pynec_terrain_solve_matches_momwire(client: TestClient):
     assert nec["ground_eps_r"] == eps_r and nec["ground_sigma"] == sigma
     assert len(nec["ground_terrain"]["sectors"]) == 2
 
-    mom = _solve_ws(client, {**base, "solver": "momwire", "momwire_model": "bspline"})
+    mom = _solve_ws(client, {**base, "solver": "momwire", "momwire_model": "bs2"})
     el_nec = np.asarray(nec["cuts"]["elevation"])
     el_mom = np.asarray(mom["cuts"]["elevation"])
     assert abs(el_nec.max() - el_mom.max()) < 1.0

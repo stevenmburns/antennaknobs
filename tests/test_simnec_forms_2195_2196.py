@@ -211,7 +211,7 @@ def test_a_knot_between_segments_matches_the_nec5_deck_of_it():
                 return deck.network()
 
         return complex(
-            make_engine_factory("momwire:razor-2p", None)(Deck()).impedance()[0]
+            make_engine_factory("momwire:razor2p", None)(Deck()).impedance()[0]
         )
 
     assert z(ssn.deck) == pytest.approx(z(nec5), rel=1e-9)

@@ -2,8 +2,8 @@
 the switch turns on there (Steve, 11-17: "Only where certified").
 
 momwire#1982 made ``pair_reuse`` one switch every solver takes, with parts
-(``part_of="pair_reuse"`` in momwire's registry): bspline's ``offset_reuse``
-and razor-2p's ``razor_pair_reuse``. A native part asked for only through the
+(``part_of="pair_reuse"`` in momwire's registry): bs2's ``offset_reuse``
+and razor2p's ``razor_pair_reuse``. A native part asked for only through the
 switch outside its reach is silently off (momwire's ``withheld``), so a
 checkbox there would be one that does nothing. A solver with no part (the
 sinusoidal one) runs ``pair_reuse`` itself and is held to its reach. The
@@ -46,9 +46,9 @@ has_parts = pytest.mark.skipif(
 
 
 def _razor():
-    b = adapter._BACKENDS_BY_NAME.get("razor-2p")
+    b = adapter._BACKENDS_BY_NAME.get("razor2p")
     if b is None:
-        pytest.skip("no razor-2p backend")
+        pytest.skip("no razor2p backend")
     return b
 
 
@@ -71,8 +71,8 @@ def test_the_parts_are_read_from_the_registry_by_keyword():
     names = {f.name for f in _parts()}
     assert {"offset_reuse", "razor_pair_reuse"} <= names
     assert engine.pair_reuse_parts(_razor().solver) == ("razor_pair_reuse",)
-    bspline = adapter._BACKENDS_BY_NAME["bspline"].solver
-    assert "offset_reuse" in engine.pair_reuse_parts(bspline)
+    bs2 = adapter._BACKENDS_BY_NAME["bs2"].solver
+    assert "offset_reuse" in engine.pair_reuse_parts(bs2)
 
 
 @has_parts
@@ -83,7 +83,7 @@ def test_razor_is_offered_where_razor_pair_reuse_is_certified():
     assert _takes_pair_reuse(b.solver)
     assert adapter._offers_pair_reuse(b) is feature_certified("razor_pair_reuse")
     rows = {r["name"]: r for r in adapter.backend_roster(have_pynec=False)}
-    assert ("pair_reuse" in rows["razor-2p"]["model_kwargs"]) is feature_certified(
+    assert ("pair_reuse" in rows["razor2p"]["model_kwargs"]) is feature_certified(
         "razor_pair_reuse"
     )
 
@@ -170,11 +170,11 @@ def test_razor_takes_the_choice_where_offered(asked, monkeypatch):
         pytest.skip("razor_pair_reuse is not certified here")
     monkeypatch.setenv("ANTENNAKNOBS_PAIR_REUSE", "1")  # an explicit off wins
     eng = adapter._make_momwire_engine(
-        {"momwire_model": "razor-2p", "model_options": {"pair_reuse": asked}},
+        {"momwire_model": "razor2p", "model_options": {"pair_reuse": asked}},
         fed_yagi(2),
     )
     assert eng._pair_reuse is asked
-    # razor-2p finds its own classes: handed True, never the bspline hint.
+    # razor2p finds its own classes: handed True, never the bs2 hint.
     assert eng._pair_reuse_hintless is asked
     assert "pair_reuse" not in eng._solver_kwargs
 
@@ -182,8 +182,8 @@ def test_razor_takes_the_choice_where_offered(asked, monkeypatch):
 @has_parts
 @pytest.mark.parametrize("seed, expect", [("1", True), ("", False)])
 def test_the_umbrella_seed_covers_razor(seed, expect, monkeypatch):
-    """ANTENNAKNOBS_PAIR_REUSE seeds an unset razor-2p request (Steve, 11-17),
-    and razor-2p's constructor resolves the part on."""
+    """ANTENNAKNOBS_PAIR_REUSE seeds an unset razor2p request (Steve, 11-17),
+    and razor2p's constructor resolves the part on."""
     b = _razor()
     if not adapter._offers_pair_reuse(b):
         pytest.skip("razor_pair_reuse is not certified here")
@@ -191,7 +191,7 @@ def test_the_umbrella_seed_covers_razor(seed, expect, monkeypatch):
     monkeypatch.delenv("MOMWIRE_X_PAIR_REUSE", raising=False)
     monkeypatch.delenv("MOMWIRE_X_RAZOR_PAIR_REUSE", raising=False)
     eng = adapter._make_momwire_engine(
-        {"momwire_model": "razor-2p", "model_options": {}}, fed_yagi(2)
+        {"momwire_model": "razor2p", "model_options": {}}, fed_yagi(2)
     )
     assert eng._pair_reuse is expect
     made = []
@@ -203,7 +203,7 @@ def test_the_umbrella_seed_covers_razor(seed, expect, monkeypatch):
             assert kw.get("pair_reuse") is True
         else:
             assert "pair_reuse" not in kw
-    # What razor-2p's constructor resolved, not only what it was handed:
+    # What razor2p's constructor resolved, not only what it was handed:
     # the part is on exactly when the seed is.
     assert all(bool(s._pair_reuse) is expect for s in made)
 

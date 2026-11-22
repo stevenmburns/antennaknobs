@@ -46,7 +46,7 @@ elevated radials at 0.95 lambda/4 bring the system to resonance with the
 full-length radiator: momwire's B-spline reads 38.2 + j0.8 ohm at
 nominal_nsegs 15 and at 21, and the
 elevated length moves X by about +19 ohm per 0.1 of `elevated_factor`
-(-28 ohm at 0.8, +20 ohm at 1.05). razor-2p and NEC-5 on the same nominal
+(-28 ohm at 0.8, +20 ohm at 1.05). razor2p and NEC-5 on the same nominal
 21 mesh read 37.99 - j0.77 and 37.99 - j0.80 ohm. One elevated radial is
 legal (58.5 + j2.6 ohm), eight read 36.7 + j4.5.
 

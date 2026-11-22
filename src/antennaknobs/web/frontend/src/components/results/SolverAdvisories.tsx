@@ -14,7 +14,7 @@
 //
 // RANKING (measured, antennaknobs#1144):
 //
-//   RazorFarMeshClass    fires on EVERY razor-2p solve, by momwire's design —
+//   RazorFarMeshClass    fires on EVERY razor2p solve, by momwire's design —
 //                        it measured that no solve-free predictor of the error
 //                        correlates, so there is no honest threshold and the
 //                        advisory is unconditional.

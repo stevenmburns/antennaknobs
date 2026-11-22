@@ -18,7 +18,7 @@ radius, 14.2 MHz, fed at 0.31 with 50 ohm loads at 0.77 and 0.04.
 
 Physics bars, registered before any gate below was run (2026-09-15):
 
-- razor-2p against live NEC-5 on the same split geometry, authored 41 and 81
+- razor2p against live NEC-5 on the same split geometry, authored 41 and 81
   segments, two and three ports: |Z_razor - Z_nec5| <= 2 D5, where D5 is
   |Z_razor - Z_nec5| on the centre-fed dipole at the same authored count.
 - SinusoidalSolver against PyNEC on the same split geometry, authored 41 and
@@ -28,19 +28,19 @@ Physics bars, registered before any gate below was run (2026-09-15):
   where both ports of the two-port case are segment centres:
   |Z_split - Z_w(150)| <= |Z_w(150) - Z_w(50)|, bs2's own refinement step.
 - The vertex-only exemption: a dipole cut at 0.3 into 3 + 7 segments, with a
-  vertex port at the cut, meshes 3 + 7 on razor-2p, d = 1 and bs2, and razor-2p
+  vertex port at the cut, meshes 3 + 7 on razor2p, d = 1 and bs2, and razor2p
   agrees with NEC-5 on that deck within 0.1 ohm.
 
 Measured once the bars were in (2026-09-15):
 
-- razor-2p against NEC-5: 0.053 ohm (1.39 D5) and 0.053 ohm (1.40 D5) at 41,
+- razor2p against NEC-5: 0.053 ohm (1.39 D5) and 0.053 ohm (1.40 D5) at 41,
   0.056 ohm (1.49 D5) and 0.054 ohm (1.44 D5) at 81, two and three ports; about
   0.035 % of |Z| each, with 2 D5 = 0.076 and 0.075 ohm.
 - SinusoidalSolver against PyNEC: 1.32, 1.41 and 1.42 D at 41 (2 D = 0.225
   ohm), 1.32, 1.41 and 1.41 D at 101 (2 D = 0.216 ohm).
 - bs2 split against its whole wire at 150: 0.192 ohm at 61 and 0.074 ohm at
   101, against a step of 0.253 ohm.
-- The cut deck: razor-2p 112.671+j20.101, NEC-5 112.660+j20.046, 0.056 ohm
+- The cut deck: razor2p 112.671+j20.101, NEC-5 112.660+j20.046, 0.056 ohm
   apart. Before the exemption razor meshed it 4 + 7 and read 113.056+j24.244.
 """
 
@@ -87,7 +87,7 @@ CENTRE = {
     "pulse": (HarringtonSolver, {}),
 }
 KNOT = {
-    "razor-2p": (RazorSolver, {"nec5_quadrature": True}),
+    "razor2p": (RazorSolver, {"nec5_quadrature": True}),
     "bs1": (BSplineSolver, {"degree": 1}),
 }
 CASES = {
@@ -195,7 +195,7 @@ def test_a_port_on_a_site_of_the_wires_own_count_keeps_it_whole():
     """0.35 is a segment centre of 10 and 0.3 a knot: no split on either
     family, and no note."""
     centre = _momwire(_b(feed_at=0.35), "sinusoidal")
-    knot = _momwire(_b(feed_at=0.3), "razor-2p")
+    knot = _momwire(_b(feed_at=0.3), "razor2p")
     for eng in (centre, knot):
         assert eng._split_wires == {} and eng._edge_segments == [[10]]
         eng.impedance()
@@ -226,7 +226,7 @@ def test_a_parity_free_solver_keeps_the_wire_whole():
 
 
 def test_one_note_per_split_wire_and_no_offset():
-    eng = _momwire(_b(**CASES["k2"]), "razor-2p")
+    eng = _momwire(_b(**CASES["k2"]), "razor2p")
     eng.impedance()
     (note,) = [a for a in eng.advisories if a.get("category") == "FeedPlacement"]
     assert "'feed' at 0.31 and 'load0' at 0.77" in note["text"]
@@ -239,7 +239,7 @@ def test_one_note_per_split_wire_and_no_offset():
 
 
 def test_a_knot_solver_reports_each_port_at_the_knot_of_its_own_cut():
-    eng = _momwire(_b(**CASES["k2"]), "razor-2p")
+    eng = _momwire(_b(**CASES["k2"]), "razor2p")
     records = {r["port"]: r for r in eng.fed_segments()}
     assert set(records) == {"feed", "load0"}
     lengths = [0.31, 0.46, 0.23]
@@ -269,7 +269,7 @@ def test_a_centre_solver_reports_each_ports_own_piece():
         )
 
 
-@pytest.mark.parametrize("solver", ["bs2", "razor-2p"])
+@pytest.mark.parametrize("solver", ["bs2", "razor2p"])
 def test_the_workbench_marker_sits_on_the_driven_port(solver):
     import antennaknobs.web.examples  # noqa: F401  registration order
     from antennaknobs.web import adapter
@@ -285,7 +285,7 @@ def test_the_workbench_marker_sits_on_the_driven_port(solver):
     # knot solver, the nearest knot to the gap on a centre solver.
     segment = LENGTH * 0.27 / 2  # the k3 feed piece is one segment of 0.135 L
     assert np.linalg.norm(knot - _targets(b)["feed"]) <= (
-        1e-9 * LENGTH if solver == "razor-2p" else 0.5 * segment + 1e-9
+        1e-9 * LENGTH if solver == "razor2p" else 0.5 * segment + 1e-9
     )
 
 
@@ -293,7 +293,7 @@ def test_the_knot_solvers_currents_meet_at_every_cut():
     """A node gap sits at a polyline end, so each piece is its own polyline;
     they chain end to end along the wire and carry one current through each
     cut."""
-    eng = _momwire(_b(**CASES["k3"]), "razor-2p")
+    eng = _momwire(_b(**CASES["k3"]), "razor2p")
     currents = eng.current_distribution()
     assert len(currents) == 4
     np.testing.assert_allclose(currents[0].knot_positions[0], P0, atol=1e-12)
@@ -338,9 +338,9 @@ def _same_mesh(mom, ref):
 def test_razor_2p_agrees_with_nec5_on_the_same_split(case, n):
     """|Z_razor - Z_nec5| <= 2 D5, as registered above."""
     centre = _b(n_seg=n, feed_at=None)
-    d5 = abs(_z(_momwire(centre, "razor-2p")) - _z(_nec5_engine(centre)))
+    d5 = abs(_z(_momwire(centre, "razor2p")) - _z(_nec5_engine(centre)))
     b = _b(n_seg=n, **CASES[case])
-    razor, nec5 = _momwire(b, "razor-2p"), _nec5_engine(b)
+    razor, nec5 = _momwire(b, "razor2p"), _nec5_engine(b)
     _same_mesh(razor, nec5)
     assert abs(_z(razor) - _z(nec5)) <= 2 * d5
 
@@ -407,7 +407,7 @@ class _Cut(AntennaBuilder):
         )
 
 
-@pytest.mark.parametrize("solver", ["razor-2p", "bs1", "bs2"])
+@pytest.mark.parametrize("solver", ["razor2p", "bs1", "bs2"])
 def test_a_vertex_only_wire_keeps_its_authored_count(solver):
     assert _momwire(_Cut(), solver)._edge_segments == [[3], [7]]
 
@@ -433,7 +433,7 @@ def test_a_vertex_wire_with_a_gap_port_too_keeps_the_parity_rule():
 
 @needs_nec5
 def test_razor_2p_agrees_with_nec5_on_the_cut_deck():
-    razor = _momwire(_Cut(), "razor-2p")
+    razor = _momwire(_Cut(), "razor2p")
     nec5 = _nec5_engine(_Cut())
     _same_mesh(razor, nec5)
     assert abs(_z(razor) - _z(nec5)) <= 0.1

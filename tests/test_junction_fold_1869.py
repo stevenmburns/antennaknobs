@@ -78,18 +78,18 @@ def test_two_loads_on_the_two_wires_of_a_node_are_one_series_port():
     assert [(ld.r, ld.z) for ld in loads] == [(50.0, None), (None, 100j)]
 
 
-@pytest.mark.parametrize("basis", ["razor-nec5", "bspline"])
+@pytest.mark.parametrize("basis", ["razor2p", "bs2"])
 def test_the_folded_pair_answers_the_single_series_load_bit_for_bit(tmp_path, basis):
     """The same port, the same mesh: the only difference left is that the
     reducer sums 50 and j100 instead of being handed 50+j100, which is exact.
-    razor-nec5 also lands on the licensed NEC-5's 508.53+183.66j."""
+    razor2p also lands on the licensed NEC-5's 508.53+183.66j."""
     series = _variant(tmp_path, TWO_LOADS, SERIES, "series.nec")
     assert _deck(TWO_LOADS).wire_tuples(specs=True) == _deck(series).wire_tuples(
         specs=True
     )
     z = _z(TWO_LOADS, basis)
     assert z == _z(series, basis)
-    if basis == "razor-nec5":
+    if basis == "razor2p":
         assert abs(z - (508.53 + 183.66j)) < 0.05
 
 
@@ -104,7 +104,7 @@ def test_a_source_on_the_other_wire_carries_the_load_in_series(tmp_path):
     assert [b.port for b in net.branches if isinstance(b, Load)] == ["feed"]
     assert net.sources == [Driven(port="feed", voltage=1.0)]
     bare = _variant(tmp_path, MIRROR, ("LD 4,1,10,0,50.,0.\n", ""), "bare.nec")
-    z, z0 = _z(MIRROR, "razor-nec5"), _z(bare, "razor-nec5")
+    z, z0 = _z(MIRROR, "razor2p"), _z(bare, "razor2p")
     assert abs((z - z0) - 50) < 1e-9
     assert abs(z - (130.87 + 37.992j)) < 0.05
 
@@ -147,7 +147,7 @@ def test_two_objects_at_a_three_wire_node_keep_a_gap_each(tmp_path, which):
     # The two objects at the node: two ports, not one folded port.
     at_node = ("feed", "load1") if which == "mirror" else ("load1", "load2")
     assert all(isinstance(net.ports[n], PortAtVertex) for n in at_node), net.ports
-    z = _z(path, "razor-nec5")
+    z = _z(path, "razor2p")
     assert abs(z - NEC5_K3[which]) / abs(NEC5_K3[which]) < 2e-4, z
 
 

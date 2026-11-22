@@ -8,7 +8,7 @@
  *                      AND (hosted) its kwarg is on the model-options allowlist.
  *
  * Three different things — the class, the preset, host policy — and the tests
- * below keep them apart, because collapsing them is how `razor-2p` would grow
+ * below keep them apart, because collapsing them is how `razor2p` would grow
  * a quadrature control that makes its own tab name a lie.
  *
  * The constraint predicates are LIVE derived state: they take the current
@@ -30,7 +30,7 @@ import {
 } from "../lib/backends";
 
 const BASE: BackendEntry = {
-  name: "bspline",
+  name: "bs2",
   label: "B-spline",
   kind: "momwire",
   supports_ground: true,
@@ -87,12 +87,12 @@ describe("axisControls — the class, the preset, and host policy are different"
   });
 
   it("drops an axis this PRESET pins, even though the class offers both", () => {
-    // razor-2p's shape: the class can take either quadrature, the preset
-    // binds one. A control here would let a user flip `razor-2p` into the
+    // razor2p's shape: the class can take either quadrature, the preset
+    // binds one. A control here would let a user flip `razor2p` into the
     // Gauss-Legendre lane and leave the tab's name describing something else.
     const razor: BackendEntry = {
       ...BASE,
-      name: "razor-2p",
+      name: "razor2p",
       axes: { ...BASE.axes, quadrature: ["converged", "nec5"] },
       bound: { nec5_quadrature: true },
     };
@@ -205,20 +205,20 @@ describe("axisControls over the SERVED roster — the per-tab lists, pinned", ()
     // joined it with momwire 0.91.0, whose point-matched class gained the
     // sector route too (momwire#1912).
     sinusoidal: ["kernel", "solve_strategy"],
-    "sinusoidal-galerkin": ["feed_model", "kernel"],
-    // `solve_strategy` joined for bspline with momwire 0.60.0 (#1029):
+    "sg": ["feed_model", "kernel"],
+    // `solve_strategy` joined for bs2 with momwire 0.60.0 (#1029):
     // the sector route makes the axis multi-valued ("dense" | "sector") on
     // the one backend that declares it. It reaches the panel as the
     // `rotational_symmetry` checkbox through the generic renderer, not as
     // an axis control of its own; hmatrix/arrayblock keep a single value.
-    bspline: ["basis", "feed_model", "kernel", "solve_strategy"],
+    bs2: ["basis", "feed_model", "kernel", "solve_strategy"],
     // Pulse (#1148) is the roster's first row with NO controls at all: every
     // one of its axes is single-valued, which is why #1255 had to stop the EK
     // card rendering on `kind === "momwire"` alone.
     pulse: [],
     hmatrix: ["basis", "feed_model", "kernel"],
     arrayblock: ["basis", "feed_model", "kernel"],
-    "razor-2p": ["kernel"],
+    "razor2p": ["kernel"],
     pynec: [],
   };
 
@@ -266,11 +266,11 @@ describe("axisControls over the SERVED roster — the per-tab lists, pinned", ()
   });
 
   it("drops quadrature ONLY on the tab that pins it", () => {
-    // razor-2p is the only preset with a non-empty `bound`, and the only tab
+    // razor2p is the only preset with a non-empty `bound`, and the only tab
     // whose class offers two quadratures. Both halves are asserted so the
     // razor expectation above cannot pass because the axis is single-valued
     // everywhere — which is what would happen if `bound` stopped being served.
-    const razor = entry("razor-2p");
+    const razor = entry("razor2p");
     expect(razor.axes!.quadrature).toEqual(["converged", "nec5"]);
     expect(razor.bound).toEqual({ nec5_quadrature: true });
     const unpinned = { ...razor, bound: {} };

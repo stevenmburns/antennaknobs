@@ -33,7 +33,7 @@ const BAND_20M: BandSpec = { key: "20m", label: "20 m", freq_mhz: 14.15, min_mhz
 // individual tests override just the fields under study.
 function baseParams(overrides: Partial<Parameters<typeof planSweepFreqs>[0]> = {}) {
   return {
-    backend: entry("bspline"),
+    backend: entry("bs2"),
     groundEnabled: false,
     groundModel: "fast" as const,
     currentExample: makeExample(),
@@ -73,7 +73,7 @@ describe("planSweepFreqs", () => {
       planSweepFreqs(
         baseParams({
           refineEnabled: false,
-          backend: entry("bspline"),
+          backend: entry("bs2"),
           groundEnabled: true,
           groundModel: "sommerfeld",
         }),

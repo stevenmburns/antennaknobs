@@ -113,7 +113,7 @@ def _req(design=INVVEE, **knobs) -> dict:
         "design_freq_mhz": b.design_freq,
         "measurement_freq_mhz": b.freq,
         "solver": "momwire",
-        "momwire_model": "bspline",
+        "momwire_model": "bs2",
         "n_per_wire": N,
         "ground": False,
     }
@@ -593,7 +593,7 @@ def test_held_pins_keep_their_hold_and_rerun_bit_equal(
 # FIXED reference (a state that sets the swept knob, solved once at its own
 # setting and never held). The metric is read at each point's OPTIMISED knobs.
 
-BSPLINE = "momwire:bspline"
+BSPLINE = "momwire:bs2"
 DX = an.ElevationWindow("DX gain", 2, 10, step=0.1)
 ANGLES = (0.0, 20.0, 40.0)
 

@@ -38,7 +38,7 @@ const text = (name: string, opts = stock(name)) =>
   );
 
 describe("the default line per tab", () => {
-  it("bspline", () => {
+  it("bs2", () => {
     // "point gap", NOT "segment gap" — and this line is why the whole
     // momwire#891 chain happened. Steve read the composition line in the app
     // and saw it claim a segment gap on a tab whose stock solve uses a point
@@ -46,7 +46,7 @@ describe("the default line per tab", () => {
     // defaulted to the other value. The feature's first act was to state
     // something false about the engine, out loud, where someone could catch
     // it — which is exactly what a description is FOR.
-    expect(text("bspline")).toEqual([
+    expect(text("bs2")).toEqual([
       "degree 2",
       "Galerkin",
       "reduced kernel",
@@ -59,7 +59,7 @@ describe("the default line per tab", () => {
   it("the b-spline trio differ in exactly ONE segment", () => {
     // #1006 point 2 in a single assertion: three tabs, one word. This is the
     // argument for the feature, so it is asserted rather than described.
-    const [a, b, c] = ["bspline", "hmatrix", "arrayblock"].map((n) => text(n));
+    const [a, b, c] = ["bs2", "hmatrix", "arrayblock"].map((n) => text(n));
     const differing = a!.map((_, i) => i).filter((i) => !(a![i] === b![i] && b![i] === c![i]));
     expect(differing).toHaveLength(1);
     expect([a![differing[0]!], b![differing[0]!], c![differing[0]!]]).toEqual([
@@ -79,7 +79,7 @@ describe("the default line per tab", () => {
     //
     // Asserting the tidier story would have been asserting a story. The line
     // is worth having precisely because it shows the consequence too.
-    const [a, b] = ["sinusoidal", "sinusoidal-galerkin"].map((n) => text(n));
+    const [a, b] = ["sinusoidal", "sg"].map((n) => text(n));
     const differing = a!.map((_, i) => i).filter((i) => a![i] !== b![i]);
     expect(differing.map((i) => [a![i], b![i]])).toEqual([
       ["point-matched", "Galerkin"],
@@ -89,8 +89,8 @@ describe("the default line per tab", () => {
     // ...and with the free axis set to match, the STRUCTURAL difference is
     // the only one left — which is the claim that actually matters.
     const matched = text(
-      "sinusoidal-galerkin",
-      optsWithModel("sinusoidal-galerkin", { feed_model: "segment" }),
+      "sg",
+      optsWithModel("sg", { feed_model: "segment" }),
     );
     const structural = a!.map((_, i) => i).filter((i) => a![i] !== matched[i]);
     expect(structural.map((i) => [a![i], matched[i]])).toEqual([
@@ -99,20 +99,20 @@ describe("the default line per tab", () => {
 
     // The fixed-vs-free fact behind it, so the explanation cannot rot.
     expect(entry("sinusoidal").axes!.feed_model).toEqual(["segment-gap"]);
-    expect(entry("sinusoidal-galerkin").axes!.feed_model).toHaveLength(2);
+    expect(entry("sg").axes!.feed_model).toHaveLength(2);
   });
 
-  it("razor-2p marks its pinned axis and ONLY that one", () => {
+  it("razor2p marks its pinned axis and ONLY that one", () => {
     // The rule the design corrected: an axis is pinned iff ITS value was
     // resolved as bound, not "bound is non-empty". razor binds
     // nec5_quadrature alone — its kernel is free, and a segment reading
     // "reduced kernel, pinned" would assert a constraint the engine lacks.
-    const segs = compositionLine(entry("razor-2p"), stock("razor-2p"), SERVED_VOCAB)!;
+    const segs = compositionLine(entry("razor2p"), stock("razor2p"), SERVED_VOCAB)!;
     const pinned = segs.filter((s) => s.pinned).map((s) => s.axis);
     expect(pinned).toEqual(["quadrature"]);
-    expect(text("razor-2p")).toContain("two-point quadrature (pinned)");
-    expect(text("razor-2p")).toContain("reduced kernel");
-    expect(text("razor-2p")).not.toContain("reduced kernel (pinned)");
+    expect(text("razor2p")).toContain("two-point quadrature (pinned)");
+    expect(text("razor2p")).toContain("reduced kernel");
+    expect(text("razor2p")).not.toContain("reduced kernel (pinned)");
   });
 
   it("pynec and nec5 get NO line at all, never a fabricated one", () => {
@@ -125,15 +125,15 @@ describe("the default line per tab", () => {
 
 describe("a moved control rewrites its one segment, in place", () => {
   it("degree", () => {
-    const before = text("bspline");
-    const after = text("bspline", optsWithModel("bspline", { degree: 1 }));
+    const before = text("bs2");
+    const after = text("bs2", optsWithModel("bs2", { degree: 1 }));
     expect(after[0]).toBe("degree 1");
     expect(after.slice(1)).toEqual(before.slice(1));
   });
 
   it("kernel", () => {
-    const before = text("bspline");
-    const after = text("bspline", optsWithModel("bspline", { extended_kernel: true }));
+    const before = text("bs2");
+    const after = text("bs2", optsWithModel("bs2", { extended_kernel: true }));
     expect(after[2]).toBe("extended kernel");
     expect(after.filter((_, i) => i !== 2)).toEqual(
       before.filter((_, i) => i !== 2),
@@ -141,10 +141,10 @@ describe("a moved control rewrites its one segment, in place", () => {
   });
 
   it("feed model, where it is free", () => {
-    const before = text("sinusoidal-galerkin");
+    const before = text("sg");
     const after = text(
-      "sinusoidal-galerkin",
-      optsWithModel("sinusoidal-galerkin", { feed_model: "segment" }),
+      "sg",
+      optsWithModel("sg", { feed_model: "segment" }),
     );
     const moved = before.map((_, i) => i).filter((i) => before[i] !== after[i]);
     expect(moved).toHaveLength(1);
@@ -156,8 +156,8 @@ describe("a moved control rewrites its one segment, in place", () => {
 
   it("a PINNED axis never moves, whatever the options say", () => {
     // The pin marker only means something if the segment is actually immune.
-    const before = text("razor-2p");
-    const after = text("razor-2p", optsWithModel("razor-2p", { extended_kernel: true }));
+    const before = text("razor2p");
+    const after = text("razor2p", optsWithModel("razor2p", { extended_kernel: true }));
     const q = (l: string[]) => l.find((x) => x.includes("quadrature"));
     expect(q(after)).toBe(q(before));
     expect(q(after)).toBe("two-point quadrature (pinned)");
@@ -192,19 +192,19 @@ describe("the line describes the ENGINE, not the deck", () => {
     // the honest answer; a line assembled from raw momwire tokens would leak
     // internal vocabulary into a sentence.
     const empty = { axes: [], labels: {} };
-    expect(compositionLine(entry("bspline"), stock("bspline"), empty)).toEqual([]);
+    expect(compositionLine(entry("bs2"), stock("bs2"), empty)).toEqual([]);
   });
 
   it("skips a value the server has no phrase for", () => {
     const partial = { axes: ["basis", "testing"], labels: { testing: SERVED_VOCAB.labels.testing! } };
-    const segs = compositionLine(entry("bspline"), stock("bspline"), partial)!;
+    const segs = compositionLine(entry("bs2"), stock("bs2"), partial)!;
     expect(segs.map((s) => s.axis)).toEqual(["testing"]);
   });
 });
 
 describe("the fixed/free/pinned kinds", () => {
   it("marks single-valued axes as the tab's identity", () => {
-    const segs = compositionLine(entry("bspline"), stock("bspline"), SERVED_VOCAB)!;
+    const segs = compositionLine(entry("bs2"), stock("bs2"), SERVED_VOCAB)!;
     const byAxis = Object.fromEntries(segs.map((s) => [s.axis, s]));
     expect(byAxis.testing!.fixed).toBe(true);
     expect(byAxis.basis!.fixed).toBe(false);
@@ -215,8 +215,8 @@ describe("the fixed/free/pinned kinds", () => {
     // Empty means "described, and it said nothing"; null means "cannot be
     // asked". The component renders those differently and inferring one from
     // the other is #1103's rule.
-    const legacy: BackendEntry = { ...entry("bspline"), axes: null };
-    expect(compositionLine(legacy, stock("bspline"), SERVED_VOCAB)).toBeNull();
+    const legacy: BackendEntry = { ...entry("bs2"), axes: null };
+    expect(compositionLine(legacy, stock("bs2"), SERVED_VOCAB)).toBeNull();
   });
 });
 
@@ -255,7 +255,7 @@ describe("what a user actually reads", () => {
     // The comma read as another unit separator beside the middle dots, so the
     // annotation looked like punctuation in a list rather than a note on the
     // segment it belongs to.
-    render1(entry("razor-2p"));
+    render1(entry("razor2p"));
     const t = screen.getByTestId("composition-line").textContent ?? "";
     expect(t).toContain("two-point quadrature (pinned)");
     expect(t).not.toContain(", pinned");
@@ -263,16 +263,16 @@ describe("what a user actually reads", () => {
 
   it("separates units with the middle dot and nothing else", () => {
     // The separator is the only thing marking unit boundaries, so a comma
-    // anywhere in the rendered line is ambiguous with it. razor-2p is the
+    // anywhere in the rendered line is ambiguous with it. razor2p is the
     // longest line and the one that showed the problem.
-    render1(entry("razor-2p"));
+    render1(entry("razor2p"));
     const t = screen.getByTestId("composition-line").textContent ?? "";
     expect(t).not.toContain(",");
     expect(t.split("·")).toHaveLength(7); // label + six segments
   });
 
   it("opens with the tab's own label", () => {
-    render1(entry("bspline"));
+    render1(entry("bs2"));
     expect(screen.getByTestId("composition-line").textContent).toMatch(
       /^B-spline · degree 2 · /,
     );

@@ -1254,7 +1254,7 @@ def test_translator_rejects_geometry_with_no_excitation():
     ],
 )
 def test_momwire_arrayblock_matches_dense_bspline(design_module):
-    """The element-aware array-block solver must reproduce the dense bspline
+    """The element-aware array-block solver must reproduce the dense bs2
     per-port impedance on the array designs. Both go through MomwireEngine, so
     this also pins the parity wiring: a wrong parity for ArrayBlockSolver would
     build a different mesh and the impedances would diverge."""
@@ -1377,7 +1377,7 @@ def test_momwire_sinusoidal_galerkin_reads_the_hentenna_residue():
 
         sin (collocation)   42.44 + 29.23j
         sin-Galerkin        43.01 + 38.90j
-        bspline d=2         43.05 + 38.59j
+        bs2 d=2         43.05 + 38.59j
 
     The bounds are loose on purpose — this pins the VERDICT (collocation far,
     the two Galerkin schemes together), not the third digit."""
@@ -2238,7 +2238,7 @@ def test_every_momwire_solver_declares_a_capability_row():
 
 # --------------------------------------------------------------------------
 # RazorSolver wiring — the NEC-5 formulation twin (momwire#309/#432) joining
-# the `--basis` roster (`razor-2p` / `razor-nec5`). Plain `razor` (the
+# the `--basis` roster (`razor2p`). Plain `razor` (the
 # default Gauss-Legendre quadrature) is off the roster since momwire#753
 # (2026-09-02); the tests below still exercise it via direct
 # `solver=RazorSolver` construction, which bypasses `--basis` entirely.
@@ -2251,8 +2251,8 @@ def test_razor_parity_is_even():
     its own feed_arclength doc is explicit that "on an even segment count a
     midpoint feed is already the exact centre knot". `nec5_quadrature` only
     changes how the path integral is evaluated, not the basis or the feed
-    placement, so `razor-2p` and its deprecated spelling `razor-nec5` share
-    the rule."""
+    placement, so `razor2p` and the bare Gauss-Legendre lane share the
+    rule."""
     from momwire import RazorSolver, BSplineSolver
     from antennaknobs.engines.momwire import _parity_for_solver
 
@@ -2266,14 +2266,14 @@ def test_razor_parity_is_even():
 @pytest.mark.parametrize(
     "solver_kwargs",
     [None, {"nec5_quadrature": True}],
-    ids=["razor-gl-direct", "razor-nec5"],
+    ids=["razor-gl-direct", "razor2p"],
 )
 def test_momwire_razor_matches_direct_construction(solver_kwargs):
     """A dipole solved through `MomwireEngine(solver=RazorSolver, ...)` —
     constructed directly, the only way to reach RazorSolver's default
     Gauss-Legendre quadrature since plain `razor` left the `--basis` roster
-    (momwire#753); `nec5_quadrature=True` is also `--basis razor-2p` /
-    `razor-nec5` — is bit-identical to building RazorSolver directly from
+    (momwire#753); `nec5_quadrature=True` is also `--basis razor2p` — is
+    bit-identical to building RazorSolver directly from
     the same wires/segments/feeds it read off.
     Also exercises the `junctions` kwarg omission (RazorSolver detects
     junctions from geometry and refuses the kwarg outright, even `None`) —
@@ -2336,7 +2336,7 @@ def test_momwire_razor_serves_node_gaps_now():
 
     Pinned two ways so a silent regression in either direction is caught: the
     declared capability, and an answer that agrees with the default basis.
-    Measured 63.398 - 58.236j against bspline's 64.466 - 52.346j; gated as a
+    Measured 63.398 - 58.236j against bs2's 64.466 - 52.346j; gated as a
     band because the two formulations legitimately differ at a feed region,
     not as a bit pin.
     """

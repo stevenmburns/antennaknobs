@@ -3,7 +3,7 @@
   "generator": "PYTHONPATH=src python scripts/gen_zinf_vectors.py",
   "cases": [
     {
-      "name": "hentenna razor-2p (R, X)",
+      "name": "hentenna razor2p (R, X)",
       "x": [
         60,
         116,
@@ -39,7 +39,7 @@
       }
     },
     {
-      "name": "hentenna razor-2p X only",
+      "name": "hentenna razor2p X only",
       "x": [
         60,
         116,
@@ -75,7 +75,7 @@
       }
     },
     {
-      "name": "hentenna bspline (R, X)",
+      "name": "hentenna bs2 (R, X)",
       "x": [
         59,
         115,
@@ -111,7 +111,7 @@
       }
     },
     {
-      "name": "hentenna bspline X only",
+      "name": "hentenna bs2 X only",
       "x": [
         59,
         115,
@@ -509,7 +509,7 @@
   ],
   "feed_mesh_cases": [
     {
-      "name": "invvee bspline: 1 -> 3 segments between N 65 and 95",
+      "name": "invvee bs2: 1 -> 3 segments between N 65 and 95",
       "x": [
         17,
         23,
@@ -531,7 +531,7 @@
       "expected_step": 4
     },
     {
-      "name": "invvee razor-2p: the 2 -> 4 jump beats the held step",
+      "name": "invvee razor2p: the 2 -> 4 jump beats the held step",
       "x": [
         18,
         24,

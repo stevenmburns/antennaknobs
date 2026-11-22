@@ -4,12 +4,12 @@
 that said they "raise NotImplementedError". momwire declares both as serving
 `junction_ports`, and both solve `wire.sterba_bl` (16 `PortAtEnd` ports):
 
-    bspline              672.969912318 + 386.605011472j   (reference)
-    sinusoidal-galerkin  672.892988555 + 386.842431879j   rel 3.2e-4
+    bs2              672.969912318 + 386.605011472j   (reference)
+    sg  672.892988555 + 386.842431879j   rel 3.2e-4
     hmatrix              672.965974382 + 386.610573299j   rel 8.8e-6
     arrayblock           673.035994564 + 386.591938736j   rel 8.7e-5
 
-THE BAR IS THE ONE THE LIST ALREADY APPLIES. `sinusoidal-galerkin` was
+THE BAR IS THE ONE THE LIST ALREADY APPLIES. `sg` was
 admitted long ago and is the LOOSEST member at 3.2e-4 — an order beyond either
 accelerator. So the question was never whether the accelerators clear a
 standard; it was that refusing them while admitting a looser member was
@@ -38,7 +38,7 @@ from antennaknobs.engines.momwire import MomwireEngine
 from antennaknobs.network import PortAtEnd
 from antennaknobs.web import adapter
 
-# Comfortably above the loosest member measured (sinusoidal-galerkin, 3.2e-4)
+# Comfortably above the loosest member measured (sg, 3.2e-4)
 # and far below anything that would hide a structural error in the port
 # columns, which showed as 1e-5 and up before the tolerance sweep settled it.
 _REL_TOL = 1e-3
@@ -66,19 +66,19 @@ def test_the_allowlist_is_the_four_measured_backends():
     fewer backend -- so the set is asserted here and the solves below are what
     justify it."""
     assert adapter._JUNCTION_PORT_BACKENDS == (
-        "bspline",
-        "sinusoidal-galerkin",
+        "bs2",
+        "sg",
         "hmatrix",
         "arrayblock",
     )
-    # `bspline` first: `_required_backends()[0]` becomes the design's default,
+    # `bs2` first: `_required_backends()[0]` becomes the design's default,
     # and the dense mixed-potential solver is the reference for these ports.
-    assert adapter._JUNCTION_PORT_BACKENDS[0] == "bspline"
+    assert adapter._JUNCTION_PORT_BACKENDS[0] == "bs2"
 
 
 @pytest.mark.antenna_computation_check
 def test_every_allowed_backend_solves_the_deck_and_agrees_with_the_parent():
-    ref = _solve("bspline")
+    ref = _solve("bs2")
     assert abs(ref) > 1.0, ref
     for name in adapter._JUNCTION_PORT_BACKENDS[1:]:
         z = _solve(name)
@@ -90,7 +90,7 @@ def test_every_allowed_backend_solves_the_deck_and_agrees_with_the_parent():
 def test_the_accelerators_converge_to_the_parent_as_tolerance_tightens():
     """What separates "iterative closure" from "the port columns are wrong".
     A structural error would not move with `aca_tol`; this does, by orders."""
-    ref = _solve("bspline")
+    ref = _solve("bs2")
     for name in ("hmatrix", "arrayblock"):
         spec = next(s for s in adapter._BACKENDS if s.name == name)
         with warnings.catch_warnings():

@@ -54,7 +54,7 @@ COARSE = 4
 def _req(**over) -> dict:
     r = {
         "geometry": "verticals.buried_radial_vertical",
-        "backend": "bspline",
+        "backend": "bs2",
         "ground": True,
         "ground_model": "sommerfeld",
         "n_per_wire": COARSE,

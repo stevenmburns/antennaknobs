@@ -26,12 +26,12 @@ CRLF. It is 0183's NEC-5 deck with `EX 6,1,6,0,1.414214,0.` in place of
 ## What the three say about one antenna
 
 `tests/test_nec5_eznec_declaration_1579.py` runs all three through
-momwire:bspline. The `NT` here is an ideal gyrator (Y11 = Y22 = 0,
+momwire:bs2. The `NT` here is an ideal gyrator (Y11 = Y22 = 0,
 Y12 = Y21 = j1, so a 1 Ω gyration resistance), which inverts: the impedance at
 its driven virtual node is `1 / Z_antenna`, and undoing that recovers the
 antenna.
 
-| deck | reading | feed lands at | momwire:bspline |
+| deck | reading | feed lands at | momwire:bs2 |
 |---|---|---|---|
 | `0010` (NEC-5) | declared NEC-5 | knot 6 of 11 = 0.5454 | 85.1086 + 45.8302j |
 | `Dipole1-nec42-deck` (`EX 6`) | NEC-2 | centre of segment 6 = 0.5 | 82.1202 + 45.9154j |

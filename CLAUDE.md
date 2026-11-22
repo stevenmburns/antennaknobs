@@ -298,16 +298,30 @@ table (`_FALLBACK_SWITCHES`, `_FALLBACK_FEATURE_SPECS`), whole.
 - Neither replaces the gates here: the antenna computation check, the frontend
   fixtures, and the pin triple are unchanged.
 
-**Engine names: the long form.** Dialect first, as the momwire launchers have
-it:
-- `nec5-bspline`
-- `nec42-bspline`
-- `nec5-razor-2p`
+**Engine names** (momwire#2091, Steve 11-21; AK adopts them with the 0.97.0
+pin). A SHORT name carries no dash and names the BASIS only: `bs2` (the
+default B-spline, degree 2), `bs1`, `sg` (sinusoidal-Galerkin), `razor2p`;
+`sinusoidal`, `pulse`, `hmatrix`, `arrayblock` are unchanged. A LONG name is
+dialect then basis, as the momwire launchers have it:
+- `nec5-bs2`
+- `nec42-bs2`
+- `nec5-razor2p`
 - `nec42-sinusoidal`
 
-`bs42` is banned because it drops the d=2. `bs2` and `sin42` are retired in new
-text, including user-visible advisory strings: momwire#1831 carries the
-rename.
+The dialect parts stay `nec5` / `nec42` / `nec2c` (SimNEC reads them). `sin42`
+and `bs42` are banned: they fold the dialect into the basis.
+
+The old spellings (`bspline`, `bspline-d1`, `sinusoidal-galerkin`,
+`razor-2p`) are READ, never written: `src/antennaknobs/engine_names.py` is the
+one alias table, and every entry canonicalises through it (`--engine`, a web
+request's `momwire_model`, a saved slot via the served `backend_aliases`, an
+analysis's engine specs, a keep file). `razor-nec5` is retired and refused by
+name, as momwire refuses it. `tests/test_engine_names_2091.py` holds the table
+equal to momwire's `BASIS_ALIASES` and censuses the shown/printed text; dated
+records (`docs/status/`) keep the names they were written with. The aliases
+go no earlier than two minor releases after 0.97.0, with momwire's. Panel ids
+(`panel="bspline"`) and momwire's axis values (`bspline-1/2/3`) are not engine
+names and did not move.
 
 ## Testing: four tests that run nowhere unless you know this
 

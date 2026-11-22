@@ -831,7 +831,7 @@ def test_catalog_curtain_matches_on_the_sinusoidal_galerkin_basis():
 
     Measured 2026-07-30, free space, catalog default n_cells=3:
 
-        bspline d=2           Z = 673.293 + 385.592j   10.606 dBi  az 180
+        bs2 d=2           Z = 673.293 + 385.592j   10.606 dBi  az 180
         sinusoidal-Galerkin   Z = 672.055 + 387.371j   10.605 dBi  az 180
 
     i.e. 0.28 % in |Z| and 0.001 dB in peak gain. The bounds below are set an

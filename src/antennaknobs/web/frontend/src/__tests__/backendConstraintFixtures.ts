@@ -47,7 +47,7 @@ export const SERVED_CONSTRAINTS: Record<string, BackendConstraint[] | null> =
       "issue": "momwire#282"
     }
   ],
-  "sinusoidal-galerkin": [
+  "sg": [
     {
       "axis": "kernel",
       "value": "extended",
@@ -89,7 +89,7 @@ export const SERVED_CONSTRAINTS: Record<string, BackendConstraint[] | null> =
       "issue": "momwire#282"
     }
   ],
-  "bspline": [
+  "bs2": [
     {
       "axis": "kernel",
       "value": "extended",
@@ -236,7 +236,7 @@ export const SERVED_CONSTRAINTS: Record<string, BackendConstraint[] | null> =
       "issue": "momwire#282"
     }
   ],
-  "razor-2p": [
+  "razor2p": [
     {
       "axis": "wire_position",
       "value": "contact",

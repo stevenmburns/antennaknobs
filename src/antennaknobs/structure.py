@@ -177,7 +177,7 @@ def edges_from_wires(builder) -> list[Edge]:
 
 
 def edges_of(
-    builder, engine: str = "momwire:bspline", ground=None
+    builder, engine: str = "momwire:bs2", ground=None
 ) -> tuple[list[Edge], str | None]:
     """The straight edges ``engine`` would fill, read from its own wire
     translation: the feed-parity coercion, the splits at ports and at the
@@ -731,7 +731,7 @@ class Structure:
         return total, sum(c.entries for c in classes)
 
 
-def analyze(builder, pairs=False, engine="momwire:bspline") -> Structure:
+def analyze(builder, pairs=False, engine="momwire:bs2") -> Structure:
     """Everything :func:`report` prints, on the mesh ``engine`` would solve.
     ``pairs`` adds the segment-level counts (vectorised; quadratic in segments)."""
     edges, note = edges_of(builder, engine)

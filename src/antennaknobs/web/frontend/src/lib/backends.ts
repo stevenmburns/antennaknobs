@@ -1,7 +1,7 @@
 // Backend selector, rendered entirely from the roster GET /capabilities
 // serves (issue #628). There is deliberately NO roster literal in this file:
 // the server's `_BACKENDS` in web/adapter.py is the single registry, and the
-// duplication this replaces failed by *silent absence* — sinusoidal-galerkin
+// duplication this replaces failed by *silent absence* — sg
 // landed server-side with both repos' CI green and no tab in the UI
 // (#626/#627). Registering a solver there is now the whole change.
 //
@@ -168,7 +168,7 @@ export type BackendEntry = {
    *  — rendered as "not described", never as "no axes". */
   axes?: Record<string, string[]> | null;
   /** What this PRESET pins. `axes` and `bound` say different things and must
-   *  stay separable: `razor-2p` binds `nec5_quadrature`, so its quadrature is
+   *  stay separable: `razor2p` binds `nec5_quadrature`, so its quadrature is
    *  fixed on a local install too — the preset is the reason, not host
    *  policy. This is #1006's "names are saved presets over a product space",
    *  in the payload. */
@@ -200,7 +200,7 @@ export type BackendEntry = {
   buried?: boolean | null;
   /** momwire's sentence for why it cannot, or null. The boolean alone was not
    *  enough — with no prose, nothing could gate without inventing a reason,
-   *  so nothing gated at all, and `razor-2p` on a buried design solved,
+   *  so nothing gated at all, and `razor2p` on a buried design solved,
    *  raised, and showed a traceback instead of a refusal. */
   buried_refusal?: string | null;
   /** Which issue that refusal should cite (#1167). Served rather than fixed
@@ -261,7 +261,7 @@ export type BackendRoster = BackendEntry[];
 //                      AND it is not a DERIVED axis (see below).
 //
 // The first clause is the class, the second the preset, and they are two
-// different things. `razor-2p` binds `nec5_quadrature`, so quadrature is not a
+// different things. `razor2p` binds `nec5_quadrature`, so quadrature is not a
 // control on that tab even on a local install — the tab IS the two-point lane
 // and letting a user flip it would make the name a lie.
 //
@@ -370,7 +370,7 @@ const DEGREE_CHOICES = [
 
 /** The B-spline degree tabs this backend offers, in UI order.
  *
- *  Was a hardcoded `[1, 2]`. It is the one control in the bspline panel that
+ *  Was a hardcoded `[1, 2]`. It is the one control in the bs2 panel that
  *  IS an axis; the other five (quadrature orders, the bump width, singular
  *  enrichment and its variant) are not, which is why that panel survives this
  *  change and the sin-Galerkin one does not.
@@ -400,11 +400,11 @@ export function degreeChoices(b: BackendEntry): (1 | 2 | 3)[] {
 //   3. Where no axis exists, `model_kwargs` drives.
 //
 // Rule 2 is the one that is easy to drop, and dropping it is a behaviour
-// change wearing a refactor's clothes. `bspline` ACCEPTS `feed_model` and has
+// change wearing a refactor's clothes. `bs2` ACCEPTS `feed_model` and has
 // never offered a feed-model control — its `feed_model` axis holds the single
 // value "segment-gap" — so a renderer driven by the kwarg list alone would
-// grow one on bspline, hmatrix and arrayblock. The same rule is why `degree`
-// never appears on `razor-2p`, whose basis axis is ("tent",) even though the
+// grow one on bs2, hmatrix and arrayblock. The same rule is why `degree`
+// never appears on `razor2p`, whose basis axis is ("tent",) even though the
 // constructor takes the keyword.
 //
 // Accepting a keyword and offering a choice are different questions. The
@@ -525,7 +525,7 @@ export function comboInappropriate(
 }
 
 // Per-design backend allowlist (`requires_backends` on the descriptor —
-// e.g. ["bspline"] for designs with PortAtEnd junction ports, which only
+// e.g. ["bs2"] for designs with PortAtEnd junction ports, which only
 // the B-spline solver implements; NEC-2 has no equivalent card at all).
 // null/undefined = no restriction. Unlike a solver the server doesn't offer
 // at all (#429) this is per-design, and unlike comboInappropriate it is a
@@ -558,7 +558,7 @@ export function findBackend(
 // Coerce a server-supplied backend name into an entry of the served roster.
 // "triangular" was retired from the registry (the server still accepts it and
 // may still recommend it, e.g. from an older adapter or a saved design hint):
-// map it to "bspline", the default working solver on the same dense path.
+// map it to "bs2", the default working solver on the same dense path.
 // Anything the roster doesn't carry — including PyNEC on a server without
 // pynec-accel — falls back to null ("no recommendation") so a name this
 // server can't honour never reaches state or the wire.
@@ -569,7 +569,7 @@ export function normalizeBackend(
 ): BackendEntry | null {
   if (!name) return null;
   // Retired names come from the server (#1006 G2-6). This used to be an
-  // inline `name === "triangular" ? "bspline" : name`, which was the last
+  // inline `name === "triangular" ? "bs2" : name`, which was the last
   // engine-name branch in this file; the server already tolerated the retired
   // name on the solve path, so it is now said once, there.
   return findBackend(roster, aliases[name] ?? name);
@@ -673,7 +673,7 @@ export type BackendOpts = {
   /** Solver kwargs, keyed by the SERVER'S OWN kwarg name (#1006 G2-6).
    *
    *  One flat map, deliberately. This used to be `schema` (the generic
-   *  numeric knobs) plus `bspline` (a bespoke panel's state) plus two loose
+   *  numeric knobs) plus `bs2` (a bespoke panel's state) plus two loose
    *  fields, and `opts.bspline` is an engine name in the data model — so a
    *  renderer over that shape could never be generic, and a grep for engine
    *  names would have passed only because the name was a property rather
@@ -803,7 +803,7 @@ export function designRefusal(
 /** A refusal of the DECK ITSELF, independent of any option.
  *
  *  A THIRD SHAPE, and the gate missed it entirely until a review found
- *  `razor-2p` solving a buried design and showing the user a traceback.
+ *  `razor2p` solving a buried design and showing the user a traceback.
  *  The other two ask "which COMBINATIONS are refused" — they are couplings,
  *  and `COUPLINGS` rightly does not name this, because a solver with no
  *  buried fill refuses the deck whatever else is set. Different question,
@@ -820,7 +820,7 @@ export function designRefusal(
  *  buried wire, it solves one as though it were in air and returns a
  *  plausible number. So this gate is the only thing standing between a user
  *  on a buried design and a wrong answer with no traceback to warn them —
- *  which is a stronger reason to render it than the `razor-2p` case that
+ *  which is a stronger reason to render it than the `razor2p` case that
  *  prompted the function, where at least the user saw a crash.
  */
 export function capabilityRefusal(
@@ -1034,7 +1034,7 @@ export type SlotSeed = {
 
 /** The stock A/B/C seeds, SERVED (#1006 G2-6).
  *
- *  These were a literal here — `A: { backend: "bspline", nPerWire: 15 }` —
+ *  These were a literal here — `A: { backend: "bs2", nPerWire: 15 }` —
  *  which is three engine names and three product decisions in the client.
  *  They are decisions with measured reasons (a basis-convergence census), so
  *  they are a served TABLE rather than something derived from the roster:
@@ -1235,7 +1235,7 @@ export function compositionLine(
     const values = axes[axis];
     if (!values || values.length === 0) continue;
     // PINNED IFF THE SERVER RESOLVED THIS AXIS as bound — not "bound is
-    // non-empty". `razor-2p` binds `nec5_quadrature` alone; its kernel is
+    // non-empty". `razor2p` binds `nec5_quadrature` alone; its kernel is
     // free, and a segment reading "reduced kernel, pinned" there would assert
     // a constraint the engine does not have.
     //

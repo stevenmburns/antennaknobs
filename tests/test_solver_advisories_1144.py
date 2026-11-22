@@ -218,7 +218,7 @@ def test_g1144_4_the_response_carries_the_advisory():
     out = server.solve(
         {
             "geometry": "verticals.buried_radial_vertical",
-            "backend": "bspline",
+            "backend": "bs2",
             "ground": True,
             "ground_model": "sommerfeld",
             "n_per_wire": _COARSE,
@@ -238,7 +238,7 @@ def test_g1144_4_the_field_is_present_and_empty_on_a_clean_solve():
             "geometry": "dipoles.invvee",
             "measurement_freq_mhz": 28.47,
             "design_freq_mhz": 28.47,
-            "momwire_model": "bspline",
+            "momwire_model": "bs2",
             "n_per_wire": _COARSE,
         }
     )

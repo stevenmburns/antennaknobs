@@ -177,7 +177,7 @@ def _rig_z(net, f_mhz=F_MHZ):
         def build_network(self):
             return net
 
-    return complex(make_engine_factory("momwire:razor-2p", None)(B()).impedance()[0])
+    return complex(make_engine_factory("momwire:razor2p", None)(B()).impedance()[0])
 
 
 def _on_table(station):
@@ -313,9 +313,7 @@ def test_a_chain_hangs_on_a_nec_decks_own_feed():
             def build_network(self):
                 return net
 
-        return complex(
-            make_engine_factory("momwire:razor-2p", None)(B()).impedance()[0]
-        )
+        return complex(make_engine_factory("momwire:razor2p", None)(B()).impedance()[0])
 
     z_ant = solve(deck.network())
     want = _z_in([_line_abcd(12.0, F_MHZ), _s_abcd(S11, S21, S21, S22)], z_ant)

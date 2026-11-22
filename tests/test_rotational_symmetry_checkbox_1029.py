@@ -5,7 +5,7 @@ wire entirely for a backend that does not offer it — on BOTH the hosted and
 the local-verbatim request path.
 
 Steve's ask (issue thread, 2026-09-18): enable the route in AK, but not
-advertise it — a checkbox on the bspline engine panel, "coded up through the
+advertise it — a checkbox on the bs2 engine panel, "coded up through the
 roster". Unadvertised means: no site page, no release-note headline, no docs
 beyond the option's own label and tooltip.
 
@@ -46,15 +46,15 @@ from antennaknobs.web.adapter import (
 # declare a DIFFERENT `solve_strategy` than BSplineSolver
 # (`{"aca"}` / `{"element-block"}` vs `{"dense", "sector"}`), and every other
 # row here is `("dense",)` only. So this list is true under the submodule
-# pointer AND under a momwire that has landed #1029 — unlike bspline itself,
+# pointer AND under a momwire that has landed #1029 — unlike bs2 itself,
 # whose answer depends on which momwire is on the path. The point-matched
 # sinusoidal class left this list at momwire 0.91.0, which gave it the
 # sector route too (momwire#1912).
 NEVER_OFFERS = (
     "hmatrix",
     "arrayblock",
-    "sinusoidal-galerkin",
-    "razor-2p",
+    "sg",
+    "razor2p",
     "pulse",
 )
 
@@ -64,7 +64,7 @@ def test_the_option_is_a_plain_unadvertised_bool():
     assert spec.kind == "bool"
     assert spec.default is False
     # No brand, no engine name, no kwarg name in the copy a user reads.
-    for forbidden in ("momwire", "bspline", "rotational_symmetry=", "BSplineSolver"):
+    for forbidden in ("momwire", "bs2", "rotational_symmetry=", "BSplineSolver"):
         assert forbidden not in spec.label
         assert forbidden not in (spec.description or "")
 
@@ -121,14 +121,14 @@ def test_the_roster_never_serves_it_for_those_backends_either():
 
 def test_the_families_share_tuple_identity_is_undisturbed():
     """test_backend_model_kwargs_1006.py pins
-    `by_name["bspline"] is by_name["hmatrix"] is by_name["arrayblock"]` on the
+    `by_name["bs2"] is by_name["hmatrix"] is by_name["arrayblock"]` on the
     STATIC `_BackendSpec.model_kwargs` field. The sector kwarg is appended
     only in the SERVED roster (`backend_roster`), never written into that
     shared tuple, so the identity — and that 1006 test — survive whether or
     not momwire has landed #1029."""
     by_name = {b.name: b.model_kwargs for b in _BACKENDS if b.kind == "momwire"}
-    assert by_name["bspline"] is by_name["hmatrix"] is by_name["arrayblock"]
-    assert "rotational_symmetry" not in by_name["bspline"]
+    assert by_name["bs2"] is by_name["hmatrix"] is by_name["arrayblock"]
+    assert "rotational_symmetry" not in by_name["bs2"]
 
 
 def test_hosted_sanitiser_accepts_the_key_like_any_other_bool():
@@ -198,7 +198,7 @@ def test_a_hand_crafted_local_request_cannot_reach_a_backend_that_does_not_offer
 
 def test_bspline_under_this_installed_momwire_behaves_consistently():
     """Whatever momwire is on THIS path, the roster and the engine must
-    agree on whether `rotational_symmetry` was offered to bspline. This is
+    agree on whether `rotational_symmetry` was offered to bs2. This is
     the one assertion in this file whose OUTCOME depends on which momwire is
     installed — the file still runs unconditionally because the outcome it
     checks is internal consistency, not a specific answer.
@@ -211,16 +211,16 @@ def test_bspline_under_this_installed_momwire_behaves_consistently():
     are "correct under this momwire" — this test asserts whichever one this
     momwire's answer implies, rather than assuming either.
     """
-    offered = _offers_rotational_symmetry(_BACKENDS_BY_NAME["bspline"])
+    offered = _offers_rotational_symmetry(_BACKENDS_BY_NAME["bs2"])
     rows = {r["name"]: r for r in backend_roster(have_pynec=True, have_nec5=True)}
-    assert ("rotational_symmetry" in rows["bspline"]["model_kwargs"]) is offered
+    assert ("rotational_symmetry" in rows["bs2"]["model_kwargs"]) is offered
 
     design = "dipoles.invvee"
     cls = resolve_class(design)
     req = {
         "geometry": design,
         "solver": "momwire",
-        "momwire_model": "bspline",
+        "momwire_model": "bs2",
         "n_per_wire": 9,
         "model_options": {"degree": 2, "rotational_symmetry": True},
     }

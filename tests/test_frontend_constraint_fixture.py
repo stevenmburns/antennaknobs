@@ -6,7 +6,7 @@ frontend's tests can assert against the real payload rather than a paraphrase.
 A generated file with no regeneration gate is just a copy, and copies drift.
 
 THIS ONE ALREADY DID, SILENTLY. The momwire#888 pointer move (#1158) took
-`bspline` from 1 constraint to 5 and `razor-2p` from 0 to 1, and every
+`bs2` from 1 constraint to 5 and `razor2p` from 0 to 1, and every
 frontend test stayed green — none of them asserts a count, and the roster's
 own Python twin (`test_backend_roster_served_shape`) pins names, labels,
 panels and the option schema but never the constraints. So the fixture sat

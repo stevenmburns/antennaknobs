@@ -73,9 +73,7 @@ def _script(ssn: str) -> str:
 
 
 def _z(builder) -> complex:
-    return complex(
-        make_engine_factory("momwire:razor-2p", None)(builder).impedance()[0]
-    )
+    return complex(make_engine_factory("momwire:razor2p", None)(builder).impedance()[0])
 
 
 @pytest.mark.parametrize(("cls", "pct"), [(_Apex, "100"), (_ApexP0, "0")])

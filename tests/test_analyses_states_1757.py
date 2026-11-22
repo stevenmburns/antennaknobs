@@ -151,7 +151,7 @@ def test_states_print_back_as_code_and_eval_to_the_same_value():
                     an.State("flagged", note="x", flat=True),
                 )
             ),
-            an.Cross(engines=("momwire:bspline",)),
+            an.Cross(engines=("momwire:bs2",)),
         ),
     )
     code = an.to_code(a)
@@ -273,7 +273,7 @@ def test_states_multiply_with_the_other_kinds_under_the_cap():
             an.State("tall", base=12.0),
         )
     )
-    six = _lf(cross=(three, an.Cross(engines=("momwire:bspline", "momwire:razor-2p"))))
+    six = _lf(cross=(three, an.Cross(engines=("momwire:bs2", "momwire:razor2p"))))
     assert six.curves == 6 and an.problems(six, b) == []
     nine = _lf(
         cross=(three, an.Cross(grounds=("free", "finite:13,0.005", "finite:5,0.001")))
@@ -294,14 +294,14 @@ def test_cells_label_by_state_name_and_by_design_where_a_state_names_one():
                     an.State("apex, tall", design=APEX, base=12.0),
                 )
             ),
-            an.Cross(engines=("momwire:bspline", "nec2")),
+            an.Cross(engines=("momwire:bs2", "nec2")),
         )
     )
     got = ar.cells(a, "momwire", b)
     assert [c.label for c in got] == [
-        "as built, momwire:bspline",
+        "as built, momwire:bs2",
         "as built, nec2",
-        f"{APEX}, apex, tall, momwire:bspline",
+        f"{APEX}, apex, tall, momwire:bs2",
         f"{APEX}, apex, tall, nec2",
     ]
     assert [c.design for c in got] == [None, None, APEX, APEX]
@@ -404,7 +404,7 @@ def test_each_state_curve_is_bit_equal_to_the_sweep_with_those_knobs_set(
     runs = _capture_run(monkeypatch)
     overlay = _record(monkeypatch, sw, "_rx_overlay")
     cli(["analyze", "--builder", INVVEE, "--analysis", "st", "--ground", "finite-fast",
-         "--engine", "momwire:bspline", "--fn", str(tmp_path / "a.png")])  # fmt: skip
+         "--engine", "momwire:bs2", "--fn", str(tmp_path / "a.png")])  # fmt: skip
     out = capsys.readouterr().out
     got = runs[0]["curves"]
     labels = ["as built", "flat, low", "droop"]
@@ -418,7 +418,7 @@ def test_each_state_curve_is_bit_equal_to_the_sweep_with_those_knobs_set(
         sets = [f"{k}={v}" for k, v in st.knobs]
         cli(["sweep", "--builder", INVVEE, "--param", "length_factor",
              "--range", "0.95", "1.0", "--npoints", "3", "--ground", "finite-fast",
-             "--engine", "momwire:bspline",
+             "--engine", "momwire:bs2",
              *(["--set", *sets] if sets else []),
              "--fn", str(tmp_path / "s.png")])  # fmt: skip
         capsys.readouterr()
@@ -442,13 +442,13 @@ def test_a_state_sets_over_the_defaults_not_over_an_earlier_cells_knobs(
     _offer(monkeypatch, [a])
     runs = _capture_run(monkeypatch)
     cli(["analyze", "--builder", INVVEE, "--analysis", "order", "--ground",
-         "finite-fast", "--engine", "momwire:bspline",
+         "finite-fast", "--engine", "momwire:bs2",
          "--fn", str(tmp_path / "o.png")])  # fmt: skip
     capsys.readouterr()
     solo = an.Analysis("solo", a.sweep)
     _offer(monkeypatch, [solo])
     cli(["analyze", "--builder", INVVEE, "--analysis", "solo", "--ground",
-         "finite-fast", "--engine", "momwire:bspline",
+         "finite-fast", "--engine", "momwire:bs2",
          "--fn", str(tmp_path / "p.png")])  # fmt: skip
     capsys.readouterr()
     (solo_z,) = [z for _, z in runs[1]["curves"].values()]
@@ -473,7 +473,7 @@ def test_a_state_on_a_design_that_lacks_its_knob_is_a_named_refused_cell(
     _offer(monkeypatch, [a])
     runs = _capture_run(monkeypatch)
     cli(["analyze", "--builder", INVVEE, "--analysis", "lack", "--ground", "free",
-         "--engine", "momwire:bspline", "--fn", str(tmp_path / "l.png")])  # fmt: skip
+         "--engine", "momwire:bs2", "--fn", str(tmp_path / "l.png")])  # fmt: skip
     out = capsys.readouterr().out
     why = "state 'long line' sets line_len_m, and this design has no knob 'line_len_m'"
     assert runs[0]["refused"] == {f"{INVVEE}, long line": why}
@@ -491,7 +491,7 @@ def test_analyze_csv_writes_a_column_group_per_state(monkeypatch, tmp_path):
     _offer(monkeypatch, [a])
     out = tmp_path / "s.csv"
     cli(["analyze", "--builder", INVVEE, "--analysis", "csv states",
-         "--engine", "momwire:bspline", "--csv", str(out), "--fn", "/dev/null"])  # fmt: skip
+         "--engine", "momwire:bs2", "--csv", str(out), "--fn", "/dev/null"])  # fmt: skip
     with open(out, newline="", encoding="utf-8") as f:
         rows = list(csv.reader(f))
     assert rows[0] == [
@@ -631,7 +631,7 @@ def test_a_served_state_cell_is_the_clis_curve_for_that_state(
     w = _served(client, {"geometry": INVVEE}, "st")
     runs = _capture_run(monkeypatch)
     cli(["analyze", "--builder", INVVEE, "--analysis", "st", "--ground", "free",
-         "--engine", "momwire:bspline", "--nominal-nsegs", "15",
+         "--engine", "momwire:bs2", "--nominal-nsegs", "15",
          "--fn", str(tmp_path / "w.png")])  # fmt: skip
     capsys.readouterr()
     worst = 0.0
@@ -646,7 +646,7 @@ def test_a_served_state_cell_is_the_clis_curve_for_that_state(
             "design_freq_mhz": 28.47,
             "measurement_freq_mhz": 28.47,
             "solver": "momwire",
-            "momwire_model": "bspline",
+            "momwire_model": "bs2",
             "n_per_wire": 15,
             "ground": False,
             "param": s["param"],
@@ -674,7 +674,7 @@ def test_a_served_state_cell_is_the_clis_curve_over_finite_fast(
     w = _served(client, {"geometry": INVVEE}, "st")
     runs = _capture_run(monkeypatch)
     cli(["analyze", "--builder", INVVEE, "--analysis", "st",
-         "--ground", "finite-fast", "--engine", "momwire:bspline",
+         "--ground", "finite-fast", "--engine", "momwire:bs2",
          "--nominal-nsegs", "15", "--fn", str(tmp_path / "w.png")])  # fmt: skip
     capsys.readouterr()
     worst = 0.0
@@ -687,7 +687,7 @@ def test_a_served_state_cell_is_the_clis_curve_over_finite_fast(
             "design_freq_mhz": 28.47,
             "measurement_freq_mhz": 28.47,
             "solver": "momwire",
-            "momwire_model": "bspline",
+            "momwire_model": "bs2",
             "n_per_wire": 15,
             "ground": True,
             "ground_model": "fast",

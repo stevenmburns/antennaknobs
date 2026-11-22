@@ -10,14 +10,14 @@ from antennaknobs import analyses as an
 def build_studies():
     """E7: the bridge-wire feed and the exact apex feed on one convergence
     chart. 2 designs x 3 engines = 6 curves, the cap (#1787); NEC-2 cannot
-    feed the apex knot, so that cell is refused by name (razor-2p stands in
+    feed the apex knot, so that cell is refused by name (razor2p stands in
     for NEC-5)."""
     return [
         an.convergence(
             name="feed spelling (E7)",
             cross=(
                 an.Cross(designs=("dipoles.invvee", "dipoles.invvee_apex")),
-                an.Cross(engines=("momwire:bspline", "momwire:razor-2p", "nec2")),
+                an.Cross(engines=("momwire:bs2", "momwire:razor2p", "nec2")),
             ),
             # E7 is a free-space study: its Z table was measured there, and it
             # says so rather than inherit the CLI's default ground (Sommerfeld

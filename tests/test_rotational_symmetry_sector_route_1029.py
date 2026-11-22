@@ -43,7 +43,7 @@ from antennaknobs.web.adapter import (
     backend_roster,
 )
 
-HAVE_SECTOR_ROUTE = _offers_rotational_symmetry(_BACKENDS_BY_NAME["bspline"])
+HAVE_SECTOR_ROUTE = _offers_rotational_symmetry(_BACKENDS_BY_NAME["bs2"])
 
 pytestmark = pytest.mark.skipif(
     not HAVE_SECTOR_ROUTE,
@@ -62,7 +62,7 @@ def _z(result) -> complex:
     return complex(np.asarray(result, dtype=complex).ravel()[0])
 
 
-def _engine(design, *, rotational_symmetry, backend="bspline", **overrides):
+def _engine(design, *, rotational_symmetry, backend="bs2", **overrides):
     cls = resolve_class(design)
     req = {
         "geometry": design,
@@ -85,14 +85,14 @@ def _engine(design, *, rotational_symmetry, backend="bspline", **overrides):
 def test_the_roster_offers_it_on_bspline_and_sinusoidal_only():
     # The sinusoidal class gained the sector route at momwire 0.91.0
     # (momwire#1912); the roster follows from the probe, so on an older
-    # momwire it is bspline alone.
+    # momwire it is bs2 alone.
     rows = {r["name"]: r for r in backend_roster(have_pynec=True, have_nec5=True)}
-    assert "rotational_symmetry" in rows["bspline"]["model_kwargs"]
+    assert "rotational_symmetry" in rows["bs2"]["model_kwargs"]
     for name in (
         "hmatrix",
         "arrayblock",
-        "sinusoidal-galerkin",
-        "razor-2p",
+        "sg",
+        "razor2p",
         "pulse",
     ):
         assert "rotational_symmetry" not in rows[name]["model_kwargs"], name
@@ -202,14 +202,14 @@ def test_the_settings_toml_round_trip_carries_the_flag(tmp_path):
     # have_pynec=True so `cat.stock_slots`' own seeds (slot C is pynec by
     # default) all resolve against `cat.backends` below.
     cat = ui_settings.catalog(have_pynec=True, have_nec5=False, have_nec2=False)
-    assert "rotational_symmetry" in cat.backends["bspline"]
+    assert "rotational_symmetry" in cat.backends["bs2"]
     path = tmp_path / "settings.toml"
 
     # --- load: a hand-written file with the flag set -----------------
     path.write_text(
         """
 [slots.A]
-backend = "bspline"
+backend = "bs2"
 model = { rotational_symmetry = true }
 """
     )
@@ -242,7 +242,7 @@ model = { rotational_symmetry = true }
         model.update(seed["model"])
         n = seed["n_per_wire"] or cat.n_per_wire_defaults[backend]
         slots[seed["slot"]] = {"backend": backend, "n_per_wire": n, "model": model}
-    assert slots["A"]["backend"] == "bspline"
+    assert slots["A"]["backend"] == "bs2"
     slots["A"]["model"]["rotational_symmetry"] = True
     body = {"switches": switches, "ground": ground, "slots": slots}
 

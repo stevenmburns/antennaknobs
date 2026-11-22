@@ -33,7 +33,7 @@ def engine(builder, spec, **kw):
 
 
 def lone_dipole():
-    """One wire: no pair of edges is congruent, so the bspline hint is empty."""
+    """One wire: no pair of edges is congruent, so the bs2 hint is empty."""
     return design([Wire((0.0, 0.0, 10.0), (0.0, 0.0, 15.0), n_seg=21, ex=1 + 0j)])
 
 
@@ -70,9 +70,9 @@ def test_off_passes_no_pair_reuse_kwarg(monkeypatch, asked):
 @pytest.mark.parametrize("builder", [lone_dipole, lambda: fed_yagi(4)])
 def test_bspline_is_unchanged(monkeypatch, builder):
     if not _takes_pair_reuse(momwire.BSplineSolver):
-        pytest.skip("no bspline pair_reuse")
+        pytest.skip("no bs2 pair_reuse")
     # on: the hint when there is one, nothing when there is none (never True)
-    e = engine(builder(), "momwire:bspline", pair_reuse=True)
+    e = engine(builder(), "momwire:bs2", pair_reuse=True)
     want = e._pair_reuse_hint()
     seen = spy(monkeypatch, e)
     e.impedance()
@@ -83,7 +83,7 @@ def test_bspline_is_unchanged(monkeypatch, builder):
         else:
             assert "pair_reuse" not in k
     # off: nothing
-    e = engine(builder(), "momwire:bspline")
+    e = engine(builder(), "momwire:bs2")
     seen = spy(monkeypatch, e)
     e.impedance()
     assert seen and all("pair_reuse" not in k for k in seen)

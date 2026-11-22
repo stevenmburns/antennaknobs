@@ -73,7 +73,7 @@ def _req(**over) -> dict:
         "design_freq_mhz": b.design_freq,
         "measurement_freq_mhz": b.freq,
         "solver": "momwire",
-        "momwire_model": "bspline",
+        "momwire_model": "bs2",
         "n_per_wire": b.nominal_nsegs,
         **over,
     }
@@ -174,7 +174,7 @@ ANG = an.Sweep("angle_deg", values=(15.0, 30.0))
                 "m",
                 (LF, ANG),
                 views=(an.Map(),),
-                cross=an.Cross(engines=("momwire:bspline", "nec5")),
+                cross=an.Cross(engines=("momwire:bs2", "nec5")),
             ),
             "a map with a cross over engines: the workbench draws one grid",
         ),

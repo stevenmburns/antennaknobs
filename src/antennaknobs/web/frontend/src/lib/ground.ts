@@ -16,7 +16,7 @@ import { backendSupportsGround, backendSupportsTerrain } from "./backends";
 export type GroundType = "finite" | "pec" | "terrain";
 // Finite-ground solve method, shown for every finite-ground backend:
 // PyNEC (NEC ITYPE=2 vs ITYPE=0) and, since momwire 0.8.0, every momwire
-// solver (true Sommerfeld on bspline dense, sinusoidal field-based, and
+// solver (true Sommerfeld on bs2 dense, sinusoidal field-based, and
 // the hmatrix/arrayblock fast paths). Which method a session starts on is
 // the server's (settings.GROUND_BUILTIN, Sommerfeld since AK#1856), not this
 // file's. Sommerfeld costs more on a cold start: the first solve at a

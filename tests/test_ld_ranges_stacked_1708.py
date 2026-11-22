@@ -120,7 +120,7 @@ def test_a_second_load_at_a_line_connection_is_kept():
 # --- the solve ----------------------------------------------------------------
 
 
-@pytest.mark.parametrize("engine", ["momwire:bspline", "pynec"])
+@pytest.mark.parametrize("engine", ["momwire:bs2", "pynec"])
 def test_two_series_cards_solve_as_their_sum(engine):
     """On our side of the seam the rule is exact: the two-card deck and the
     one-card deck are one circuit, to round-off."""
@@ -141,7 +141,7 @@ def _trap_plus_c(f_mhz: float) -> complex:
 @pytest.mark.parametrize("stem", ["stacked_par_ser", "stacked_fed_par_ser"])
 def test_a_trap_and_a_series_c_solve_as_their_sum(tmp_path, stem):
     """The trap beside a series C, on and off the fed segment, against ONE
-    fixed load of their summed impedance (momwire bspline, exact).
+    fixed load of their summed impedance (momwire bs2, exact).
 
     The fixed load is evaluated at the deck's own 14 MHz: a file design's
     network is stamped at the deck's frequency, its wavelength read back
@@ -157,9 +157,9 @@ def test_a_trap_and_a_series_c_solve_as_their_sum(tmp_path, stem):
     one = tmp_path / fixed.name
     one.write_text(text)
     cls = builder_from_file(str(one))
-    factory = make_engine_factory("momwire:bspline", resolve_ground(_GROUND_UNSET, cls))
+    factory = make_engine_factory("momwire:bs2", resolve_ground(_GROUND_UNSET, cls))
     z_one = complex(np.atleast_1d(np.asarray(factory(cls()).impedance()))[0])
-    assert _z(stem, "momwire:bspline") == pytest.approx(z_one, rel=1e-9)
+    assert _z(stem, "momwire:bs2") == pytest.approx(z_one, rel=1e-9)
 
 
 @pytest.mark.parametrize(
@@ -181,5 +181,5 @@ def test_the_capacitors_move_36ccd_to_resonance():
     loaded, bare = _printed_z("ccd36_loaded"), _printed_z("ccd36_bare")
     assert abs(loaded.imag) < 0.3 * loaded.real
     assert bare.real > 20 * loaded.real
-    z = _z("ccd36_loaded", "momwire:bspline")
+    z = _z("ccd36_loaded", "momwire:bs2")
     assert abs(z - loaded) / abs(loaded) < 0.05, (z, loaded)

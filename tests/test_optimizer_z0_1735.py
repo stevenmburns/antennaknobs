@@ -41,7 +41,7 @@ INVVEE = {
     "geometry": "dipoles.invvee",
     "measurement_freq_mhz": 14.2,
     "design_freq_mhz": 14.2,
-    "momwire_model": "bspline",
+    "momwire_model": "bs2",
     "ground": True,
     "ground_model": "fast",
 }

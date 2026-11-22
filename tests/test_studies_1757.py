@@ -56,7 +56,7 @@ def build_studies():
             sweep=an.Sweep(an.DENSITY, values=(8, 12)),
             cross=(
                 an.Cross(designs=({INVVEE!r}, {APEX!r})),
-                an.Cross(engines=("momwire:bspline",)),
+                an.Cross(engines=("momwire:bs2",)),
             ),
             views=(an.Table(),),
         ),
@@ -331,7 +331,7 @@ def test_a_study_runs_exactly_as_a_design_analysis_with_a_designs_cross(
          "--fn", str(tmp_path / "a.png")])  # fmt: skip
     want = runs[-1]
     capsys.readouterr()
-    labels = [f"{INVVEE}, momwire:bspline", f"{APEX}, momwire:bspline"]
+    labels = [f"{INVVEE}, momwire:bs2", f"{APEX}, momwire:bs2"]
     assert sorted(got["curves"]) == sorted(labels) and got["refused"] == {}
     for label in labels:
         assert got["curves"][label] == want["curves"][label]
@@ -400,7 +400,7 @@ class Builder(InvVee):
                 # Self listed too, and last: it is dropped, and stays first.
                 cross=(
                     an.Cross(designs=("dipoles.invvee_apex", "user.cmp")),
-                    an.Cross(engines=("momwire:bspline",)),
+                    an.Cross(engines=("momwire:bs2",)),
                 ),
                 views=(an.Table(),),
             ),
@@ -464,17 +464,17 @@ def test_a_method_studys_own_cell_is_this_design(
     got = runs[-1]
     capsys.readouterr()
     assert list(got["curves"]) == [
-        "user.cmp, momwire:bspline",
-        f"{APEX}, momwire:bspline",
+        "user.cmp, momwire:bs2",
+        f"{APEX}, momwire:bs2",
     ]
     _write(tmp_path / "studies", "pair.py", PAIR)
     cli(["analyze", "--study", "pair:pair", "--ground", "free",
          "--fn", str(tmp_path / "p.png")])  # fmt: skip
     want = runs[-1]
     capsys.readouterr()
-    ours = got["curves"]["user.cmp, momwire:bspline"]
-    assert ours == want["curves"][f"{INVVEE}, momwire:bspline"]
-    assert ours[1][-1] != got["curves"][f"{APEX}, momwire:bspline"][1][-1]
+    ours = got["curves"]["user.cmp, momwire:bs2"]
+    assert ours == want["curves"][f"{INVVEE}, momwire:bs2"]
+    assert ours[1][-1] != got["curves"][f"{APEX}, momwire:bs2"][1][-1]
 
 
 def test_a_method_study_is_served_on_its_own_tab_only(client, cmp_design):

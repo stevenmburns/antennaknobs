@@ -32,13 +32,13 @@ from test_pair_reuse_hint_2165 import fed_yagi
 
 # Where each feature is wired, when the installed momwire takes it.
 TABS = {
-    "transmitted_anchors": ("bspline", "sinusoidal"),
+    "transmitted_anchors": ("bs2", "sinusoidal"),
     "point_cplx_staged": ("sinusoidal",),
-    "factored_columns": ("bspline", "razor-2p"),
-    "height_sheet_recal": ("bspline", "razor-2p"),
-    "crossing_table": ("bspline", "razor-2p"),
-    "crossing_above_rule": ("bspline",),
-    "kcl_nullspace": ("bspline",),
+    "factored_columns": ("bs2", "razor2p"),
+    "height_sheet_recal": ("bs2", "razor2p"),
+    "crossing_table": ("bs2", "razor2p"),
+    "crossing_above_rule": ("bs2",),
+    "kcl_nullspace": ("bs2",),
     "nec2_end_cap": ("sinusoidal",),
 }
 
@@ -90,7 +90,7 @@ def test_offered_only_where_served(name):
         assert adapter._offers_feature(b, name) == (
             b.kind == "momwire" and feature_served(b.solver, name)
         ), b.name
-    for tab in ("razor-2p", "pulse", "hmatrix", "arrayblock"):
+    for tab in ("razor2p", "pulse", "hmatrix", "arrayblock"):
         if tab in TABS[name]:
             continue
         b = adapter._BACKENDS_BY_NAME.get(tab)

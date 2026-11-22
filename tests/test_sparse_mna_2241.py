@@ -631,13 +631,13 @@ def _ladder_dipole(n_sections):
 def _engine(n_sections):
     from antennaknobs.cli import make_engine_factory
 
-    return make_engine_factory("momwire:bspline", None)(_ladder_dipole(n_sections)())
+    return make_engine_factory("momwire:bs2", None)(_ladder_dipole(n_sections)())
 
 
 @pytest.mark.parametrize("n_sections", [300, 1000])
 def test_a_design_with_a_large_network_solves_through_the_engine(n_sections):
     """The app's way in: a builder whose `build_network` is a dipole behind a
-    ladder, `make_engine_factory("momwire:bspline", None)`, `.impedance()`
+    ladder, `make_engine_factory("momwire:bs2", None)`, `.impedance()`
     and a short `impedance_sweep` (the per-frequency `_reduce_at` over the
     swept Y), at the DEFAULT threshold, which puts both sizes on the sparse
     path by themselves. At 300 sections (1202 unknowns) the same engine is

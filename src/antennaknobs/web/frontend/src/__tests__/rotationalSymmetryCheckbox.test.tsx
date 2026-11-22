@@ -1,6 +1,6 @@
 /**
  * The `rotational_symmetry` checkbox (momwire#1029's sector route), served
- * unadvertised on the bspline panel — issue #1567/Steve's ask, 2026-09-18.
+ * unadvertised on the bs2 panel — issue #1567/Steve's ask, 2026-09-18.
  *
  * No bespoke widget: unlike the EK card, this control has NO per-engine
  * component of its own. It renders wherever `renderableOptions` names it
@@ -9,7 +9,7 @@
  * — so this file tests the SAME plumbing every other generic knob goes
  * through, not a new mechanism.
  *
- * `SERVED_ROSTER`'s real `bspline` entry (mirrored from the submodule
+ * `SERVED_ROSTER`'s real `bs2` entry (mirrored from the submodule
  * pointer, which does not declare the sector route) does NOT carry the
  * kwarg — that absence is itself the "offered only where momwire declares
  * the route" claim, tested directly against the real served fixture rather
@@ -41,13 +41,13 @@ describe("present on the real served roster (momwire 0.60.0 declares the route)"
   // is offered by capability, so under 0.58.0 no backend carried it. The
   // fixture is regenerated from the live server at the pinned momwire, and
   // the pin is what flipped these two.
-  it("bspline's real model_kwargs carries it", () => {
-    const b = entry("bspline");
+  it("bs2's real model_kwargs carries it", () => {
+    const b = entry("bs2");
     expect(b.model_kwargs).toContain("rotational_symmetry");
   });
 
-  it("so renderableOptions offers it on bspline", () => {
-    expect(renderableOptions(entry("bspline"), SPECS)).toContain(
+  it("so renderableOptions offers it on bs2", () => {
+    expect(renderableOptions(entry("bs2"), SPECS)).toContain(
       "rotational_symmetry",
     );
   });
@@ -64,7 +64,7 @@ describe("present on the real served roster (momwire 0.60.0 declares the route)"
 
 describe("offered once a backend's served model_kwargs carries it", () => {
   const withRoute = backendEntry({
-    name: "bspline",
+    name: "bs2",
     model_kwargs: ["degree", "rotational_symmetry"],
     axes: { solve_strategy: ["dense", "sector"], basis: ["bspline-1", "bspline-2"] },
   });
@@ -114,7 +114,7 @@ describe("offered once a backend's served model_kwargs carries it", () => {
     expect(checkbox.checked).toBe(false);
     const label = checkbox.closest("label");
     expect(label?.getAttribute("title")).toBe(spec.description);
-    expect(label?.title).not.toMatch(/rotational_symmetry=|bspline|momwire/i);
+    expect(label?.title).not.toMatch(/rotational_symmetry=|bs2|momwire/i);
   });
 
   it("a served disabledReason still wins over the tooltip (constraints outrank doc)", () => {
@@ -142,7 +142,7 @@ describe("the composition line reads the checkbox back as the axis value", () =>
     labels: { solve_strategy: { dense: "dense", sector: "sector" } },
   };
   const withRoute = backendEntry({
-    name: "bspline",
+    name: "bs2",
     axes: { solve_strategy: ["dense", "sector"] },
     bound_axes: {},
   });
@@ -157,7 +157,7 @@ describe("the composition line reads the checkbox back as the axis value", () =>
     expect(line).toEqual([{ axis: "solve_strategy", text: "dense", pinned: false, fixed: false }]);
   });
 
-  it("never engages for a backend whose solve_strategy is single-valued (hmatrix/arrayblock, today's bspline)", () => {
+  it("never engages for a backend whose solve_strategy is single-valued (hmatrix/arrayblock, today's bs2)", () => {
     const single = backendEntry({ name: "hmatrix", axes: { solve_strategy: ["aca"] } });
     const line = compositionLine(single, opts({ rotational_symmetry: true }), {
       axes: ["solve_strategy"],

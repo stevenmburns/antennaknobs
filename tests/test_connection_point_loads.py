@@ -7,7 +7,7 @@ a transmission line attaches to, and the importer used to refuse it (the
 synthetic; the reports' model files are private.
 
 Each case is checked against ONE fixed-impedance LD 4 at the same site whose
-R + jX is the expected impedance at the deck's frequency (momwire bspline,
+R + jX is the expected impedance at the deck's frequency (momwire bs2,
 exact to round-off).
 """
 
@@ -35,7 +35,7 @@ def _z(tmp_path, name: str, loads: str) -> complex:
     path = tmp_path / f"{name}.nec"
     path.write_text(_HEAD + loads + _TAIL)
     cls = builder_from_file(str(path))
-    factory = make_engine_factory("momwire:bspline", resolve_ground(_GROUND_UNSET, cls))
+    factory = make_engine_factory("momwire:bs2", resolve_ground(_GROUND_UNSET, cls))
     return complex(np.atleast_1d(np.asarray(factory(cls()).impedance()))[0])
 
 

@@ -481,7 +481,7 @@ def test_the_web_solve_path_serves_the_buried_dipole_with_cuts():
             "ground_model": "sommerfeld",
             "measurement_freq_mhz": 7.0,
             "design_freq_mhz": 7.0,
-            "momwire_model": "bspline",
+            "momwire_model": "bs2",
         }
     )
     assert "pattern_refusal" not in out and "pattern_note" not in out

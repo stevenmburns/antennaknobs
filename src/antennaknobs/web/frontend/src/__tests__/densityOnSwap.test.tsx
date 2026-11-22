@@ -58,8 +58,8 @@ describe("startup is unchanged (#1543 changes the swap, not the seeds)", () => {
         roster: ROSTER,
         specs: SERVED_OPTION_SPECS,
         seeds: [
-          { slot: "A", backend: "bspline", n_per_wire: 33, model: { degree: 1 } },
-          { slot: "B", backend: "razor-2p", n_per_wire: 7, model: {} },
+          { slot: "A", backend: "bs2", n_per_wire: 33, model: { degree: 1 } },
+          { slot: "B", backend: "razor2p", n_per_wire: 7, model: {} },
           { slot: "C", backend: "pynec", n_per_wire: null, model: {} },
         ],
       }),
@@ -77,7 +77,7 @@ describe("startup is unchanged (#1543 changes the swap, not the seeds)", () => {
         roster: ROSTER,
         specs: SERVED_OPTION_SPECS,
         seeds: [
-          { slot: "A", backend: "bspline", n_per_wire: null, model: { degree: 1 } },
+          { slot: "A", backend: "bs2", n_per_wire: null, model: { degree: 1 } },
           ...SERVED_SLOT_SEEDS.filter((s) => s.slot !== "A"),
         ],
       }),
@@ -88,10 +88,10 @@ describe("startup is unchanged (#1543 changes the swap, not the seeds)", () => {
 
 describe("an engine swap adopts that engine's density", () => {
   it.each([
-    ["razor-2p", 40, "segments set to Razor (2-point)'s default, 40"],
+    ["razor2p", 40, "segments set to Razor (2-point)'s default, 40"],
     ["nec5", 40, "segments set to NEC-5's default, 40"],
-    // The stock bspline tab is degree 2, so a swap to it lands on 15.
-    ["bspline", 15, "segments set to B-spline d=2's default, 15"],
+    // The stock bs2 tab is degree 2, so a swap to it lands on 15.
+    ["bs2", 15, "segments set to B-spline d=2's default, 15"],
     ["pynec", 21, "segments set to PyNEC's default, 21"],
   ])("to %s: N=%i, with the note", (name, n, note) => {
     const { result } = slots();
@@ -104,20 +104,20 @@ describe("an engine swap adopts that engine's density", () => {
     const { result } = slots();
     act(() => result.current.updateSlotOpts("A", { nPerWire: 77 }));
     expect(result.current.slots.A.opts.nPerWire).toBe(77);
-    act(() => result.current.setSlotBackend("A", back("razor-2p")));
+    act(() => result.current.setSlotBackend("A", back("razor2p")));
     expect(result.current.slots.A.opts.nPerWire).toBe(40);
   });
 
   it("keeps wire radius, which is geometry and means the same on every solver", () => {
     const { result } = slots();
     act(() => result.current.updateSlotOpts("A", { wireRadius: 0.003 }));
-    act(() => result.current.setSlotBackend("A", back("razor-2p")));
+    act(() => result.current.setSlotBackend("A", back("razor2p")));
     expect(result.current.slots.A.opts.wireRadius).toBe(0.003);
   });
 
   it("touches only the slot that swapped", () => {
     const { result } = slots();
-    act(() => result.current.setSlotBackend("A", back("razor-2p")));
+    act(() => result.current.setSlotBackend("A", back("razor2p")));
     expect(result.current.slots.B.opts.nPerWire).toBe(20);
     expect(result.current.densityNotes.B).toBeNull();
   });
@@ -126,7 +126,7 @@ describe("an engine swap adopts that engine's density", () => {
 describe("the note says where the number came from, and only until it doesn't", () => {
   it("clears when the knob is touched", () => {
     const { result } = slots();
-    act(() => result.current.setSlotBackend("A", back("razor-2p")));
+    act(() => result.current.setSlotBackend("A", back("razor2p")));
     expect(result.current.densityNotes.A).toBeTruthy();
     act(() => result.current.updateSlotOpts("A", { nPerWire: 31 }));
     expect(result.current.densityNotes.A).toBeNull();
@@ -134,16 +134,16 @@ describe("the note says where the number came from, and only until it doesn't", 
 
   it("survives an unrelated knob edit — that knob did not set the density", () => {
     const { result } = slots();
-    act(() => result.current.setSlotBackend("A", back("razor-2p")));
+    act(() => result.current.setSlotBackend("A", back("razor2p")));
     act(() => result.current.updateSlotOpts("A", { wireRadius: 0.002 }));
     expect(result.current.densityNotes.A).toBeTruthy();
   });
 
   it("clears on Reset, which returns the SEED and not an engine default", () => {
     const { result } = slots();
-    act(() => result.current.setSlotBackend("A", back("razor-2p")));
+    act(() => result.current.setSlotBackend("A", back("razor2p")));
     act(() => result.current.resetSlot("A"));
-    expect(result.current.slots.A.backend.name).toBe("bspline");
+    expect(result.current.slots.A.backend.name).toBe("bs2");
     expect(result.current.slots.A.opts.nPerWire).toBe(15);
     expect(result.current.densityNotes.A).toBeNull();
   });

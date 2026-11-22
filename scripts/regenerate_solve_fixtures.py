@@ -64,7 +64,7 @@ DESIGNS: dict[str, dict[str, Any]] = {
         "request": {
             "measurement_freq_mhz": 28.481,
             "design_freq_mhz": 28.47,
-            "momwire_model": "bspline",
+            "momwire_model": "bs2",
         },
         "ts_export": "invveeShape",
     },
@@ -73,7 +73,7 @@ DESIGNS: dict[str, dict[str, Any]] = {
         "request": {
             "measurement_freq_mhz": 7.15,
             "design_freq_mhz": 7.1,
-            "momwire_model": "bspline",
+            "momwire_model": "bs2",
         },
         "ts_export": "doubletLadderTunerShape",
     },
@@ -82,7 +82,7 @@ DESIGNS: dict[str, dict[str, Any]] = {
         "request": {
             "measurement_freq_mhz": 28.489,
             "design_freq_mhz": 28.47,
-            "momwire_model": "bspline",
+            "momwire_model": "bs2",
         },
         "ts_export": "invveeCatenaryShape",
     },

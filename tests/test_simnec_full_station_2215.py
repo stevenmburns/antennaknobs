@@ -125,9 +125,7 @@ def _z(c) -> complex:
         def build_network(self):
             return c.network()
 
-    return complex(
-        make_engine_factory("momwire:bspline", None)(Circuit()).impedance()[0]
-    )
+    return complex(make_engine_factory("momwire:bs2", None)(Circuit()).impedance()[0])
 
 
 def _antenna_only(script: str) -> str:

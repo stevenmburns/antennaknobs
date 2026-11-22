@@ -22,7 +22,7 @@ from antennaknobs.cli import make_engine_factory
 from antennaknobs.engines.momwire import clear_z_cache
 from antennaknobs.file_designs import builder_from_text
 
-_ENGINE = make_engine_factory("momwire:bspline", None)
+_ENGINE = make_engine_factory("momwire:bs2", None)
 
 _TEXT = _ssn(
     _SCRIPT_M,

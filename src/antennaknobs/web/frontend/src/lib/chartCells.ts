@@ -387,9 +387,8 @@ const ENGINE_NAMES: Record<string, string> = {
   nec2: "NEC-2",
   pynec: "PyNEC",
   momwire: "B-spline",
-  "momwire:bspline": "B-spline",
-  "momwire:bspline-d1": "B-spline d=1",
-  "momwire:razor-nec5": "razor-2p",
+  "momwire:bs2": "B-spline",
+  "momwire:bs1": "B-spline d=1",
 };
 export function engineSpecName(spec: string): string {
   const named = ENGINE_NAMES[spec];
@@ -398,7 +397,7 @@ export function engineSpecName(spec: string): string {
 }
 
 /** The legend's note for the skipped engines, or null when none was:
- *  "skipped: razor-2p, NEC-5, which no slot holds. Put one in a slot to
+ *  "skipped: razor2p, NEC-5, which no slot holds. Put one in a slot to
  *  include it.", and when every one was, that the chart draws the slots in
  *  their place. A note, not a refusal: the viewer lacks the engine, which
  *  is no fault of the cell. */
@@ -699,9 +698,11 @@ function listedPlan(
 
 /** Whether a solver slot holds an engine spec, as `--engine` spells one
  *  (cli.parse_engine_spec): "pynec", "nec5", "nec2", or "momwire[:basis]".
- *  A bare "momwire" is the CLI's default, the B-spline basis; "bspline-d1"
- *  is B-spline at degree 1, and "razor-nec5" the old spelling of
- *  "razor-2p". `degree` is the slot's B-spline degree, where it has one. */
+ *  A bare "momwire" is the CLI's default, the B-spline basis; "bs1"
+ *  is B-spline at degree 1. `degree` is the slot's B-spline degree, where it
+ *  has one. A spec here is canonical: the server reads a deprecated
+ *  spelling (`momwire:razor-2p`, momwire#2091) as the name it now is when it
+ *  builds the analysis (`analyses._engine_spec`). */
 export function engineSpecHeld(
   spec: string,
   b: Pick<BackendEntry, "kind" | "name">,
@@ -710,9 +711,8 @@ export function engineSpecHeld(
   const [name, basis = ""] = spec.split(":", 2);
   if (name !== "momwire") return basis === "" && b.kind === name;
   if (b.kind !== "momwire") return false;
-  if (basis === "" || basis === "bspline") return b.name === "bspline" && degree !== 1;
-  if (basis === "bspline-d1") return b.name === "bspline" && degree === 1;
-  if (basis === "razor-nec5") return b.name === "razor-2p";
+  if (basis === "" || basis === "bs2") return b.name === "bs2" && degree !== 1;
+  if (basis === "bs1") return b.name === "bs2" && degree === 1;
   return b.name === basis;
 }
 

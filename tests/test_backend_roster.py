@@ -3,7 +3,7 @@
 Before #628 the roster lived twice — ``_MOMWIRE_MODELS`` in web/adapter.py and
 a hand-kept ``BACKEND_ORDER``/``BACKEND_LABEL``/``BackendOptsMap`` in
 lib/backends.ts — and the failure mode of drift was *silent absence*: when
-sinusoidal-galerkin landed server-side (PR #626) both repos' CI stayed green
+sg landed server-side (PR #626) both repos' CI stayed green
 while the UI had no tab for any design. The interim tripwire
 (tests/test_backend_roster_contract.py, a regex over the TSX) is retired here:
 the frontend now renders from GET /capabilities, so there is only one roster
@@ -125,14 +125,14 @@ def test_backend_roster_served_shape(client):
     roster = _roster(have_nec5=True)
     assert [e["name"] for e in roster] == [
         "sinusoidal",
-        "sinusoidal-galerkin",
-        "bspline",
-        # #1148: the pulse basis got its tab. It sits after `bspline` because
+        "sg",
+        "bs2",
+        # #1148: the pulse basis got its tab. It sits after `bs2` because
         # the roster is ordered by spec, and its spec is declared there.
         "pulse",
         "hmatrix",
         "arrayblock",
-        "razor-2p",
+        "razor2p",
         "pynec",
         "nec5",
     ]
@@ -166,13 +166,13 @@ def test_backend_roster_served_shape(client):
     }
     assert {n: e["panel"] for n, e in by_name.items()} == {
         "sinusoidal": None,
-        "sinusoidal-galerkin": "sin-galerkin",
-        "bspline": "bspline",
+        "sg": "sin-galerkin",
+        "bs2": "bs2",
         # #1148: pulse takes no model kwargs at all, so it serves no panel.
         "pulse": None,
-        "hmatrix": "bspline",
-        "arrayblock": "bspline",
-        "razor-2p": None,
+        "hmatrix": "bs2",
+        "arrayblock": "bs2",
+        "razor2p": None,
         "pynec": "pynec",
         "nec5": "nec5",
     }
@@ -181,14 +181,14 @@ def test_backend_roster_served_shape(client):
     # checkboxes, an enum select) and live in its bespoke panel.
     assert {n: [f["key"] for f in e["options_schema"]] for n, e in by_name.items()} == {
         "sinusoidal": ["n_qp_const"],
-        "sinusoidal-galerkin": ["n_qp_const"],
-        "bspline": [],
+        "sg": ["n_qp_const"],
+        "bs2": [],
         "pulse": [],
         "hmatrix": [],
         "arrayblock": [],
-        # razor-2p's only quadrature knob (n_qp_path) is inert under the
+        # razor2p's only quadrature knob (n_qp_path) is inert under the
         # two-point rule, so it serves none rather than an inert one.
-        "razor-2p": [],
+        "razor2p": [],
         "pynec": [],
         "nec5": [],
     }
@@ -206,37 +206,37 @@ def test_backend_roster_served_shape(client):
     # the table would pass whatever the table said.
     #
     # 21 (odd, interior knot at the feed) for the array-block solver and
-    # PyNEC, 30 where no census has said otherwise, 15 for bspline (its
-    # degree-2 value; see `default_n_per_wire_by_degree` below). razor-2p and
+    # PyNEC, 30 where no census has said otherwise, 15 for bs2 (its
+    # degree-2 value; see `default_n_per_wire_by_degree` below). razor2p and
     # nec5 share 40: one number for the two first-order engines, so an A/B
     # between momwire's formulation twin and the licensed binary is not also
     # an A/B on the mesh. Higher because razor converges slower -- ~16x the
-    # mesh of bspline for the same self-convergence on the ByDipole1 ladder
+    # mesh of bs2 for the same self-convergence on the ByDipole1 ladder
     # -- and EVEN, because both want the feed at a segment end.
     assert {n: e["default_n_per_wire"] for n, e in by_name.items()} == {
         "sinusoidal": 21,
-        "sinusoidal-galerkin": 20,
-        "bspline": 15,
+        "sg": 20,
+        "bs2": 15,
         "pulse": 41,
         "hmatrix": 30,
         "arrayblock": 21,
-        "razor-2p": 40,
+        "razor2p": 40,
         "pynec": 21,
         "nec5": 40,
     }
     # The per-degree shape the frontend follows on a degree-tab change
     # (#1543). Keys are strings because they are JSON object keys. Only
-    # bspline has one: hmatrix and arrayblock expose `degree` too and keep a
+    # bs2 has one: hmatrix and arrayblock expose `degree` too and keep a
     # single density across it, so they serve null and the client leaves the
     # knob alone.
     assert {n: e["default_n_per_wire_by_degree"] for n, e in by_name.items()} == {
         "sinusoidal": None,
-        "sinusoidal-galerkin": None,
-        "bspline": {"1": 20, "2": 15, "3": 16},
+        "sg": None,
+        "bs2": {"1": 20, "2": 15, "3": 16},
         "pulse": None,
         "hmatrix": None,
         "arrayblock": None,
-        "razor-2p": None,
+        "razor2p": None,
         "pynec": None,
         "nec5": None,
     }
@@ -247,11 +247,11 @@ def test_backend_roster_served_shape(client):
         "arrayblock",
     }
     assert {n for n, e in by_name.items() if e["dense_family"]} == {
-        "sinusoidal-galerkin",
-        "bspline",
+        "sg",
+        "bs2",
         "hmatrix",
         "arrayblock",
-        "razor-2p",
+        "razor2p",
     }
     # The catalog rides /capabilities so the frontend learns the roster on
     # mount, exactly like terrain_presets.
@@ -297,7 +297,7 @@ def test_adapter_module_import_is_the_one_registry():
     """`_MOMWIRE_MODELS` stays available (derived) for the solve path's lookup
     and the existing web tests that import it."""
     assert adapter._MOMWIRE_MODELS is _MOMWIRE_MODELS
-    assert _MOMWIRE_MODELS["bspline"].__name__ == "BSplineSolver"
+    assert _MOMWIRE_MODELS["bs2"].__name__ == "BSplineSolver"
 
 
 def test_nec5_entry_is_gated_on_the_binary_probe_at_request_time(client, monkeypatch):
@@ -327,25 +327,25 @@ def test_nec5_entry_is_gated_on_the_binary_probe_at_request_time(client, monkeyp
 
 
 # ---------------------------------------------------------------------------
-# Bound kwargs (razor-2p)
+# Bound kwargs (razor2p)
 # ---------------------------------------------------------------------------
 
 
 def test_razor_2p_binds_the_two_point_rule_and_the_wire_cannot_unbind_it():
-    """`razor-2p` is a lane, not just a class, so the roster BINDS the kwarg.
+    """`razor2p` is a lane, not just a class, so the roster BINDS the kwarg.
 
     `RazorSolver` serves two quadrature rules off one class and momwire names
-    them `razor` (Gauss-Legendre) and `razor-2p` (the two-point centroid
+    them `razor` (Gauss-Legendre) and `razor2p` (the two-point centroid
     trapezoid). Only the second is offered here, so the binding has to survive
     whatever a client sends: if `model_options` could flip it, the label on the
     tab would stop describing what ran.
     """
     from antennaknobs.web.adapter import _MOMWIRE_BOUND
 
-    assert _MOMWIRE_BOUND["razor-2p"] == {"nec5_quadrature": True}
+    assert _MOMWIRE_BOUND["razor2p"] == {"nec5_quadrature": True}
     # Bound kwargs are applied last, so a hostile or stale option loses.
     merged = dict({"nec5_quadrature": False})
-    merged.update(_MOMWIRE_BOUND["razor-2p"])
+    merged.update(_MOMWIRE_BOUND["razor2p"])
     assert merged["nec5_quadrature"] is True
 
 
@@ -353,6 +353,6 @@ def test_razor_2p_exposes_no_inert_quadrature_knob():
     """`n_qp_path` is IGNORED under the two-point rule (momwire's own
     docstring), so serving it would render a control that does nothing."""
     roster = _roster()
-    entry = next(e for e in roster if e["name"] == "razor-2p")
+    entry = next(e for e in roster if e["name"] == "razor2p")
     keys = {f["key"] for f in entry["options_schema"]}
     assert "n_qp_path" not in keys, entry["options_schema"]

@@ -52,22 +52,22 @@ only evidence about itself. `dominator` again, slot A this time:
 
 | N | 21 | 61 | 161 | 321 | 641 |
 |---|---|---|---|---|---|
-| Z (bspline) | 30.6+3.2j | 30.6+2.8j | 30.7+2.5j | 30.9+0.9j | 30.9−0.5j |
+| Z (bs2) | 30.6+3.2j | 30.6+2.8j | 30.7+2.5j | 30.9+0.9j | 30.9−0.5j |
 
 The d=2 basis is already at N=21 where the sinusoidal basis arrives at
 N=321–641 — and they arrive at the **same** place. That pair of facts is
 what "converged and correct" looks like. In the census, the two bases
 reached a mutual limit (<2 % apart at the finest affordable mesh) on
-66 of 91 designs; on those, bspline was already within 2 % of the limit at
+66 of 91 designs; on those, bs2 was already within 2 % of the limit at
 N=21 on 53 — the sinusoidal basis on 36 — with conv@N advantages up to
-15×. That measurement is why the default solver slot now runs bspline at
+15×. That measurement is why the default solver slot now runs bs2 at
 N=15: on the scorable catalog it is converged out of the box, at ~35 %
 less cost per solve than N=21.
 
 Why the sinusoidal basis lags has since been *attributed*, not just
 measured: momwire's basis × testing instrument showed the census gap is
 mostly the **point matching**, not the basis — swap only the testing
-scheme (the `sinusoidal-galerkin` backend) and the junction-heavy gaps
+scheme (the `sg` backend) and the junction-heavy gaps
 collapse ~100×, with the residual on clean geometry down at the
 feed-model level. The mechanism write-up is
 [momwire chapter 15](https://momwire.dev/act-5/the-fourth-cell/).
@@ -79,9 +79,9 @@ The census decomposed every non-converging catalog design into four
 classes, and they want four different responses.
 
 **1. Slow basis convergence.** The value is creeping monotonically and
-slot A (bspline) is flat at the value slot B is creeping *toward*. This is
+slot A (bs2) is flat at the value slot B is creeping *toward*. This is
 the common case — port-fed and junction-heavy designs converge slowly on
-the sinusoidal/pulse family. Response: trust the flat bspline value, or
+the sinusoidal/pulse family. Response: trust the flat bs2 value, or
 extend the ladder if you need the confirmation.
 
 **2. Mesh-density mismatch in the geometry.** One part of the structure
@@ -89,7 +89,7 @@ refines while another is pinned coarse, and the graded junction between
 them poisons the solve — the curve may *diverge* with refinement. (Two
 catalog verticals did exactly this until their radials were made to
 refine with the mesh; the tell was sin/PyNEC marching away from a flat
-bspline while the meshes decoupled.) Response: refine *uniformly* — in
+bs2 while the meshes decoupled.) Response: refine *uniformly* — in
 your own builders, just return `None` segment counts; the framework
 meshes every such wire at the design density, `nominal_nsegs`
 segments per quarter-wavelength at your declared `design_freq` (so
@@ -143,7 +143,7 @@ rather than reusing the nominal count on short wires (the catalog is
 now linted for exactly this, both the ratio at fine mesh and its
 growth up the ladder). The d=2 basis is immune — a Galerkin method
 regularizes the reduced-kernel ill-posedness — which is also why a flat
-bspline next to an exploding sin curve is the tell.
+bs2 next to an exploding sin curve is the tell.
 
 When the low Δ/a is the *design* rather than a meshing slip — tubing,
 cages, a fat-wire imported deck — the fix is not a finer mesh but a
@@ -197,7 +197,7 @@ free space; "converged" = within 2 % of the finest rung):
 | `loops.delta_loop` (triangle) | N≥15 | N≥7 |
 
 A dense solve scales as (basis count)², so 2–3× fewer segments is a
-~4–9× cheaper solve at equal accuracy — on bspline a single-loop design can
+~4–9× cheaper solve at equal accuracy — on bs2 a single-loop design can
 run *below* the N=15 default without losing the answer. Verify with the
 convergence sweep as usual, and don't generalize the discount: it is
 loop-specific. On open linear structures (`beams.yagi`) and the
@@ -243,7 +243,7 @@ the physics doesn't:
   *middle segment* as the mesh refines, so the point model survives
   refinement; pinning the wire's count instead (the old convention)
   turned out to bias the converged value itself — the catalog's trap
-  study saw a pinned trap hold bspline flat at the wrong reactance while the
+  study saw a pinned trap hold bs2 flat at the wrong reactance while the
   density-meshed model converged cleanly. What you should *not* do is
   spread the load's port current over a finite extent: gap-averaging a
   physical resistor under-counts its dissipation. Even the historically
@@ -283,7 +283,7 @@ lines, R = Z₀ and X = 0, make it easy to see which way each curve is heading.
 python -m antennaknobs sweep --builder dipoles.invvee:dipole \
     --set freq=14 design_freq=14 --param nominal_nsegs \
     --log --range 10 500 --npoints 20 \
-    --engine nec2,nec5,momwire:razor-2p --panels --callouts
+    --engine nec2,nec5,momwire:razor2p --panels --callouts
 ```
 
 `--log` spaces the points geometrically and rounds integer parameters,
@@ -300,13 +300,13 @@ estimate of the value the curve is heading for as N grows without limit. It is
 a smooth low-order curve in h = 1/N, and following that curve to h = 0 gives
 the limit without solving an infinite mesh.
 
-![Two panels. Left: razor-2p's feed reactance on the HenTenna plotted against h = 1/N on linear axes, the fine rungs lying on a straight line that meets h = 0 at X∞ = 38.848 Ω, with B-spline's points flat at 38.915 Ω. Right: the change per doubling on log-log axes, razor-2p following a slope of −1 from about 230 segments on, B-spline's changes ten to a hundred times smaller.](../../../assets/advanced/richardson-hentenna.png)
+![Two panels. Left: razor2p's feed reactance on the HenTenna plotted against h = 1/N on linear axes, the fine rungs lying on a straight line that meets h = 0 at X∞ = 38.848 Ω, with B-spline's points flat at 38.915 Ω. Right: the change per doubling on log-log axes, razor2p following a slope of −1 from about 230 segments on, B-spline's changes ten to a hundred times smaller.](../../../assets/advanced/richardson-hentenna.png)
 
 The two panels answer different questions, and both are needed:
 
 - **Right, log–log: is it safe to extrapolate?** Plot how much the value moves
   per doubling of N, |Z(N) − Z(2N)|. On a log–log chart this is a straight
-  line of slope −p when the solver converges at order p. Here razor-2p (the
+  line of slope −p when the solver converges at order p. Here razor2p (the
   formulation NEC-5 uses) follows slope −1 from about 230 segments: each
   doubling halves the step. The first two rungs sit off the line; that coarse
   range is where no extrapolation should be trusted. The successive
@@ -336,19 +336,19 @@ before extrapolating:
 
 A rough reading often has a cause you can see in the mesh. A short feed wire
 gains segments two at a time, which keeps the source centred: 1 → 3 on
-B-spline, 2 → 4 on razor-2p. So on a density ladder the fed segment stays the
+B-spline, 2 → 4 on razor2p. So on a density ladder the fed segment stays the
 same length for several rungs while the rest of the mesh refines, then jumps,
 and each jump puts a kink in the ladder. When that happens within the last
 four rungs, the rough reading names the step. On the default inverted vee's
 0.1 m feed wire, for example, the app's ladder reads rough on both engines:
 
 - on B-spline, the fed segment goes 100 → 33 mm between N = 65 and 95;
-- on razor-2p, it goes 50 → 25 mm between N = 94 and 134.
+- on razor2p, it goes 50 → 25 mm between N = 94 and 134.
 
 That is a property of the design's feed wire, not of the engine. The rough
 value is still the best first-order estimate the ladder supports.
 
-On the HenTenna, razor-2p's ladder is asymptotic, with p = 0.98 and
+On the HenTenna, razor2p's ladder is asymptotic, with p = 0.98 and
 X∞ = 38.836 Ω, 0.012 Ω from the first-order line in the figure. The buried
 radial vertical's point-matched ladder is not: its local slopes drift from 0.5
 toward 0.3, and an observed-order fit there lands more than 1 Ω from the
@@ -369,20 +369,20 @@ knowing before you trust a curve:
   way with N, and can jump where the feed wire first splits into more than
   one segment. That movement is the feed model changing, not the antenna
   converging. The workbench warns when this is the case. The same designs
-  move far less on the B-spline solver, razor-2p and NEC-5. At its default
+  move far less on the B-spline solver, razor2p and NEC-5. At its default
   28.47 MHz, between 10 and 500 segments per quarter-wave, the catalog
   dipole's resistance changes by about 0.2 Ω on B-spline, while on PyNEC
   (NEC-2) it climbs about 6 Ω and drops more than 1 Ω where the feed wire
   splits.
 - **A loop's curve shape depends on the engine.** The same square loop's
   resistance rises monotonically on NEC-2 but peaks and falls back on NEC-5
-  and razor-2p before settling. Both settle to the same value within a
+  and razor2p before settling. Both settle to the same value within a
   fraction of an ohm. Judge convergence by where the curves end up, not by
   their shape at coarse N.
 
 ## A working recipe
 
-1. Solve at the defaults (bspline, N=15). For most of the catalog you are
+1. Solve at the defaults (bs2, N=15). For most of the catalog you are
    already converged — the census says 80 % of scorable designs are
    within 2 % at coarse mesh on this basis.
 2. Run a **convergence sweep**: the **Sweep** chart with density
@@ -408,6 +408,6 @@ shared pair of axes, so an offset between bases reads at a glance:
 ```bash
 python -m antennaknobs sweep --builder specialty.hentenna \
     --param nominal_nsegs --range 8 160 --npoints 14 \
-    --engine momwire:bspline,momwire:razor-2p,momwire:sinusoidal \
+    --engine momwire:bs2,momwire:razor2p,momwire:sinusoidal \
     --overlay --callouts --fn hentenna-overlay.png
 ```

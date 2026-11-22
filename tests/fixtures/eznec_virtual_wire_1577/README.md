@@ -59,7 +59,7 @@ newer decks write the pins; that is what makes the ideal open exact.
 **End to end, the residual is where the attachment sits, not the circuit.** AK
 reads an `NT`/`TL`/`EX` segment field as a segment and puts the port at its
 CENTRE; NEC-5 addresses a knot. On `WA7ARK-OCF-LoadOnly` that is one knot out
-of 378 and costs 2.15 % of X (bspline 275.111 − 1409.989j against the printout
+of 378 and costs 2.15 % of X (bs2 275.111 − 1409.989j against the printout
 above) — and re-spelling the deck's source as `EX 0,1,378,2`, a knot, makes AK's
 own NEC-5 engine reproduce the printout's 275.53 − 1441.0j to every printed
 digit. The transformer and lossy line then amplify that 2.15 % into ~4 % of R

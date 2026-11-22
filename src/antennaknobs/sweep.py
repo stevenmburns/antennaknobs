@@ -804,8 +804,8 @@ def _achieved_n(eng, builder):
     is the fed EDGE alone. A house dipole's fed edge is one to a handful of
     segments almost regardless of the ladder rung (the gap wire is short),
     so it never tracks the density knob; the mesh total does, and it is
-    what shows the parity rounding: an odd-parity engine (bspline, the
-    framework default) and an even-parity engine (razor-2p, nec5) round the
+    what shows the parity rounding: an odd-parity engine (bs2, the
+    framework default) and an even-parity engine (razor2p, nec5) round the
     same nominal count to totals one segment apart.
     """
     from .network import as_wire

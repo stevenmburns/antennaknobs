@@ -25,8 +25,8 @@ import {
 // Five solver slots and four ground slots: ids are open-ended (A…E, 1…5),
 // so nothing here may assume three.
 const ENGINES: Record<string, string> = {
-  A: "momwire:bspline",
-  B: "momwire:razor-2p",
+  A: "momwire:bs2",
+  B: "momwire:razor2p",
   C: "pynec",
   D: "nec5",
   E: "momwire:sinusoidal",
@@ -75,28 +75,28 @@ describe("the engine cross", () => {
   it("draws one cell per ticked slot, each named by its slot, on the ground each", () => {
     const plan = crossPlan({ slots: ["A", "E"], grounds: null }, NOTHING_LISTED, env());
     expect(plan.cells.map((c) => [c.slot, c.ground, c.label])).toEqual([
-      ["A", "X", "A: momwire:bspline"],
+      ["A", "X", "A: momwire:bs2"],
       ["E", "X", "E: momwire:sinusoidal"],
     ]);
   });
 
   it("preselects the slots holding a pick's engines, in the analysis's order", () => {
-    const listed = { engines: ["nec5", "momwire:bspline"], grounds: null };
+    const listed = { engines: ["nec5", "momwire:bs2"], grounds: null };
     const cross = preselect(listed, env());
     expect(cross).toEqual({ slots: ["D", "A"], grounds: null });
     const plan = crossPlan(cross, listed, env());
     // Named as the analysis spells them, in its order (the CLI's cells).
     expect(plan.cells.map((c) => [c.slot, c.label])).toEqual([
       ["D", "nec5"],
-      ["A", "momwire:bspline"],
+      ["A", "momwire:bs2"],
     ]);
   });
 
   it("skips a listed engine no slot holds: no cell, no refusal, named in the note; the rest draw", () => {
-    const listed = { engines: ["momwire:bspline", "nec2", "nec5"], grounds: null };
+    const listed = { engines: ["momwire:bs2", "nec2", "nec5"], grounds: null };
     const plan = crossPlan(preselect(listed, env()), listed, env());
     expect(plan.cells.map((c) => [c.label, c.slot, c.refused])).toEqual([
-      ["momwire:bspline", "A", null],
+      ["momwire:bs2", "A", null],
       ["nec5", "D", null],
     ]);
     expect(refusedLines(plan)).toEqual([]);
@@ -111,8 +111,8 @@ describe("the engine cross", () => {
     expect(cross.slots).toEqual(["A", "B", "C", "D", "E"]);
     const plan = crossPlan(cross, listed, env());
     expect(plan.cells.map((c) => [c.label, c.slot, c.refused])).toEqual([
-      ["A: momwire:bspline", "A", null],
-      ["B: momwire:razor-2p", "B", null],
+      ["A: momwire:bs2", "A", null],
+      ["B: momwire:razor2p", "B", null],
       ["C: pynec", "C", null],
       ["D: nec5", "D", null],
       ["E: momwire:sinusoidal", "E", null],
@@ -186,10 +186,10 @@ describe("engines x grounds", () => {
   it("is engine-major, each label naming both, joined by ', ' as the CLI's", () => {
     const plan = crossPlan({ slots: ["A", "B"], grounds: ["X", "Y"] }, NOTHING_LISTED, env());
     expect(plan.cells.map((c) => c.label)).toEqual([
-      "A: momwire:bspline, X: finite:13,0.005",
-      "A: momwire:bspline, Y: free",
-      "B: momwire:razor-2p, X: finite:13,0.005",
-      "B: momwire:razor-2p, Y: free",
+      "A: momwire:bs2, X: finite:13,0.005",
+      "A: momwire:bs2, Y: free",
+      "B: momwire:razor2p, X: finite:13,0.005",
+      "B: momwire:razor2p, Y: free",
     ]);
   });
 
@@ -213,7 +213,7 @@ describe("engines x grounds", () => {
 
   it("counts a refused ground against the cap, and a skipped engine not, since it draws no curve", () => {
     // nec2 is skipped: 3 engines x 2 grounds, the second refused, is 6.
-    const listed = { engines: ["momwire:bspline", "nec2", "nec5", "pynec"], grounds: ["free", "finite:20,0.03"] };
+    const listed = { engines: ["momwire:bs2", "nec2", "nec5", "pynec"], grounds: ["free", "finite:20,0.03"] };
     const plan = crossPlan(preselect(listed, env()), listed, env());
     expect(plan.capRefusal).toBeNull();
     expect(plan.cells).toHaveLength(6);
@@ -222,7 +222,7 @@ describe("engines x grounds", () => {
       "not drawn: no ground slot holds finite:20,0.03. Add one with + to include it.",
       "not drawn: no ground slot holds finite:20,0.03. Add one with + to include it.",
     ]);
-    const four = { engines: ["momwire:bspline", "nec2", "nec5", "pynec", "momwire:razor-2p"], grounds: ["free", "pec"] };
+    const four = { engines: ["momwire:bs2", "nec2", "nec5", "pynec", "momwire:razor2p"], grounds: ["free", "pec"] };
     expect(crossPlan(preselect(four, env()), four, env()).capRefusal).toBe(
       "REFUSED: 4 engines x 2 grounds = 8 curves, over the cap of 6",
     );
@@ -239,7 +239,7 @@ const steve = (): CrossEnv => {
     refusal: null,
   });
   return {
-    slots: [slot("A", "momwire", "bspline", 2), slot("B", "momwire", "bspline", 1), slot("C", "pynec", "pynec", null)],
+    slots: [slot("A", "momwire", "bs2", 2), slot("B", "momwire", "bs2", 1), slot("C", "pynec", "pynec", null)],
     activeSlot: "A",
     grounds: [{ id: "1", label: "1: finite:13,0.005", holds: (s: string) => s === "finite:13,0.005" }],
     activeGround: "1",
@@ -249,7 +249,7 @@ const steve = (): CrossEnv => {
 describe("listed engines on Steve's slots (skipped, not refused)", () => {
   // E1, invvee's convergence: three engines, one ground.
   const E1: ListedCross = {
-    engines: ["momwire:bspline", "momwire:razor-2p", "nec5"],
+    engines: ["momwire:bs2", "momwire:razor2p", "nec5"],
     grounds: ["finite:13,0.005"],
   };
 
@@ -263,25 +263,25 @@ describe("listed engines on Steve's slots (skipped, not refused)", () => {
     expect(refusedLines(plan)).toEqual([]);
     expect(plan.cells.some((c) => c.refused)).toBe(false);
     expect(plan.cells.map((c) => [c.label, c.slot, c.ground, c.refused])).toEqual([
-      ["momwire:bspline, Sommerfeld · εr 13, σ 0.005 S/m", "A", "1", null],
+      ["momwire:bs2, Sommerfeld · εr 13, σ 0.005 S/m", "A", "1", null],
     ]);
     expect(skippedNote(plan)).toBe(
-      "skipped: razor-2p, NEC-5, which no slot holds. Put one in a slot to include it.",
+      "skipped: razor2p, NEC-5, which no slot holds. Put one in a slot to include it.",
     );
   });
 
   it("an analysis whose every engine is unslotted draws every slot, with the note saying so", () => {
-    const listed: ListedCross = { engines: ["momwire:razor-2p", "nec5"], grounds: null };
+    const listed: ListedCross = { engines: ["momwire:razor2p", "nec5"], grounds: null };
     const cross = preselect(listed, steve());
     expect(cross.slots).toEqual(["A", "B", "C"]);
     const plan = crossPlan(cross, listed, steve());
     expect(plan.cells.map((c) => [c.label, c.slot, c.refused])).toEqual([
-      ["A: bspline d=2", "A", null],
-      ["B: bspline d=1", "B", null],
+      ["A: bs2 d=2", "A", null],
+      ["B: bs2 d=1", "B", null],
       ["C: pynec", "C", null],
     ]);
     expect(skippedNote(plan)).toBe(
-      "skipped: razor-2p, NEC-5, which no slot holds, so the chart draws your slots instead. Put one in a slot to include it.",
+      "skipped: razor2p, NEC-5, which no slot holds, so the chart draws your slots instead. Put one in a slot to include it.",
     );
     // The checkboxes still choose among the slots.
     const two = crossPlan({ slots: ["A", "C"], grounds: null }, listed, steve());
@@ -289,9 +289,9 @@ describe("listed engines on Steve's slots (skipped, not refused)", () => {
     expect(two.fallback).toBe(true);
   });
 
-  it("E7 on Steve's slots: B-spline on both designs, razor-2p and NEC-2 skipped", () => {
+  it("E7 on Steve's slots: B-spline on both designs, razor2p and NEC-2 skipped", () => {
     const listed: ListedCross = {
-      engines: ["momwire:bspline", "momwire:razor-2p", "nec2"],
+      engines: ["momwire:bs2", "momwire:razor2p", "nec2"],
       grounds: null,
       axes: ["designs", "engines"],
       designs: [
@@ -301,11 +301,11 @@ describe("listed engines on Steve's slots (skipped, not refused)", () => {
     };
     const plan = crossPlan(preselect(listed, steve()), listed, steve());
     expect(plan.cells.map((c) => [c.label, c.slot, c.refused])).toEqual([
-      ["dipoles.invvee, momwire:bspline", "A", null],
-      ["dipoles.invvee_apex, momwire:bspline", "A", null],
+      ["dipoles.invvee, momwire:bs2", "A", null],
+      ["dipoles.invvee_apex, momwire:bs2", "A", null],
     ]);
     expect(skippedNote(plan)).toBe(
-      "skipped: razor-2p, NEC-2, which no slot holds. Put one in a slot to include it.",
+      "skipped: razor2p, NEC-2, which no slot holds. Put one in a slot to include it.",
     );
   });
 
@@ -331,16 +331,17 @@ describe("which slot holds a spec", () => {
     expect(engineSpecHeld("nec5", b("nec5", "nec5"), null)).toBe(true);
     expect(engineSpecHeld("pynec", b("pynec", "pynec"), null)).toBe(true);
     expect(engineSpecHeld("nec5", b("nec2", "nec2"), null)).toBe(false);
-    expect(engineSpecHeld("momwire:razor-2p", b("momwire", "razor-2p"), null)).toBe(true);
-    // The old spelling of razor-2p.
-    expect(engineSpecHeld("momwire:razor-nec5", b("momwire", "razor-2p"), null)).toBe(true);
-    // Bare momwire is the CLI's default basis, B-spline, and bspline-d1 its
+    expect(engineSpecHeld("momwire:razor2p", b("momwire", "razor2p"), null)).toBe(true);
+    // A spec reaches here canonical (the server reads a deprecated
+    // spelling as its new name, momwire#2091): an old one names no slot.
+    expect(engineSpecHeld("momwire:razor-2p", b("momwire", "razor2p"), null)).toBe(false);
+    // Bare momwire is the CLI's default basis, B-spline, and bs1 its
     // degree-1 form.
-    expect(engineSpecHeld("momwire", b("momwire", "bspline"), 2)).toBe(true);
-    expect(engineSpecHeld("momwire:bspline", b("momwire", "bspline"), undefined)).toBe(true);
-    expect(engineSpecHeld("momwire:bspline", b("momwire", "bspline"), 1)).toBe(false);
-    expect(engineSpecHeld("momwire:bspline-d1", b("momwire", "bspline"), 1)).toBe(true);
-    expect(engineSpecHeld("momwire:sinusoidal", b("momwire", "bspline"), 2)).toBe(false);
+    expect(engineSpecHeld("momwire", b("momwire", "bs2"), 2)).toBe(true);
+    expect(engineSpecHeld("momwire:bs2", b("momwire", "bs2"), undefined)).toBe(true);
+    expect(engineSpecHeld("momwire:bs2", b("momwire", "bs2"), 1)).toBe(false);
+    expect(engineSpecHeld("momwire:bs1", b("momwire", "bs2"), 1)).toBe(true);
+    expect(engineSpecHeld("momwire:sinusoidal", b("momwire", "bs2"), 2)).toBe(false);
     // A basis suffix belongs to momwire only.
     expect(engineSpecHeld("nec5:x", b("nec5", "nec5"), null)).toBe(false);
   });
@@ -372,7 +373,7 @@ describe("which slot holds a spec", () => {
 // (analysis_run.cells).
 describe("planes, designs and families", () => {
   const E7: ListedCross = {
-    engines: ["momwire:bspline", "momwire:razor-2p", "pynec"],
+    engines: ["momwire:bs2", "momwire:razor2p", "pynec"],
     grounds: null,
     axes: ["designs", "engines"],
     designs: [
@@ -385,11 +386,11 @@ describe("planes, designs and families", () => {
     const plan = crossPlan(preselect(E7, env()), E7, env());
     expect(plan.capRefusal).toBeNull();
     expect(plan.cells.map((c) => [c.label, c.slot, c.design])).toEqual([
-      ["dipoles.invvee, momwire:bspline", "A", "dipoles.invvee"],
-      ["dipoles.invvee, momwire:razor-2p", "B", "dipoles.invvee"],
+      ["dipoles.invvee, momwire:bs2", "A", "dipoles.invvee"],
+      ["dipoles.invvee, momwire:razor2p", "B", "dipoles.invvee"],
       ["dipoles.invvee, pynec", "C", "dipoles.invvee"],
-      ["dipoles.invvee_apex, momwire:bspline", "A", "dipoles.invvee_apex"],
-      ["dipoles.invvee_apex, momwire:razor-2p", "B", "dipoles.invvee_apex"],
+      ["dipoles.invvee_apex, momwire:bs2", "A", "dipoles.invvee_apex"],
+      ["dipoles.invvee_apex, momwire:razor2p", "B", "dipoles.invvee_apex"],
       ["dipoles.invvee_apex, pynec", "C", "dipoles.invvee_apex"],
     ]);
     // Keys stay unique across the product, the slot|ground pair leading.
@@ -427,9 +428,9 @@ describe("planes, designs and families", () => {
     ]);
     const two = crossPlan({ slots: ["A", "C"], grounds: null }, fam, env());
     expect(two.cells.map((c) => c.label)).toEqual([
-      "angle_deg = 0, A: momwire:bspline",
+      "angle_deg = 0, A: momwire:bs2",
       "angle_deg = 0, C: pynec",
-      "angle_deg = 30, A: momwire:bspline",
+      "angle_deg = 30, A: momwire:bs2",
       "angle_deg = 30, C: pynec",
     ]);
   });
@@ -510,12 +511,12 @@ describe("states", () => {
   it("multiplies with the ticked slots under the cap, in the CLI's words", () => {
     const two = crossPlan({ slots: ["A", "B"], grounds: null }, HEIGHTS, env());
     expect(two.cells.map((c) => c.label)).toEqual([
-      "as built, A: momwire:bspline, Sommerfeld · εr 13, σ 0.005 S/m",
-      "as built, B: momwire:razor-2p, Sommerfeld · εr 13, σ 0.005 S/m",
-      "low mast, A: momwire:bspline, Sommerfeld · εr 13, σ 0.005 S/m",
-      "low mast, B: momwire:razor-2p, Sommerfeld · εr 13, σ 0.005 S/m",
-      "tall mast, A: momwire:bspline, Sommerfeld · εr 13, σ 0.005 S/m",
-      "tall mast, B: momwire:razor-2p, Sommerfeld · εr 13, σ 0.005 S/m",
+      "as built, A: momwire:bs2, Sommerfeld · εr 13, σ 0.005 S/m",
+      "as built, B: momwire:razor2p, Sommerfeld · εr 13, σ 0.005 S/m",
+      "low mast, A: momwire:bs2, Sommerfeld · εr 13, σ 0.005 S/m",
+      "low mast, B: momwire:razor2p, Sommerfeld · εr 13, σ 0.005 S/m",
+      "tall mast, A: momwire:bs2, Sommerfeld · εr 13, σ 0.005 S/m",
+      "tall mast, B: momwire:razor2p, Sommerfeld · εr 13, σ 0.005 S/m",
     ]);
     const three = crossPlan({ slots: ["A", "B", "C"], grounds: null }, HEIGHTS, env());
     expect(three.capRefusal).toBe("REFUSED: 3 states x 3 engines = 9 curves, over the cap of 6");
@@ -616,10 +617,10 @@ describe("the pick's note", () => {
 
   it("names the solver slots an engine pick ticked; a pick that fell back to every slot is skippedNote's", () => {
     const e = env();
-    const two = { engines: ["momwire:bspline", "nec5"], grounds: null };
+    const two = { engines: ["momwire:bs2", "nec5"], grounds: null };
     expect(pickNote(preselect(two, e), two, e)).toBe(
       "This analysis compares 2 engines, so picking it ticked the solver slots that hold them " +
-        "(A: momwire:bspline; D: nec5). The session still solves on A.",
+        "(A: momwire:bs2; D: nec5). The session still solves on A.",
     );
     const none = { engines: ["nec2"], grounds: null };
     expect(pickNote(preselect(none, e), none, e)).toBeNull();

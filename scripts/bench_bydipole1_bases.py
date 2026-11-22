@@ -13,7 +13,7 @@ Six lanes, one deck, one mesh ladder:
   sin-galerkin   SinusoidalGalerkinSolver     three-term, Galerkin
   razor          RazorSolver                  tent basis, razor-blade testing,
                                               converged Gauss-Legendre path rule
-  razor-nec5     RazorSolver(nec5_quadrature) same, NEC-5's own two-point
+  razor2p        RazorSolver(nec5_quadrature) same, NEC-5's own two-point
                                               centroid trapezoid (momwire#316)
 
 The last two are the SAME class and the same basis. They differ only in where
@@ -27,7 +27,7 @@ depends on it, and the engines do not agree about which parity is right:
     bs1           even
     sin           odd
     razor         even     (NEC-5's EX-at-knot convention)
-    razor-nec5    even
+    razor2p       even
     bs2           either
     sin-galerkin  either
 
@@ -96,7 +96,7 @@ LANES: dict[str, tuple[type, dict, str]] = {
     "sin": (SinusoidalSolver, {}, "odd"),
     "sin-galerkin": (SinusoidalGalerkinSolver, {}, "either"),
     "razor": (RazorSolver, {}, "even"),
-    "razor-nec5": (RazorSolver, {"nec5_quadrature": True}, "even"),
+    "razor2p": (RazorSolver, {"nec5_quadrature": True}, "even"),
 }
 
 

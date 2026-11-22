@@ -8,7 +8,7 @@
  * declares that as a single-cell capability (`buried`), `COUPLINGS` rightly
  * does not name it, and so nothing gated on it at all:
  *
- *   razor-2p + a buried design -> no overlay, the solve fired, and the user
+ *   razor2p + a buried design -> no overlay, the solve fired, and the user
  *   got "ValueError: RazorSolver cannot solve this design's buried geometry"
  *   in the error banner.
  *
@@ -55,21 +55,21 @@ const withBuried = (
 
 describe("capabilityRefusal — the deck, not a combination", () => {
   it("refuses a buried deck on a solver with no buried fill", () => {
-    const razor = withBuried("razor-2p", false, "RazorSolver has no buried fill…");
+    const razor = withBuried("razor2p", false, "RazorSolver has no buried fill…");
     const hit = capabilityRefusal(razor, BURIED);
     expect(hit).not.toBeNull();
     expect(hit!.reason).toContain("no buried fill");
   });
 
   it("says nothing on a deck that is not buried", () => {
-    const razor = withBuried("razor-2p", false, "RazorSolver has no buried fill…");
+    const razor = withBuried("razor2p", false, "RazorSolver has no buried fill…");
     expect(capabilityRefusal(razor, ABOVE)).toBeNull();
   });
 
   it("says nothing for a solver that DOES serve buried", () => {
-    // bspline is the one that can. Without this, "refuse everything on a
+    // bs2 is the one that can. Without this, "refuse everything on a
     // buried deck" would pass every other test here.
-    expect(capabilityRefusal(withBuried("bspline", true, null), BURIED)).toBeNull();
+    expect(capabilityRefusal(withBuried("bs2", true, null), BURIED)).toBeNull();
   });
 
   it("treats null as CANNOT BE ASKED, never as cannot", () => {
@@ -91,7 +91,7 @@ describe("capabilityRefusal — the deck, not a combination", () => {
     // A gate with no sentence would have to invent one, and an invented
     // refusal is worse than an ungated solve: the user is told something
     // nobody measured.
-    expect(capabilityRefusal(withBuried("razor-2p", false, null), BURIED)).toBeNull();
+    expect(capabilityRefusal(withBuried("razor2p", false, null), BURIED)).toBeNull();
   });
 });
 
@@ -112,13 +112,13 @@ describe("capabilityRefusal cites the right issue (#1167)", () => {
   it("still cites momwire#553 for a row that serves no issue", () => {
     // Every momwire row predates the field, so the fallback is load-bearing
     // rather than defensive.
-    const razor = withBuried("razor-2p", false, "RazorSolver has no buried fill…");
+    const razor = withBuried("razor2p", false, "RazorSolver has no buried fill…");
     expect(capabilityRefusal(razor, BURIED)!.issue).toBe("momwire#553");
   });
 
   it("falls back when the server explicitly sends null", () => {
     const razor = withBuried(
-      "razor-2p",
+      "razor2p",
       false,
       "RazorSolver has no buried fill…",
       null,
@@ -140,7 +140,7 @@ describe("designRefusal checks the deck BEFORE the options", () => {
   });
 
   it("still reports option-level refusals when the deck is fine", () => {
-    const b = entry("bspline");
+    const b = entry("bs2");
     const opts = defaultOptsFor(b, SERVED_OPTION_SPECS);
     expect(designRefusal(b, opts, ABOVE)).toBeNull();
   });
@@ -151,16 +151,16 @@ describe("the tab itself says it cannot take this deck", () => {
   // picker, and gated only after the user selected it and closed the modal.
   // A refusal you can only discover by choosing the thing is discovered late.
   const roster = SERVED_ROSTER.map((b) =>
-    b.name === "arrayblock" || b.name === "razor-2p"
+    b.name === "arrayblock" || b.name === "razor2p"
       ? ({ ...b, buried: false, buried_refusal: `${b.label} has no buried fill…` } as BackendEntry)
-      : ({ ...b, buried: b.name === "bspline" ? true : null } as BackendEntry),
+      : ({ ...b, buried: b.name === "bs2" ? true : null } as BackendEntry),
   );
 
   const mount = (design: Record<string, unknown>) =>
     render(
       <BackendConfigModal
         slot="A"
-        backend={entry("bspline")}
+        backend={entry("bs2")}
         backends={roster}
         requiredBackends={null}
         design={design}
@@ -169,7 +169,7 @@ describe("the tab itself says it cannot take this deck", () => {
         vocab={SERVED_VOCAB}
         designRefusalNote={null}
         suggestConvergedFeed={false}
-        opts={defaultOptsFor(entry("bspline"), SERVED_OPTION_SPECS)}
+        opts={defaultOptsFor(entry("bs2"), SERVED_OPTION_SPECS)}
         onChangeBackend={vi.fn()}
         onPatch={vi.fn()}
         onReset={vi.fn()}
@@ -215,16 +215,16 @@ describe("the tooltip on a RESTRICTED tab is the served sentence", () => {
     render(
       <BackendConfigModal
         slot="A"
-        backend={entry("bspline")}
+        backend={entry("bs2")}
         backends={SERVED_ROSTER}
-        requiredBackends={["bspline", "sinusoidal-galerkin"]}
+        requiredBackends={["bs2", "sg"]}
         design={{}}
         restrictionReason="this design drives a vertex port, which five solvers implement"
         specs={SERVED_OPTION_SPECS}
         vocab={SERVED_VOCAB}
         designRefusalNote={null}
         suggestConvergedFeed={false}
-        opts={defaultOptsFor(entry("bspline"), SERVED_OPTION_SPECS)}
+        opts={defaultOptsFor(entry("bs2"), SERVED_OPTION_SPECS)}
         onChangeBackend={vi.fn()}
         onPatch={vi.fn()}
         onReset={vi.fn()}
@@ -244,16 +244,16 @@ describe("the tooltip on a RESTRICTED tab is the served sentence", () => {
     render(
       <BackendConfigModal
         slot="A"
-        backend={entry("bspline")}
+        backend={entry("bs2")}
         backends={SERVED_ROSTER}
-        requiredBackends={["bspline"]}
+        requiredBackends={["bs2"]}
         design={{}}
         restrictionReason={null}
         specs={SERVED_OPTION_SPECS}
         vocab={SERVED_VOCAB}
         designRefusalNote={null}
         suggestConvergedFeed={false}
-        opts={defaultOptsFor(entry("bspline"), SERVED_OPTION_SPECS)}
+        opts={defaultOptsFor(entry("bs2"), SERVED_OPTION_SPECS)}
         onChangeBackend={vi.fn()}
         onPatch={vi.fn()}
         onReset={vi.fn()}

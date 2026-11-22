@@ -78,8 +78,8 @@ def test_a_user_design_reports_what_its_catalog_twin_reports(user_twin):
     assert mine["refusals"], "a buried design refuses somewhere"
     for backend in ("hmatrix", "arrayblock", "pulse"):
         assert mine["refusals"][backend]["capability"] == "buried"
-    assert "bspline" not in mine["refusals"]
-    # razor-2p (momwire#1149 U0/U1) and sinusoidal (momwire#1222) serve this
+    assert "bs2" not in mine["refusals"]
+    # razor2p (momwire#1149 U0/U1) and sinusoidal (momwire#1222) serve this
     # wholly-buried deck; read from their rows so the gate holds on either
     # side of the pointer.
     from momwire import RazorSolver, SinusoidalSolver
@@ -90,9 +90,9 @@ def test_a_user_design_reports_what_its_catalog_twin_reports(user_twin):
         assert mine["refusals"]["sinusoidal"]["capability"] == "buried"
 
     if RazorSolver.capabilities.buried:
-        assert "razor-2p" not in mine["refusals"]
+        assert "razor2p" not in mine["refusals"]
     else:
-        assert mine["refusals"]["razor-2p"]["capability"] == "buried"
+        assert mine["refusals"]["razor2p"]["capability"] == "buried"
 
 
 def test_the_refusal_carries_momwires_own_sentence(user_twin):
@@ -176,12 +176,12 @@ def test_a_deck_backed_user_design_reports_its_buried_radials(tmp_path, monkeypa
                 "needs"
             ]
         )
-        # Every refusal is about the burial, and none of them is bspline.
+        # Every refusal is about the burial, and none of them is bs2.
         assert cov["refusals"]
         for backend, row in cov["refusals"].items():
             assert row["capability"].startswith("buried"), backend
             assert row.get("reason"), backend
-        assert "bspline" not in cov["refusals"]
+        assert "bs2" not in cov["refusals"]
     finally:
         for key in [k for k in REGISTRY if k.startswith(f"{user_designs.USER_NS}.")]:
             del REGISTRY[key]

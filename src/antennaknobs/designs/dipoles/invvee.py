@@ -194,7 +194,7 @@ class Builder(AntennaBuilder):
             ),
             # E1: convergence on three engines.
             an.convergence(
-                cross=an.Cross(engines=("momwire:bspline", "momwire:razor-2p", "nec5")),
+                cross=an.Cross(engines=("momwire:bs2", "momwire:razor2p", "nec5")),
                 ground="finite:13,0.005",
                 group="Accuracy",
             ),

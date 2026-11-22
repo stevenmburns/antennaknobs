@@ -305,7 +305,7 @@ PowerShell window in this folder (Shift+right-click the folder background,
 "Open PowerShell window here") and put .\\ in front of the name:
 
     .\\{CLI_NAME}.exe --help
-    .\\{CLI_NAME}.exe sweep --param nominal_nsegs --builder dipoles.invvee:dipole --engine momwire:bspline
+    .\\{CLI_NAME}.exe sweep --param nominal_nsegs --builder dipoles.invvee:dipole --engine momwire:bs2
 
 The second line is a convergence study: one cold solve per segment count, a
 table of R, X and the change in reflection coefficient per rung, and a

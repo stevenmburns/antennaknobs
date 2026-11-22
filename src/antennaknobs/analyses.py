@@ -62,6 +62,8 @@ from collections.abc import Iterator, Mapping
 from dataclasses import dataclass
 from typing import ClassVar
 
+from .engine_names import canonical_engine_spec
+
 #: The most curves one analysis may draw: the product of its crosses.
 #: Enforced when an analysis is LISTED (`problems`), not when it is built, so
 #: one over-cap analysis cannot take down a design's whole list.
@@ -128,6 +130,16 @@ def _as_tuple(value, what: str) -> tuple:
 
 def _set(obj, name: str, value) -> None:
     object.__setattr__(obj, name, value)
+
+
+def _engine_spec(spec):
+    """An engine spec as its canonical name (momwire#2091): a study, a kept
+    file or a share link written under a deprecated spelling
+    (``momwire:razor-2p``) reads as ``momwire:razor2p``, so it draws the
+    same engine and nothing past here prints the old name. A retired one
+    (``momwire:razor-nec5``) is refused by name. None, and anything not a
+    string, is left for the caller's own type check."""
+    return canonical_engine_spec(spec) if isinstance(spec, str) else spec
 
 
 @dataclass(frozen=True)
@@ -406,7 +418,7 @@ class Cell:
             if v is not None and not (isinstance(v, str) and v):
                 raise TypeError(f"Cell: {field} is a spec string or None, got {v!r}")
         _set(self, "state", state)
-        _set(self, "engine", engine)
+        _set(self, "engine", _engine_spec(engine))
         _set(self, "ground", ground)
         _set(self, "plane", plane)
 
@@ -446,6 +458,7 @@ class Cross:
     def __post_init__(self):
         for f in _CROSS_KINDS[:-1]:
             _set(self, f, _as_tuple(getattr(self, f), f"Cross {f}"))
+        _set(self, "engines", tuple(_engine_spec(e) for e in self.engines))
         if self.step is not None and not isinstance(self.step, Sweep):
             raise TypeError(f"Cross: step is a Sweep, got {self.step!r}")
         if not all(isinstance(s, State) for s in self.states):
@@ -1497,6 +1510,7 @@ class Optimize:
             v = getattr(self, f)
             if v is not None and not (isinstance(v, str) and v.strip()):
                 raise TypeError(f"{who}: {f} is a non-empty string or None, got {v!r}")
+        _set(self, "engine", _engine_spec(self.engine))
         objectives = {b.objective_in("swr") for b in bands}
         if "swr" in objectives and len(objectives) > 1:
             raise ValueError(
@@ -1674,6 +1688,7 @@ class Analysis:
     def __post_init__(self):
         if not isinstance(self.name, str) or not self.name:
             raise TypeError(f"Analysis: name is a non-empty string, got {self.name!r}")
+        _set(self, "engine", _engine_spec(self.engine))
         if self.group is not None and (
             not isinstance(self.group, str) or not self.group.strip()
         ):

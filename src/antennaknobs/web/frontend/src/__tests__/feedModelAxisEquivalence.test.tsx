@@ -89,8 +89,8 @@ describe("the axis decides, and it now says more than the hint did", () => {
   it("offers the choice wherever the axis is multi-valued AND exposed", () => {
     const offering = SERVED_ROSTER.filter(offersFeedModelChoice).map((b) => b.name);
     expect(offering).toEqual([
-      "sinusoidal-galerkin",
-      "bspline",
+      "sg",
+      "bs2",
       "hmatrix",
       "arrayblock",
     ]);
@@ -106,26 +106,26 @@ describe("the axis decides, and it now says more than the hint did", () => {
   });
 
   it("does NOT offer it on a node-port feed", () => {
-    expect(offersFeedModelChoice(entry("razor-2p"))).toBe(false);
+    expect(offersFeedModelChoice(entry("razor2p"))).toBe(false);
   });
 
   it("renders the same two tabs, with the same labels and order", () => {
-    expect(feedTabs(entry("sinusoidal-galerkin"))).toEqual([
+    expect(feedTabs(entry("sg"))).toEqual([
       "NEC-compatible",
       "Converged",
     ]);
   });
 
   it("renders those same two on the b-spline family now", () => {
-    expect(feedTabs(entry("bspline"))).toEqual(["NEC-compatible", "Converged"]);
+    expect(feedTabs(entry("bs2"))).toEqual(["NEC-compatible", "Converged"]);
   });
 
   it("keeps the wire payload right on both", () => {
-    const sg = entry("sinusoidal-galerkin");
+    const sg = entry("sg");
     expect(defaultOptsFor(sg, SERVED_OPTION_SPECS).model.feed_model).toBe("point");
     // ...and the family that just gained it sends the value it was already
     // solving with — anchored numerically in test_feed_model_exposure_1006.py.
-    const b = entry("bspline");
+    const b = entry("bs2");
     expect(
       modelOptionsForRequest(b, defaultOptsFor(b, SERVED_OPTION_SPECS), SERVED_OPTION_SPECS)
         .feed_model,
@@ -144,7 +144,7 @@ describe("a momwire that cannot describe itself offers no feed-model choice", ()
   // (#1169); the fallback that read the `panel` hint went with that bump
   // (#1170). A momwire that cannot be asked now gets the honest answer — no
   // choice — rather than a guess keyed on a hint the vocabulary replaced.
-  const legacySG: BackendEntry = { ...entry("sinusoidal-galerkin"), axes: null };
+  const legacySG: BackendEntry = { ...entry("sg"), axes: null };
   const legacySin: BackendEntry = { ...entry("sinusoidal"), axes: null };
 
   it("offers nothing on the backend the hint used to select", () => {
@@ -170,7 +170,7 @@ describe("a momwire that cannot describe itself offers no feed-model choice", ()
 
 describe("degree tabs come from the basis axis", () => {
   it("renders d=1, d=2 and d=3 from the axis, not from a literal", () => {
-    const b = entry("bspline");
+    const b = entry("bs2");
     // The served axis has carried THREE values since momwire#883 added
     // `bspline-3`; the panel showed two until antennaknobs#1254 was decided
     // (2026-09-10, once momwire#999 put degree 3 on the C++ path). The
@@ -186,8 +186,8 @@ describe("degree tabs come from the basis axis", () => {
     // the tabs; if it does not, the tabs are still hardcoded and every
     // assertion above would pass anyway.
     const d2only: BackendEntry = {
-      ...entry("bspline"),
-      axes: { ...entry("bspline").axes!, basis: ["bspline-2"] },
+      ...entry("bs2"),
+      axes: { ...entry("bs2").axes!, basis: ["bspline-2"] },
     };
     renderModal(d2only);
     expect(tabsIn("degree")).toEqual(["d=2"]);
@@ -196,7 +196,7 @@ describe("degree tabs come from the basis axis", () => {
   it("keeps the legacy pair for a momwire that cannot be asked", () => {
     // axes: null predates `axes_for` and so predates `bspline-3`: the fallback
     // is the pair such a build serves, not the full table (#1254).
-    const legacy: BackendEntry = { ...entry("bspline"), axes: null };
+    const legacy: BackendEntry = { ...entry("bs2"), axes: null };
     expect(feedModelChoices(legacy)).toEqual([]);
     renderModal(legacy);
     expect(tabsIn("degree")).toEqual(["d=1", "d=2"]);

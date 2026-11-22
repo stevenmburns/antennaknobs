@@ -22,7 +22,7 @@ from antennaknobs.web import server
 REQ = {
     "geometry": "dipoles.invvee",
     "measurement_freq_mhz": 14.2,
-    "momwire_model": "bspline",
+    "momwire_model": "bs2",
 }
 
 

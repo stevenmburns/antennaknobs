@@ -34,7 +34,7 @@ def test_parse_momwire_default():
     "basis,cls",
     [
         ("sinusoidal", SinusoidalSolver),
-        ("bspline", BSplineSolver),
+        ("bs2", BSplineSolver),
     ],
 )
 def test_parse_momwire_with_basis(basis, cls):
@@ -44,10 +44,10 @@ def test_parse_momwire_with_basis(basis, cls):
 
 
 # `razor` isn't in this list: it left the MOMWIRE_BASES roster (momwire#753,
-# 2026-09-02), and its still-orderable spellings, `razor-2p`/`razor-nec5`,
-# are MOMWIRE_BASIS_VARIANTS entries that bind solver_kwargs — a different
+# 2026-09-02), and its still-orderable spelling, `razor2p`, is a
+# MOMWIRE_BASIS_VARIANTS entry that binds solver_kwargs — a different
 # return shape than this test asserts. See test_parse_razor_is_unknown_basis
-# and test_parse_razor_2p_and_razor_nec5_bind_quadrature_kwarg below.
+# and test_parse_razor2p_binds_quadrature_kwarg below.
 
 
 def test_parse_unknown_engine_raises():
@@ -57,7 +57,7 @@ def test_parse_unknown_engine_raises():
 
 def test_parse_pynec_with_basis_raises():
     with pytest.raises(argparse.ArgumentTypeError):
-        parse_engine_spec("pynec:bspline")
+        parse_engine_spec("pynec:bs2")
 
 
 def test_parse_momwire_unknown_basis_raises():
@@ -78,7 +78,7 @@ def test_make_factory_binds_solver():
 
 
 def test_make_factory_binds_ground_and_solver():
-    factory = make_engine_factory("momwire:bspline", "pec")
+    factory = make_engine_factory("momwire:bs2", "pec")
     assert factory.func is MomwireEngine
     assert factory.keywords == {"solver": BSplineSolver, "ground": "pec"}
 
@@ -86,8 +86,8 @@ def test_make_factory_binds_ground_and_solver():
 def test_momwire_bases_keys():
     assert set(MOMWIRE_BASES) == {
         "sinusoidal",
-        "sinusoidal-galerkin",
-        "bspline",
+        "sg",
+        "bs2",
         "hmatrix",
         "arrayblock",
         # The app's Pulse tab (AK#1148), on the CLI since AK#1559.
@@ -101,7 +101,7 @@ def test_make_factory_binds_sinusoidal_galerkin():
     the pair is the instrument, so both must be addressable."""
     from momwire import SinusoidalGalerkinSolver
 
-    factory = make_engine_factory("momwire:sinusoidal-galerkin", _GROUND_UNSET)
+    factory = make_engine_factory("momwire:sg", _GROUND_UNSET)
     assert factory.func is MomwireEngine
     # A bare roster class again, now that the pin carries momwire#654's
     # point-gap default and the explicit binding is gone.
@@ -112,7 +112,7 @@ def test_parse_variant_binds_kwargs_and_hands_back_a_fresh_dict():
     """A roster variant is a name bound to solver kwargs, and the kwargs are a
     fresh dict per parse so a caller mutating them cannot poison the roster.
 
-    Written against `bspline-d1` because the variant it used to be written
+    Written against `bs1` because the variant it used to be written
     against is gone: `sinusoidal-galerkin-converged` bound
     `feed_model="point"`, which momwire#654 made the class default, so the
     name bound nothing the plain name did not already mean. The two claims
@@ -120,17 +120,17 @@ def test_parse_variant_binds_kwargs_and_hands_back_a_fresh_dict():
     """
     from momwire import BSplineSolver
 
-    name, kw = parse_engine_spec("momwire:bspline-d1")
+    name, kw = parse_engine_spec("momwire:bs1")
     assert name == "momwire"
     assert kw == {"solver": BSplineSolver, "solver_kwargs": {"degree": 1}}
     kw["solver_kwargs"]["degree"] = "mutated"
-    assert parse_engine_spec("momwire:bspline-d1")[1]["solver_kwargs"] == {"degree": 1}
+    assert parse_engine_spec("momwire:bs1")[1]["solver_kwargs"] == {"degree": 1}
 
 
 def test_make_factory_binds_a_variants_kwargs():
     from momwire import BSplineSolver
 
-    factory = make_engine_factory("momwire:bspline-d1", _GROUND_UNSET)
+    factory = make_engine_factory("momwire:bs1", _GROUND_UNSET)
     assert factory.func is MomwireEngine
     assert factory.keywords == {
         "solver": BSplineSolver,
@@ -152,7 +152,7 @@ def test_the_galerkin_name_is_the_point_gap():
     """
     from momwire import SinusoidalGalerkinSolver
 
-    name, kw = parse_engine_spec("momwire:sinusoidal-galerkin")
+    name, kw = parse_engine_spec("momwire:sg")
     assert name == "momwire"
     assert kw == {"solver": SinusoidalGalerkinSolver}
     # Inherited is only as good as what it inherits, so read the default off
@@ -173,25 +173,25 @@ def test_no_converged_variant_for_plain_sinusoidal():
 
 
 def test_parse_bspline_d1_variant_binds_degree():
-    """`momwire:bspline-d1` (issue #821) is the degree axis, not the
-    feed-model axis: same BSplineSolver class as plain `bspline`, with
+    """`momwire:bs1` (issue #821) is the degree axis, not the
+    feed-model axis: same BSplineSolver class as plain `bs2`, with
     degree=1 bound as solver kwargs — an intra-family d1-vs-d2 check
     reachable from the CLI."""
-    name, kw = parse_engine_spec("momwire:bspline-d1")
+    name, kw = parse_engine_spec("momwire:bs1")
     assert name == "momwire"
     assert kw == {"solver": BSplineSolver, "solver_kwargs": {"degree": 1}}
 
 
 def test_parse_bspline_unchanged_by_d1_variant():
-    """Plain `bspline` still binds no solver_kwargs (degree=2 default)."""
-    assert parse_engine_spec("momwire:bspline") == (
+    """Plain `bs2` still binds no solver_kwargs (degree=2 default)."""
+    assert parse_engine_spec("momwire:bs2") == (
         "momwire",
         {"solver": BSplineSolver},
     )
 
 
 def test_make_factory_binds_bspline_d1_variant():
-    factory = make_engine_factory("momwire:bspline-d1", _GROUND_UNSET)
+    factory = make_engine_factory("momwire:bs1", _GROUND_UNSET)
     assert factory.func is MomwireEngine
     assert factory.keywords == {
         "solver": BSplineSolver,
@@ -200,11 +200,11 @@ def test_make_factory_binds_bspline_d1_variant():
 
 
 def test_make_factory_binds_razor_2p():
-    """`momwire:razor-2p` (momwire#316/#432) is RazorSolver with
+    """`momwire:razor2p` (momwire#316/#432) is RazorSolver with
     `nec5_quadrature=True` bound — the identified-quadrature lane, and (since
     momwire#753, 2026-09-02) the only orderable razor lane on the CLI
     roster."""
-    factory = make_engine_factory("momwire:razor-2p", _GROUND_UNSET)
+    factory = make_engine_factory("momwire:razor2p", _GROUND_UNSET)
     assert factory.func is MomwireEngine
     assert factory.keywords == {
         "solver": RazorSolver,
@@ -212,14 +212,14 @@ def test_make_factory_binds_razor_2p():
     }
 
 
-def test_parse_razor_2p_and_razor_nec5_bind_quadrature_kwarg():
-    """`momwire:razor-2p` and its deprecated spelling `momwire:razor-nec5`
-    both bind the same RazorSolver `nec5_quadrature=True` kwargs — the
-    interactive lane per the 2026-08-18 benchmark guidance, vs the default
-    Gauss-Legendre quadrature's slower convergence/certification lane
-    (reached only by constructing RazorSolver directly since plain `razor`
-    left the roster, momwire#753)."""
-    for spec in ("momwire:razor-2p", "momwire:razor-nec5"):
+def test_parse_razor2p_binds_quadrature_kwarg():
+    """`momwire:razor2p` and its deprecated spelling `momwire:razor-2p`
+    (momwire#2091) both bind the same RazorSolver `nec5_quadrature=True`
+    kwargs — the interactive lane per the 2026-08-18 benchmark guidance, vs
+    the default Gauss-Legendre quadrature's slower convergence/certification
+    lane (reached only by constructing RazorSolver directly since plain
+    `razor` left the roster, momwire#753)."""
+    for spec in ("momwire:razor2p", "momwire:razor-2p"):
         name, kw = parse_engine_spec(spec)
         assert name == "momwire"
         assert kw == {
@@ -231,18 +231,19 @@ def test_parse_razor_2p_and_razor_nec5_bind_quadrature_kwarg():
 def test_parse_razor_is_unknown_basis():
     """Plain `razor` left the roster (momwire#753, 2026-09-02): `momwire:razor`
     now fails exactly like any other unrecognized basis name, and the error
-    lists `razor-2p` among the available spellings."""
-    with pytest.raises(argparse.ArgumentTypeError, match="razor-2p"):
+    lists `razor2p` among the available spellings."""
+    with pytest.raises(argparse.ArgumentTypeError, match="razor2p"):
         parse_engine_spec("momwire:razor")
 
 
-def test_make_factory_binds_razor_nec5_variant():
-    factory = make_engine_factory("momwire:razor-nec5", _GROUND_UNSET)
-    assert factory.func is MomwireEngine
-    assert factory.keywords == {
-        "solver": RazorSolver,
-        "solver_kwargs": {"nec5_quadrature": True},
-    }
+def test_razor_nec5_is_refused_by_name():
+    """`razor-nec5`, deprecated since momwire#785, is retired with momwire#2091
+    rather than carried forward: refused by name with the name to use, as
+    momwire refuses it, never as an unknown basis."""
+    with pytest.raises(argparse.ArgumentTypeError, match="use 'razor2p'"):
+        parse_engine_spec("momwire:razor-nec5")
+    with pytest.raises(argparse.ArgumentTypeError, match="no longer accepted"):
+        make_engine_factory("momwire:razor-nec5", _GROUND_UNSET)
 
 
 O = " --fn /dev/null"
@@ -264,7 +265,7 @@ def test_cli_compare_patterns_single_engine_still_works():
 
 def test_cli_compare_patterns_momwire_basis():
     ant.cli(
-        f"compare_patterns --builders dipoles.invvee:dipole --engines momwire:bspline momwire:sinusoidal{O}".split()
+        f"compare_patterns --builders dipoles.invvee:dipole --engines momwire:bs2 momwire:sinusoidal{O}".split()
     )
 
 
@@ -272,7 +273,7 @@ def test_cli_compare_patterns_bspline_d1_intra_family():
     """d1-vs-d2 convergence check from the command line (issue #821): same
     family, different degree, both reachable as engine specs."""
     ant.cli(
-        f"compare_patterns --builders dipoles.invvee:dipole --engines momwire:bspline momwire:bspline-d1{O}".split()
+        f"compare_patterns --builders dipoles.invvee:dipole --engines momwire:bs2 momwire:bs1{O}".split()
     )
 
 
@@ -309,7 +310,7 @@ def test_broadcast_mismatch_raises():
 def test_cli_compare_patterns_three_by_three_paired():
     ant.cli(
         f"compare_patterns --builders dipoles.invvee:dipole dipoles.invvee specialty.bowtie "
-        f"--engines pynec momwire:bspline momwire:sinusoidal{O}".split()
+        f"--engines pynec momwire:bs2 momwire:sinusoidal{O}".split()
     )
 
 
@@ -323,7 +324,7 @@ def test_cli_compare_patterns_mismatch_rejected(capsys):
     # A usage error, exit 2, not a traceback (AK#1766).
     with pytest.raises(SystemExit) as exc:
         ant.cli(
-            f"compare_patterns --builders dipoles.invvee:dipole dipoles.invvee --engines pynec momwire:bspline momwire:sinusoidal{O}".split()
+            f"compare_patterns --builders dipoles.invvee:dipole dipoles.invvee --engines pynec momwire:bs2 momwire:sinusoidal{O}".split()
         )
     assert exc.value.code == 2
     assert "cannot broadcast 2 builders against 3 engines" in capsys.readouterr().err
@@ -458,11 +459,9 @@ def test_make_factory_extended_kernel_serves_sinusoidal_galerkin():
     NotImplementedError at construction now builds a working engine, and the
     kernel is honoured: the fat deck's EK answer differs measurably from the
     reduced one."""
-    factory = make_engine_factory(
-        "momwire:sinusoidal-galerkin", _GROUND_UNSET, extended_kernel=True
-    )
+    factory = make_engine_factory("momwire:sg", _GROUND_UNSET, extended_kernel=True)
     z_ek = factory(_fat_dipole_builder()).impedance()[0]
-    reduced = make_engine_factory("momwire:sinusoidal-galerkin", _GROUND_UNSET)
+    reduced = make_engine_factory("momwire:sg", _GROUND_UNSET)
     z_red = reduced(_fat_dipole_builder()).impedance()[0]
     assert abs(z_ek - z_red) / abs(z_red) >= 0.02, f"{z_ek} vs {z_red}"
 
@@ -472,9 +471,7 @@ def test_make_factory_extended_kernel_still_refuses_singular_enrichment():
     moment kernels the extended kernel corrects. Same NotImplementedError,
     same at-construction timing — this is the coverage the retired Galerkin
     refusal test used to provide for the engine's refusal path."""
-    factory = make_engine_factory(
-        "momwire:sinusoidal-galerkin", _GROUND_UNSET, extended_kernel=True
-    )
+    factory = make_engine_factory("momwire:sg", _GROUND_UNSET, extended_kernel=True)
     with pytest.raises(NotImplementedError, match="enrichment"):
         factory(_fat_dipole_builder(), solver_kwargs={"use_singular_enrichment": True})
 
@@ -497,7 +494,7 @@ def test_cli_extended_kernel_galerkin_runs():
     reachable from the CLI refuses EK anymore."""
     ant.cli(
         f"pattern --builder dipoles.invvee:dipole "
-        f"--engine momwire:sinusoidal-galerkin --extended-kernel{O}".split()
+        f"--engine momwire:sg --extended-kernel{O}".split()
     )
 
 
@@ -573,15 +570,15 @@ def test_cli_file_nec_deck_ek_card_runs_end_to_end(tmp_path):
 
 @pytest.mark.parametrize("extra", [None, {}, {"rotational_symmetry": False}])
 def test_a_roster_factorys_bound_solver_kwargs_survive_a_callers(extra):
-    """`momwire:razor-2p` binds RazorSolver's `nec5_quadrature`. A caller
+    """`momwire:razor2p` binds RazorSolver's `nec5_quadrature`. A caller
     passing its own `solver_kwargs` (None, empty, or an unrelated option)
     used to REPLACE the bound dict through plain `partial`, so the engine
-    solved plain razor under the razor-2p name, with a different Z. The
+    solved plain razor under the razor2p name, with a different Z. The
     factory merges instead; the bound kwargs win on a clash, as in the web
     adapter."""
     from antennaknobs.cli import get_builder
 
-    factory = make_engine_factory("momwire:razor-2p", "free")
+    factory = make_engine_factory("momwire:razor2p", "free")
     eng = factory(get_builder("dipoles.invvee")(), solver_kwargs=extra)
     assert eng._solver_kwargs.get("nec5_quadrature") is True
     for k, v in (extra or {}).items():
@@ -591,7 +588,7 @@ def test_a_roster_factorys_bound_solver_kwargs_survive_a_callers(extra):
 def test_a_roster_factorys_bound_kwargs_win_a_clash():
     from antennaknobs.cli import get_builder
 
-    factory = make_engine_factory("momwire:razor-2p", "free")
+    factory = make_engine_factory("momwire:razor2p", "free")
     eng = factory(
         get_builder("dipoles.invvee")(), solver_kwargs={"nec5_quadrature": False}
     )

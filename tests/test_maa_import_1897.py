@@ -302,7 +302,7 @@ def test_objects_on_two_wires_at_a_three_wire_junction_get_a_gap_each():
     }
     cls = builder_from_text("t.maa", text)
     z = complex(
-        make_engine_factory("momwire:razor-2p", cls.file_ground)(cls()).impedance()[0]
+        make_engine_factory("momwire:razor2p", cls.file_ground)(cls()).impedance()[0]
     )
     nec5 = 114.42 - 30.599j
     assert abs(z - nec5) / abs(nec5) < 5e-4, z

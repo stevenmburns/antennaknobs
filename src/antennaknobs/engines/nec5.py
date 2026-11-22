@@ -105,7 +105,7 @@ DISTRIBUTED_PORT_REFUSAL = (
     "multiport-Y route serves delta-gap ports only. PyNEC serves this by driving "
     "every segment at V/S and reading the weighted current; NEC-5's EX addresses "
     "KNOTS, so the same expansion needs a knot-weighting rule that has not been "
-    "derived. Run this design on bspline or PyNEC."
+    "derived. Run this design on bs2 or PyNEC."
 )
 
 # The reflection-coefficient refusal, one spelling (AK#1856): the engine raises
@@ -730,7 +730,7 @@ class NEC5Engine(SimulationEngine):
                     f"port {name!r} (PortAtEnd) drives a free wire end, and "
                     "NEC-5 cannot: the binary refuses an EX source at a free "
                     "end's knot, so the end-port feed has no NEC-5 spelling. "
-                    "Run the design on momwire (bspline), or author a short "
+                    "Run the design on momwire (bs2), or author a short "
                     "bridge wire with a centre gap across the feed point — a "
                     "different model, whose bridge metal adds reactance."
                 )
@@ -748,7 +748,7 @@ class NEC5Engine(SimulationEngine):
                 "multiport-Y route drives real terminals and reduces the "
                 "circuit onto them, so a network of virtual nodes alone has "
                 "nothing for it to drive. Give the design a PortOnWire or "
-                "PortAtVertex terminal, or run it on bspline or PyNEC."
+                "PortAtVertex terminal, or run it on bs2 or PyNEC."
             )
         # A self-tuning tuner (AK#1646, #1661) is tuned here, from this engine's
         # own port admittance; a plain network gets a plain reducer. Shared

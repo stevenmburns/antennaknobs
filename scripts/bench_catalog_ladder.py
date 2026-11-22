@@ -56,10 +56,9 @@ def _load(name):
     return mod
 
 
-# The engine set #1235 names. `razor-nec5` is a deprecated alias of
-# `razor-2p`; both bind RazorSolver's identified two-point quadrature, so the
-# current spelling is used and the alias noted rather than measured twice.
-ENGINES = ("bs2", "bs1", "sin", "razor-2p", "pynec", "nec5")
+# The engine set #1235 names. `razor2p` binds RazorSolver's identified
+# two-point quadrature (its old spelling `razor-nec5` is retired, momwire#2091).
+ENGINES = ("bs2", "bs1", "sin", "razor2p", "pynec", "nec5")
 # The two accelerators are BSplineSolver SUBCLASSES at the same degree, so
 # they are measured against bs2 rather than against each other: same basis,
 # same answer expected, only the matrix representation differs.
@@ -149,7 +148,7 @@ def _build(b, engine, ground):
         )
     if engine == "sin":
         return MomwireEngine(b, solver=SinusoidalSolver, ground=ground)
-    if engine == "razor-2p":
+    if engine == "razor2p":
         return MomwireEngine(
             b,
             solver=RazorSolver,

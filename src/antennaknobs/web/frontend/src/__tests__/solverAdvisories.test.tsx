@@ -20,7 +20,7 @@ const SURFACE = {
 };
 const FARMESH = {
   category: "RazorFarMeshClass",
-  text: "razor-2p is first order in the far mesh: its default-mesh answer is not converged.",
+  text: "razor2p is first order in the far mesh: its default-mesh answer is not converged.",
 };
 const COARSE = {
   category: "CoarseCrossingNode",
@@ -57,7 +57,7 @@ describe("SolverAdvisories", () => {
   });
 
   it("collapses the unconditional far-mesh one behind a count", () => {
-    // It fires on EVERY razor-2p solve by momwire's design — no solve-free
+    // It fires on EVERY razor2p solve by momwire's design — no solve-free
     // predictor of the error correlates, so there is no honest threshold.
     render(<SolverAdvisories advisories={[FARMESH]} />);
     expect(screen.queryByText(/first order in the far mesh/)).toBeNull();
@@ -74,7 +74,7 @@ describe("SolverAdvisories", () => {
   });
 
   it("never collapses a deck-conditional one alongside it", () => {
-    // The whole ranking exists for this case: on a razor-2p solve of a
+    // The whole ranking exists for this case: on a razor2p solve of a
     // surface deck, the unconditional advisory must not bury the one that
     // says something about THIS deck.
     render(<SolverAdvisories advisories={[FARMESH, SURFACE]} />);
@@ -146,7 +146,7 @@ describe("SolverAdvisories", () => {
   });
 
   it("gives the collapsed far-mesh advisory its summary too", async () => {
-    const far = { ...FARMESH, summary: "razor-2p's answer keeps moving as segments are added." };
+    const far = { ...FARMESH, summary: "razor2p's answer keeps moving as segments are added." };
     render(<SolverAdvisories advisories={[far]} />);
     expect(screen.queryByText(/keeps moving/)).toBeNull();
     await userEvent.click(screen.getByRole("button", { name: /convergence advisory/ }));

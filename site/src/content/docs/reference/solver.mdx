@@ -26,7 +26,7 @@ family's own degree-1 case already uses:
 - **sinusoidal** — a NEC-2-style three-term basis, point-matched like NEC-2;
   useful as a cross-validator (it tracks PyNEC closely because it shares both
   the basis and the point matching),
-- **sinusoidal-galerkin** — the same three-term basis with Galerkin
+- **sg** — the same three-term basis with Galerkin
   (integrated) test rows: exactly reciprocal Z by construction, markedly
   faster reactance convergence on junction-heavy geometry, and junction-node
   ports (free space; PEC since momwire#191). It exists so basis effects and
@@ -39,7 +39,7 @@ family's own degree-1 case already uses:
   It is the "feed model" control in the Sin-Galerkin slot's gear menu (the
   B-spline family carries the same control, defaulting to *Converged*), and
   the workbench is the only place it is offered: the CLI and both momwire
-  portals carry one `sinusoidal-galerkin` name, and it is the converged
+  portals carry one `sg` name, and it is the converged
   one (momwire#654). Reach for *NEC-compatible* when you want NEC's
   source specifically — but for cross-checking against NEC, prefer
   `momwire:sinusoidal`, which is NEC-2's whole formulation rather than
@@ -69,25 +69,24 @@ solver publishes its remainder residual as a diagnostic and falls back to
 the dense fill when the miss is gross, but no threshold separates the good
 decks from the bad, so no bar is applied: the accelerated lanes are for
 large problems the dense solver cannot hold, and a number you intend to
-quote comes from the dense `bspline` lane (decision 2026-09-10).
+quote comes from the dense `bs2` lane (decision 2026-09-10).
 
 And one **formulation twin**:
 
-- **`razor-2p`** — a tent basis tested by NEC-5's own razor-blade rule
+- **`razor2p`** — a tent basis tested by NEC-5's own razor-blade rule
   rather than point matching or Galerkin testing — see below.
 
 ## Razor: the NEC-5 formulation twin
 
-`razor-2p` is `RazorSolver`'s only `--basis` roster name (`razor-nec5` is
-its deprecated spelling) — the way `bspline-d1` is `BSplineSolver` on a
-bound degree. Unknowns are the same interior-knot tent basis `bspline-d1`
+`razor2p` is `RazorSolver`'s only `--basis` roster name — the way `bs1` is `BSplineSolver` on a
+bound degree. Unknowns are the same interior-knot tent basis `bs1`
 uses, but the row equations come straight from the public NEC-5 manual's
 mixed-potential method — the E-field boundary condition enforced on *path
 integrals* between element centroids ("razor-blade" testing), not point
 matching and not Galerkin testing. That makes it a formulation **twin**: a
 way to reproduce NEC-5's own convergence behaviour, including its
 well-known O(1/N) reactance walk, without the licensed NEC-5 binary.
-`razor-2p` binds NEC-5's identified quadrature rule for the one path
+`razor2p` binds NEC-5's identified quadrature rule for the one path
 integral the manual leaves numerically open (`nec5_quadrature`); the
 class's other quadrature — the default, converged Gauss-Legendre lane — is
 not a `--basis` name. It left the CLI roster in momwire#753 (2026-09-02,
@@ -96,7 +95,7 @@ and is reached only by constructing `RazorSolver(...)` directly; the walk
 it shows is the testing rule's own discretization error rather than a
 quadrature shortfall.
 
-**`razor-2p` is the orderable lane.** It binds the two-point rule
+**`razor2p` is the orderable lane.** It binds the two-point rule
 momwire#316 identified for the testing-path integral, where the
 unrostered Gauss-Legendre lane spends roughly 10× the wall time on
 quadrature nodes for an advantage that has evaporated by N≈192.
@@ -110,14 +109,14 @@ is worth keeping them apart:
   against the licensed binary at 0.003–0.007 Ω across the drop-in's ladder
   (momwire#603). That is the whole reason the lane exists.
 - **It is not converging somewhere different.** The limit it walks toward is
-  the same one `bspline-d2` reaches, and it gets there more slowly — roughly
+  the same one `bs2` reaches, and it gets there more slowly — roughly
   16× the mesh for the same self-convergence on the ByDipole1 ladder. So the
   old name's implication, that this lane is accurate *because* it is NEC-5's,
   is the part that does not survive: it reproduces a formulation, not a
   privileged answer.
 
-If reproducing that formulation is not your question, `bspline-d2` is the
-better answer. `razor-nec5` still works as a deprecated alias.
+If reproducing that formulation is not your question, `bs2` is the
+better answer.
 
 The Gauss-Legendre lane came first — it was built as the twin, before
 momwire#316's residue study identified the two-point quadrature rule that
@@ -127,7 +126,7 @@ rule or NEC-5's quadrature shortcut?", and nothing a model needs, which is
 why momwire#753 (2026-09-02) dropped it from the CLI `--basis` roster —
 reach it by constructing `RazorSolver(...)` directly. It costs about 20×
 the time for that (free space at N=1600, one box, momwire 0.44.0: 20.2 s
-against `razor-2p`'s 0.97 s) and, since momwire#742 gave both lanes the
+against `razor2p`'s 0.97 s) and, since momwire#742 gave both lanes the
 same fill, essentially the same memory (520 MB against 479 MB). At a fine
 mesh the two agree to 0.001 Ω, so the quadrature question it exists to
 answer is a coarse-mesh one. The measured two-lane table lives on
@@ -177,7 +176,7 @@ step — and momwire's sinusoidal basis tracks both sides of the card to 0.5 %
 and 3.1 % respectively.
 
 momwire serves it on six solver families — **`sinusoidal`**,
-**`sinusoidal-galerkin`**, **`bspline`**, **`razor-2p`**, **`hmatrix`** and
+**`sg`**, **`bs2`**, **`razor2p`**, **`hmatrix`** and
 **`arrayblock`** — in free space and over every ground model, at about
 1.0–1.3× the reduced-kernel solve. The Galerkin family joined with momwire
 0.27.0: momwire#246 built its extended kernel, momwire#287 measured the
@@ -189,14 +188,14 @@ than silently:
 - **singular enrichment**, on the bases that otherwise serve EK — the
   enrichment degrees of freedom carry their own quadrature and bypass the
   moment kernels the extended kernel corrects (momwire#249).
-- **a wire below the ground plane**, on every lane but `bspline` — the
+- **a wire below the ground plane**, on every lane but `bs2` — the
   extended kernel has not been measured on a pair of segments spanning two
-  media. From momwire 0.78, `bspline` serves such a deck in part: a pair of
+  media. From momwire 0.78, `bs2` serves such a deck in part: a pair of
   segments both above ground takes the extended kernel, every pair touching a
   buried segment keeps the reduced kernel, and a warning says so once. A deck
   with every wire buried stays on the reduced kernel.
-- **a radius step at a junction** on `sinusoidal-galerkin` — measured
-  divergent; `bspline` and `sinusoidal` serve the step.
+- **a radius step at a junction** on `sg` — measured
+  divergent; `bs2` and `sinusoidal` serve the step.
 
 Three ways to ask for it: the **extended kernel (EK)** check in a solver
 slot's gear menu (per slot, so you can put the same basis and mesh in two
@@ -212,20 +211,20 @@ The extended kernel is itself an expansion, and it runs out where a segment is
 no longer long compared to the wire's radius: its error grows from about 0.2 %
 at a segment three radii long to about 3 % at one radius, so refining a fat
 wire's mesh far enough makes the answer drift instead of settle. The B-spline
-basis (**`bspline`**, degree 2, from momwire 0.76.0) and **`razor-2p`** (from momwire
+basis (**`bs2`**, degree 2, from momwire 0.76.0) and **`razor2p`** (from momwire
 0.77.0) have an **exact ring kernel**: between segments that share a line it integrates the current's
 ring around the tube exactly — across a radius step on that line too, each
 ring on its own wire's surface, from momwire 0.78 — with no expansion, and stays put as the mesh
 goes finer. Where a straight run bends, that pair goes back to the extended
 (or reduced) kernel, a step of about 1e-4 of the answer on a 50 mm wire.
 
-It is **`auto` by default on `bspline` and `razor-2p`**: it engages on its own when some
+It is **`auto` by default on `bs2` and `razor2p`**: it engages on its own when some
 segment is shorter than **3 radii**, and otherwise the solve is exactly what it
 was. The readout's **kernel** row says which kernel ran (**exact ring** when it
 did), and the command line prints a note. To choose it yourself:
 
 - in the workbench, the **exact ring kernel** setting (auto / on / off) in the
-  `bspline` or `razor-2p` slot's gear menu;
+  `bs2` or `razor2p` slot's gear menu;
 - on the command line, `--exact-kernel auto|on|off`.
 
 `on` (or `auto`) on any other basis or engine is refused by name, and `off`
@@ -238,7 +237,7 @@ elements meshed fine; ordinary wire never meets the threshold.
 
 The selection matrix, the runtime findings (the ground-cost ladder, where
 the accelerated engines win and where they lose), the memory envelopes,
-and the fixed-accuracy census verdict behind the `bspline` d=2 default all
+and the fixed-accuracy census verdict behind the `bs2` d=2 default all
 live on momwire's own engine-choice page — one home per fact, keyed to the
 same engine names the workbench's `--basis` control takes:
 
@@ -255,13 +254,13 @@ Two app-side notes the engine page doesn't carry:
   but not universally fast — it loses the log-periodic on every ground
   model (free space: 14 s vs ArrayBlock's 1.2 s), so "use PyNEC as the
   reference" holds for small designs, not arrays.
-- **Junction-port (`PortAtEnd`) designs** accept `sinusoidal-galerkin`,
-  `hmatrix` and `arrayblock` beside the default `bspline` (the two
+- **Junction-port (`PortAtEnd`) designs** accept `sg`,
+  `hmatrix` and `arrayblock` beside the default `bs2` (the two
   accelerators were measured on the Sterba curtain in #1152 and agree with
   the dense parent to machine precision as their tolerances tighten; the
   sin-Galerkin junction ports run in free space and over a PEC ground —
   momwire#191 — with finite grounds still refused). The point-matched
-  sinusoidal and pulse bases and `razor-2p` refuse them, with momwire's
+  sinusoidal and pulse bases and `razor2p` refuse them, with momwire's
   own sentence.
 
 ### OpenNEC (optional)
@@ -406,14 +405,14 @@ above earth, the served impedance moved from 275 Ω and 188 Ω away to
 **12.3 Ω and 5.2 Ω**, the pattern peak now lands in exactly the captured
 direction with the level inside 0.3 dB, and — the tell that matters — two
 different meshes of that one antenna now agree with **each other** to 0.6 Ω
-where they previously disagreed by 100 Ω. Both the default `bspline` lane
+where they previously disagreed by 100 Ω. Both the default `bs2` lane
 and the NEC-5 formulation twin are fixed, so the cross-check at grazing
 height is a genuine second opinion rather than two copies of one bug.
 
 Two things to know about the edges. Standing a wire *in* a finite ground —
 ground **contact**, as distinct from grazing above it — is served over the
-Sommerfeld ground on the `bspline`, `sinusoidal`, `sinusoidal-galerkin` and
-`razor-2p` lanes
+Sommerfeld ground on the `bs2`, `sinusoidal`, `sg` and
+`razor2p` lanes
 ([momwire#624](https://github.com/stevenmburns/momwire/issues/624)), and
 refused by name under the reflection-coefficient ground, whose model has no
 validity at zero clearance. And the
@@ -426,12 +425,12 @@ model; the default solver is unaffected.
 **Below the interface** (momwire ≥ 0.38.0): wires strictly below the ground
 plane — buried radials and screens, buried fed elements, elevated feeds over
 buried counterpoises — serve **impedance, currents and charges**, and
-since antennaknobs v0.80.0 the **radiation pattern**, on the `bspline` lane over the
-Sommerfeld ground, and since momwire 0.52.0 on the `sinusoidal-galerkin`
+since antennaknobs v0.80.0 the **radiation pattern**, on the `bs2` lane over the
+Sommerfeld ground, and since momwire 0.52.0 on the `sg`
 lane as well. The two bases share no fill code below
 the interface, so a buried number now has an in-house second opinion from a
 different formulation rather than a re-run of the same one. Since momwire
-0.62.0 `razor-2p` — the NEC-5 formulation twin — serves buried and crossing
+0.62.0 `razor2p` — the NEC-5 formulation twin — serves buried and crossing
 decks too, and its buried fill is faster and leaner than the earlier lanes'.
 Since momwire
 0.41.0 a wire may also **cross the interface at a declared junction**: a
@@ -447,7 +446,7 @@ momwire 0.56.0 a deck may carry **several** such nodes, so a multi-element
 buried array — two base-fed verticals each over their own screen, say — solves
 instead of being refused on a one-node scope. The
 one spelling that lane refuses by name is N coincident rises meeting at the
-node — the retired `bundle` variant — which stays `bspline`-only; the app
+node — the retired `bundle` variant — which stays `bs2`-only; the app
 greys the tab with momwire's sentence before a solve is attempted. The [design catalog](/reference/catalog/) now authors buried
 geometry directly — a buried-radial vertical, an elevated counterpoise over
 buried radials, and a buried dipole — with their own in-medium meshing
@@ -456,9 +455,9 @@ buried radials, and a buried dipole — with their own in-medium meshing
 What still refuses does so by name: a wire crossing the interface mid-span,
 a ground-contact wire combined with buried wires (the rise respelling is
 the served path), coincident rises meeting at a node on the
-sinusoidal-Galerkin and `razor-2p` lanes, and near fields of buried decks on
+sinusoidal-Galerkin and `razor2p` lanes, and near fields of buried decks on
 the NEC-4.2 slot and the NEC-2 launcher (momwire 0.83 serves them on the NEC-5
-launchers, `bspline` and `razor-2p`, in the soil as well as above it;
+launchers, `bs2` and `razor2p`, in the soil as well as above it;
 [momwire#1659](https://github.com/stevenmburns/momwire/issues/1659)). Validation
 below ground rests on exact identities (the lossless-limit collapse onto
 free space, the deep-burial limit onto the infinite-medium solve) plus

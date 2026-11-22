@@ -34,8 +34,8 @@ import { SERVED_OPTION_SPECS } from "./optionSpecFixtures";
 const NAMES = SERVED_ROSTER.map((b) => b.name);
 
 describe("normalizeBackend", () => {
-  it("maps the retired 'triangular' name to the bspline entry", () => {
-    expect(normalizeBackend("triangular", SERVED_ROSTER, SERVED_ALIASES)).toBe(entry("bspline"));
+  it("maps the retired 'triangular' name to the bs2 entry", () => {
+    expect(normalizeBackend("triangular", SERVED_ROSTER, SERVED_ALIASES)).toBe(entry("bs2"));
   });
 
   it("resolves every served name to its own entry", () => {
@@ -92,7 +92,7 @@ describe("defaultOptsFor", () => {
       nec2_end_cap: false,
     });
     expect(
-      defaultOptsFor(entry("sinusoidal-galerkin"), SERVED_OPTION_SPECS).model
+      defaultOptsFor(entry("sg"), SERVED_OPTION_SPECS).model
         .feed_model,
     ).toBe("point");
     expect(opts.nPerWire).toBe(21);
@@ -112,9 +112,9 @@ describe("defaultOptsFor", () => {
     // measurement (test_backend_model_kwargs_1006.py) and it is the fact the
     // `panel` hint could never express, since it named a panel rather than a
     // set of knobs.
-    const bspline = defaultOptsFor(entry("bspline"), SERVED_OPTION_SPECS).model;
-    expect(Object.keys(bspline)).toContain("degree");
-    expect(Object.keys(bspline)).not.toContain("n_qp_const");
+    const bs2 = defaultOptsFor(entry("bs2"), SERVED_OPTION_SPECS).model;
+    expect(Object.keys(bs2)).toContain("degree");
+    expect(Object.keys(bs2)).not.toContain("n_qp_const");
     const sin = defaultOptsFor(entry("sinusoidal"), SERVED_OPTION_SPECS).model;
     expect(Object.keys(sin)).toContain("n_qp_const");
     expect(Object.keys(sin)).not.toContain("degree");
@@ -154,10 +154,10 @@ describe("defaultOptsFor", () => {
 describe("slotFromSeed / defaultSlots", () => {
   it("resolves the stock A/B/C seeds against the full roster", () => {
     const slots = defaultSlots(SERVED_ROSTER, SERVED_OPTION_SPECS, SERVED_SLOT_SEEDS);
-    expect(slots.A.backend).toBe(entry("bspline"));
+    expect(slots.A.backend).toBe(entry("bs2"));
     expect(slots.A.opts.nPerWire).toBe(15);
     expect(slots.A.opts.model.degree).toBe(2);
-    expect(slots.B.backend).toBe(entry("bspline"));
+    expect(slots.B.backend).toBe(entry("bs2"));
     expect(slots.B.opts.nPerWire).toBe(20);
     expect(slots.B.opts.model.degree).toBe(1);
     expect(slots.C.backend).toBe(entry("pynec"));
@@ -173,7 +173,7 @@ describe("slotFromSeed / defaultSlots", () => {
 
   it("applies the seed's deviations without mutating the served defaults", () => {
     const seeded = slotFromSeed(
-      { backend: "bspline", model: { degree: 1 } },
+      { backend: "bs2", model: { degree: 1 } },
       SERVED_ROSTER,
       SERVED_OPTION_SPECS,
     );
@@ -182,7 +182,7 @@ describe("slotFromSeed / defaultSlots", () => {
     // to it would silently re-default every OTHER slot.
     expect(SERVED_OPTION_SPECS.degree.default).toBe(2);
     expect(
-      defaultOptsFor(entry("bspline"), SERVED_OPTION_SPECS).model.degree,
+      defaultOptsFor(entry("bs2"), SERVED_OPTION_SPECS).model.degree,
     ).toBe(2);
   });
 
@@ -228,13 +228,13 @@ describe("comboInappropriate", () => {
     ["sinusoidal", "sinusoidal", false],
     ["sinusoidal", null, false],
 
-    ["sinusoidal-galerkin", "arrayblock", true],
-    ["sinusoidal-galerkin", "sinusoidal", true],
-    ["sinusoidal-galerkin", null, false],
+    ["sg", "arrayblock", true],
+    ["sg", "sinusoidal", true],
+    ["sg", null, false],
 
-    ["bspline", "arrayblock", true],
-    ["bspline", "sinusoidal", true],
-    ["bspline", null, false],
+    ["bs2", "arrayblock", true],
+    ["bs2", "sinusoidal", true],
+    ["bs2", null, false],
 
     ["hmatrix", "arrayblock", false],
     ["hmatrix", "sinusoidal", true],
@@ -272,14 +272,14 @@ describe("backendAllowed", () => {
   });
 
   it("restricts to exactly the members of a given allowlist", () => {
-    const required = ["bspline"];
+    const required = ["bs2"];
     for (const b of SERVED_ROSTER) {
-      expect(backendAllowed(b, required)).toBe(b.name === "bspline");
+      expect(backendAllowed(b, required)).toBe(b.name === "bs2");
     }
   });
 
   it("supports a multi-backend allowlist (junction-port designs)", () => {
-    const required = ["bspline", "sinusoidal-galerkin"];
+    const required = ["bs2", "sg"];
     for (const b of SERVED_ROSTER) {
       expect(backendAllowed(b, required)).toBe(required.includes(b.name));
     }
@@ -291,7 +291,7 @@ describe("backendSupportsGround / backendSupportsTerrain", () => {
   // bespoke component; the knobs come from the served catalogue now, so
   // there is nothing for the predicate to answer. The expectation table it
   // needed — and the completeness guard that table required, added when
-  // `razor-2p` turned out to be missing from both — go with it.
+  // `razor2p` turned out to be missing from both — go with it.
 
 
 
@@ -320,9 +320,9 @@ describe("backendDisplayLabel", () => {
   };
 
   it("carries the spline degree for every backend on the b-spline panel", () => {
-    expect(withDegree("bspline", 2)).toBe("B-spline d=2");
-    expect(withDegree("bspline", 1)).toBe("B-spline d=1");
-    expect(withDegree("bspline", 3)).toBe("B-spline d=3");
+    expect(withDegree("bs2", 2)).toBe("B-spline d=2");
+    expect(withDegree("bs2", 1)).toBe("B-spline d=1");
+    expect(withDegree("bs2", 3)).toBe("B-spline d=3");
     expect(withDegree("hmatrix", 2)).toBe("H-matrix (ACA) d=2");
     expect(withDegree("arrayblock", 1)).toBe("Array-block d=1");
   });
@@ -330,8 +330,8 @@ describe("backendDisplayLabel", () => {
   it('suffixes "(NEC gap)" for the sin-galerkin panel with the segment feed model', () => {
     expect(
       backendDisplayLabel(
-        entry("sinusoidal-galerkin"),
-        optsWithModel("sinusoidal-galerkin", { feed_model: "segment" }),
+        entry("sg"),
+        optsWithModel("sg", { feed_model: "segment" }),
       ),
     ).toBe("Sin-Galerkin (NEC gap)");
   });
@@ -340,9 +340,9 @@ describe("backendDisplayLabel", () => {
   // momwire#654: the point gap is the solver's default now, so a plain chip
   // is the converged one.
   it("stays plain for the sin-galerkin panel with the default point feed model", () => {
-    const opts = defaultOptsFor(entry("sinusoidal-galerkin"), SERVED_OPTION_SPECS);
+    const opts = defaultOptsFor(entry("sg"), SERVED_OPTION_SPECS);
     expect(opts.model.feed_model).toBe("point");
-    expect(backendDisplayLabel(entry("sinusoidal-galerkin"), opts)).toBe(
+    expect(backendDisplayLabel(entry("sg"), opts)).toBe(
       "Sin-Galerkin",
     );
   });
@@ -371,8 +371,8 @@ describe("backendDisplayLabel", () => {
         optsWithModel(name, { extended_kernel: true, ...over }),
       );
     expect(ek("sinusoidal")).toBe("Sinusoidal +EK");
-    expect(ek("bspline")).toBe("B-spline d=2 +EK");
-    expect(ek("bspline", { degree: 1 })).toBe("B-spline d=1 +EK");
+    expect(ek("bs2")).toBe("B-spline d=2 +EK");
+    expect(ek("bs2", { degree: 1 })).toBe("B-spline d=1 +EK");
     expect(ek("hmatrix")).toBe("H-matrix (ACA) d=2 +EK");
     expect(ek("arrayblock")).toBe("Array-block d=2 +EK");
   });
@@ -380,14 +380,14 @@ describe("backendDisplayLabel", () => {
   it("leaves the label alone when the kernel is off or refused", () => {
     // Off: the default, and the other half of every A/B pair.
     expect(
-      backendDisplayLabel(entry("bspline"), defaultOptsFor(entry("bspline"), SERVED_OPTION_SPECS)),
+      backendDisplayLabel(entry("bs2"), defaultOptsFor(entry("bs2"), SERVED_OPTION_SPECS)),
     ).toBe("B-spline d=2");
     // Served on Galerkin since momwire 0.27.0 — the flag on that slot IS a
     // running kernel now, and the chip says so.
     expect(
       backendDisplayLabel(
-        entry("sinusoidal-galerkin"),
-        optsWithModel("sinusoidal-galerkin", {
+        entry("sg"),
+        optsWithModel("sg", {
           feed_model: "segment",
           extended_kernel: true,
         }),

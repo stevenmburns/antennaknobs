@@ -36,6 +36,7 @@ from .vna import DRIVERS, VNAError, capture, list_candidate_ports
 from .user_designs import USER_NS, iter_design_files, resolve_user_design
 
 from . import momwire_bases
+from .engine_names import RetiredEngineName
 
 import argparse
 import contextlib
@@ -76,8 +77,8 @@ if probe_nec42() is not None:
 
 # The CLI's view of `momwire_bases`, the one roster the app and the density
 # table share (AK#1560): roster names that bind nothing map to their class,
-# and every name that binds kwargs — a roster name such as `razor-2p` or a
-# CLI alias such as `bspline-d1` — to (class, kwargs). Derived, never edited
+# and every name that binds kwargs — a roster name such as `razor2p` or a
+# CLI alias such as `bs1` — to (class, kwargs). Derived, never edited
 # here; `keep.engine_of` and the tests read them under these names.
 MOMWIRE_BASES = {
     name: b.solver for name, b in momwire_bases.BASES.items() if not b.bound
@@ -654,11 +655,13 @@ def parse_engine_spec(spec):
     """Parse an engine spec into (engine_name, kwargs_to_bind).
 
     Forms: "pynec", "momwire", and "momwire:<basis>" for every name in
-    `momwire_bases` (its roster and the CLI's aliases): `bspline-d1` is
-    bspline with degree=1 bound (issue #821); `razor-2p` binds RazorSolver's
-    identified quadrature (`razor-nec5` is the deprecated spelling of the same
-    binding). Plain `razor` is off the roster (momwire#753) and always raises
-    the unknown-basis error.
+    `momwire_bases` (its roster and the CLI's aliases): `bs1` is
+    bs2 with degree=1 bound (issue #821); `razor2p` binds RazorSolver's
+    identified quadrature. A spelling momwire#2091 renamed (`bspline`,
+    `bspline-d1`, `sinusoidal-galerkin`, `razor-2p`) parses as the name it now
+    is; `razor-nec5`, retired, is refused by name, as momwire refuses it.
+    Plain `razor` is off the roster (momwire#753) and always raises the
+    unknown-basis error.
     """
     name, _, basis = spec.partition(":")
     if name not in ENGINE_CLASSES:
@@ -669,7 +672,10 @@ def parse_engine_spec(spec):
         raise argparse.ArgumentTypeError(
             f"engine {name!r} does not accept a basis suffix (got {basis!r})"
         )
-    found = momwire_bases.resolve(basis)
+    try:
+        found = momwire_bases.resolve(basis)
+    except RetiredEngineName as exc:
+        raise argparse.ArgumentTypeError(str(exc)) from None
     if found is None:
         raise argparse.ArgumentTypeError(
             f"unknown momwire basis {basis!r}; available: "
@@ -688,7 +694,7 @@ def engine_density(engine_spec):
     (`AntennaBuilder.FRAMEWORK_PARAMS`, 21) stands.
 
     A BARE `momwire` resolves to None deliberately, even though it solves on
-    the same B-spline class `momwire:bspline` names. `momwire` is the CLI's
+    the same B-spline class `momwire:bs2` names. `momwire` is the CLI's
     DEFAULT engine, so a density on it would re-mesh every command line that
     names no engine at all — the catalog runs and every published number with
     them. Naming the basis is what asks for the basis's density.
@@ -698,11 +704,14 @@ def engine_density(engine_spec):
         return default_nsegs(name)
     if not basis:
         return None
-    found = momwire_bases.resolve(basis)
+    try:
+        found = momwire_bases.resolve(basis)
+    except RetiredEngineName:
+        return None
     if found is None:
         return None
     # A CLI alias is a spelling of its roster name's ENGINE, so it reads that
-    # row rather than growing one (#1543); `bspline-d1` reads its degree's.
+    # row rather than growing one (#1543); `bs1` reads its degree's.
     roster, _cls, kwargs = found
     return default_nsegs(roster, degree=kwargs.get("degree"))
 
@@ -749,7 +758,7 @@ def _mesh_at(factory, n):
 class _EngineFactory(partial):
     """`partial` over an engine class whose call MERGES a caller's
     ``solver_kwargs`` with the ones the engine spec bound, instead of
-    replacing them. A roster name such as ``momwire:razor-2p`` binds its
+    replacing them. A roster name such as ``momwire:razor2p`` binds its
     basis's kwargs (``nec5_quadrature``) as ``solver_kwargs``; plain
     `partial` let ``factory(builder, solver_kwargs=...)`` (``None``, ``{}``
     or an unrelated option) silently drop them, solving a different basis
@@ -997,9 +1006,9 @@ def deck_extended_kernel_flag(builder_cls):
 _ECHOED = ("FeedPlacement", "ExtendedKernel")
 # momwire's deck-specific advisories echo their plain-words summary (AK#1981):
 # before it, the engine captured them and a command printed nothing at all.
-# RazorFarMeshClass is left out because it fires on every razor-2p solve.
+# RazorFarMeshClass is left out because it fires on every razor2p solve.
 # ExtendedKernelAboveGround takes the place of the "ExtendedKernel" fallback
-# note on a buried deck solved with B-spline (momwire 0.78) or razor-2p
+# note on a buried deck solved with B-spline (momwire 0.78) or razor2p
 # (momwire 0.82).
 _ECHOED_SUMMARY = (
     "CoarseCrossingNode",
@@ -1219,20 +1228,18 @@ def cli(arguments=None):
                 help="One or more simulation backends. Each spec is "
                 f'"{_MOMWIRE_SPEC_HELP}", '
                 '"pynec", "opennec", "nec5", "nec2", or "nec42". sinusoidal is NEC-2\'s own formulation; '
-                "sinusoidal-galerkin is the same basis tested variationally "
-                "and with the point-gap feed model. bspline-d1 is bspline "
-                "with degree=1 (tent basis) "
-                "instead of the default degree=2. razor-2p is a tent basis "
+                "sg is the same basis tested variationally "
+                "and with the point-gap feed model. bs2 is the B-spline "
+                "at degree 2, the default, and bs1 the same at degree=1 "
+                "(tent basis). razor2p is a tent basis "
                 "tested by NEC-5's own razor-blade rule (razor-blade "
-                "testing) with its identified quadrature bound "
-                "(razor-nec5 is the deprecated spelling of the same "
-                "binding); plain razor (converged Gauss-Legendre "
+                "testing) with its identified quadrature bound; plain razor (converged Gauss-Legendre "
                 "quadrature) is off the roster (momwire#753) — construct "
                 "RazorSolver(...) directly for that lane. See "
                 "docs/reference/solver for the measured guidance. "
                 "nec5 drives a licensed LOCAL NEC-5 binary and joins the "
                 "roster only when $NEC5_EXE points at one — the real "
-                "engine, not momwire:razor-2p, which is momwire's "
+                "engine, not momwire:razor2p, which is momwire's "
                 "independently written formulation twin. nec2 does the same "
                 "for a NEC-2 console binary through $NEC2_EXE (nec2c, "
                 "nec2++, or 4nec2's nec2dxs*.exe): the same physics as "
@@ -1264,14 +1271,13 @@ def cli(arguments=None):
                 help=f"Simulation backend: {_MOMWIRE_SPEC_HELP} | "
                 "pynec | opennec | nec5 | nec2 | nec42 (default: momwire). sinusoidal is "
                 "NEC-2's own "
-                "formulation; sinusoidal-galerkin is the same basis tested "
+                "formulation; sg is the same basis tested "
                 "variationally and with the point-gap feed model. "
-                "bspline-d1 is bspline with "
-                "degree=1 (tent basis) instead of the default degree=2. "
-                "razor-2p is a tent basis tested by NEC-5's own "
-                "razor-blade rule with its identified quadrature bound "
-                "(razor-nec5 is the deprecated spelling of the same "
-                "binding); plain razor (converged Gauss-Legendre "
+                "bs2 is the B-spline at degree 2, the default, and bs1 "
+                "the same at degree=1 (tent basis). "
+                "razor2p is a tent basis tested by NEC-5's own "
+                "razor-blade rule with its identified quadrature bound; "
+                "plain razor (converged Gauss-Legendre "
                 "quadrature) is off the roster (momwire#753) — construct "
                 "RazorSolver(...) directly for that lane. See "
                 "docs/reference/solver for the measured guidance. "
@@ -1279,7 +1285,7 @@ def cli(arguments=None):
                 "the optional pyopennec one (OpenNEC, NEC-2 again); nec5 drives "
                 "a licensed LOCAL NEC-5 binary and joins the roster only "
                 "when $NEC5_EXE points at one — the real engine, not "
-                "momwire:razor-2p, momwire's independently written "
+                "momwire:razor2p, momwire's independently written "
                 "formulation twin. nec2 drives a NEC-2 console binary "
                 "through $NEC2_EXE (nec2c, nec2++, 4nec2's nec2dxs*.exe) — "
                 "the same physics as pynec without linking to a GPL "
@@ -1355,7 +1361,7 @@ def cli(arguments=None):
             help="Mesh density in segments per quarter-wave at the design "
             "frequency, overriding the engine's own default (issue #1543). "
             "Naming a basis picks that basis's converged density — "
-            "momwire:razor-2p and nec5 at 40, momwire:bspline at 15 (20 at "
+            "momwire:razor2p and nec5 at 40, momwire:bs2 at 15 (20 at "
             "degree 1), pynec/nec2/nec42 at 21 — and a bare --engine momwire keeps "
             "the framework default of 21. A card deck carries its own GW "
             "segment counts, so neither the default nor this flag changes "
@@ -3496,7 +3502,7 @@ def cli(arguments=None):
         raise SystemExit(1) from None
     except NotImplementedError as exc:
         # A momwire engine refusing a request it cannot honour — e.g.
-        # --extended-kernel on sinusoidal-galerkin (momwire#246) — raises
+        # --extended-kernel on sg (momwire#246) — raises
         # this at engine construction (MomwireEngine._require_extended_kernel,
         # issue #849) with a message that already names the problem; print
         # it instead of a traceback, same convention as the other clean

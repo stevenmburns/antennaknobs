@@ -186,7 +186,7 @@
       "z0": 50.0,
       "curves": [
         {
-          "label": "momwire:bspline",
+          "label": "momwire:bs2",
           "xs": [
             8.0,
             12.0,

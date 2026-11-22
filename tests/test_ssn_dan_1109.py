@@ -123,7 +123,7 @@ def _inline_file(value="47p", pct="41.23"):
     return _ssn(_script(f"$cap = NECSource(C({value}), $GW_1, {pct});"))
 
 
-def _z(cls, engine="momwire:razor-2p", **params) -> complex:
+def _z(cls, engine="momwire:razor2p", **params) -> complex:
     built = cls({**cls.default_params, **params})
     return complex(make_engine_factory(engine, None)(built).impedance()[0])
 
@@ -278,7 +278,7 @@ def test_a_place_on_no_site_is_carried_as_that_fraction():
     assert (port.wire, port.at) == ("w1", 41.23 / 100)
 
 
-@pytest.mark.parametrize("engine", ["momwire:bspline", "momwire:razor-2p"])
+@pytest.mark.parametrize("engine", ["momwire:bs2", "momwire:razor2p"])
 def test_a_place_on_no_site_solves_there_not_at_the_nearest_site(engine):
     assert _lands_at_the_place(engine)
     texts = [
@@ -301,7 +301,7 @@ def test_rounding_the_place_to_a_site_fails_the_check(monkeypatch):
         return replace(deck, loads=tuple(replace(ld, at=None) for ld in deck.loads))
 
     monkeypatch.setattr(simnec_import, "_place_at_knots", rounded)
-    assert not _lands_at_the_place("momwire:bspline")
+    assert not _lands_at_the_place("momwire:bs2")
 
 
 def test_a_source_on_no_site_is_carried_as_that_fraction():
@@ -471,7 +471,7 @@ def test_optimizing_a_file_design_lists_its_knobs_not_an_empty_block(tmp_path, c
             "--builder",
             f"@{path}",
             "--engine",
-            "momwire:razor-2p",
+            "momwire:razor2p",
             "--bands",
             "7.0,7.2",
             "--params",

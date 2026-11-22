@@ -17,7 +17,7 @@ segment CENTRES; a node-addressing dialect addresses KNOTS. Those are the two
 feed-grid cells momwire#611 and momwire#673 added, and the rows that miss each
 grid are disjoint:
 
-    centre_feeds=False  ->  {razor-2p, razor-nec5}   dropped by NEC2_BASES
+    centre_feeds=False  ->  {razor2p}               dropped by NEC2_BASES
     knot_feeds=False    ->  {pulse, sinusoidal}      refused by the node dialect
 
 Neither set contains the other and neither is empty: a family that snaps to one
@@ -43,10 +43,10 @@ distinction matters because a roster is a list someone chose while a per-deck
 refusal is a property of the deck in front of you.
 
 AND ONE ROSTER IS NOT A STATEMENT. antennaknobs' tabs are `BASES` minus
-`{bspline-d1, razor-nec5}` since #1148, and those two exclusions have two
-different NON-AXIS reasons — a deprecated alias and a UI duplicate. No axis
-predicate reproduces the set, and inventing one would encode two interface
-decisions as if they were engine properties. The list is pinned here with its
+`{bs1}`: a UI duplicate, a NON-AXIS reason (momwire#2091 retired the other
+exclusion, the deprecated alias `razor-nec5`, from momwire's roster). No axis
+predicate reproduces the set, and inventing one would encode an interface
+decision as if it were an engine property. The list is pinned here with its
 reasons instead. The third exclusion, `pulse`, had no reason at all; #1148
 closed it, which is what this pin existed to make possible.
 
@@ -70,7 +70,7 @@ import antennaknobs.web.server  # noqa: F401 — resolves the adapter import cyc
 from antennaknobs.web.adapter import _BACKENDS
 from momwire.deck._solver import BASES, NEC2_BASES
 
-_HAS_AXES = "axes" in getattr(BASES["bspline"][0].capabilities, "_fields", ())
+_HAS_AXES = "axes" in getattr(BASES["bs2"][0].capabilities, "_fields", ())
 pytestmark = pytest.mark.skipif(
     not _HAS_AXES, reason="momwire predates #1006 G2-1 (no `axes` capability cell)"
 )
@@ -129,7 +129,7 @@ def test_the_node_dialect_filter_is_knot_feeds_and_the_two_are_mirrors():
     no_knot = {n for n in BASES if not _caps(n).knot_feeds}
     no_centre = {n for n in BASES if not _caps(n).centre_feeds}
     assert no_knot == {"pulse", "sinusoidal"}
-    assert no_centre == {"razor-2p", "razor-nec5"}
+    assert no_centre == {"razor2p"}
     assert not (no_knot & no_centre), "a family that misses BOTH grids"
     # ...and the nec2 roster drops exactly the centre-missers, not the others.
     assert set(BASES) - set(NEC2_BASES) == no_centre
@@ -157,13 +157,13 @@ def test_the_seam_is_a_per_deck_refusal_not_a_roster():
 def test_the_antennaknobs_tab_list_has_no_axis_predicate():
     """Pinned as a LIST with its reasons, because it is not a statement.
 
-    TWO exclusions now, each with a STATED non-axis reason: `razor-nec5` is a
-    deprecated alias of `razor-2p` (a naming fact — two tabs resolving to the
-    identical point in the product space), and `bspline-d1` is the same class
-    under a kwarg the bspline panel already exposes (an interface fact, and a
+    ONE exclusion now, with a STATED non-axis reason: `bs1` is the same class
+    under a kwarg the bs2 panel already exposes (an interface fact, and a
     judgement that belongs to #1006 G2-5 where `degree` becomes a control on
-    the bspline tab). A predicate fitted to this set would still encode both
-    as engine properties, so the list stays a list.
+    the bs2 tab). The other was `razor-nec5`, a deprecated alias of
+    `razor2p`, which momwire#2091 retired from momwire's roster. A predicate
+    fitted to this set would still encode it as an engine property, so the
+    list stays a list.
 
     The third was `pulse`, which had no reason at all — #1006 called it an
     accident. #1148 measured that nothing about it is unserved and gave it a
@@ -172,7 +172,7 @@ def test_the_antennaknobs_tab_list_has_no_axis_predicate():
     drift further. It just was.
     """
     tabs = {b.name for b in _BACKENDS if b.kind == "momwire"}
-    assert set(BASES) - tabs == {"bspline-d1", "razor-nec5"}
+    assert set(BASES) - tabs == {"bs1"}
     assert tabs < set(BASES), "a tab that momwire's roster does not name"
 
 
@@ -192,16 +192,21 @@ def test_every_roster_name_resolves_to_a_point_in_the_space():
 
 
 def test_a_deprecated_alias_resolves_IDENTICALLY_to_what_it_aliases():
-    """`razor-nec5` is the retired spelling of `razor-2p` — one class, one
-    bound kwarg, two names. If a rename ever made them resolve differently,
-    an old URL or saved session would silently mean a different engine, which
-    is precisely what #1006 point 1 promises will not happen."""
+    """Each spelling momwire#2091 renamed (`razor-2p` -> `razor2p`, ...) is
+    one class, one bound kwarg, two names. If a rename ever made them resolve
+    differently, an old saved session or kept file would silently mean a
+    different engine, which is precisely what #1006 point 1 promises will not
+    happen."""
     from momwire._capabilities import axes_for
 
-    old_cls, old_kw = BASES["razor-nec5"]
-    new_cls, new_kw = BASES["razor-2p"]
-    assert old_cls is new_cls and old_kw == new_kw
-    assert axes_for(old_cls.capabilities) == axes_for(new_cls.capabilities)
+    from antennaknobs import momwire_bases
+    from antennaknobs.engine_names import DEPRECATED_NAMES
+
+    for old, new in DEPRECATED_NAMES.items():
+        o_roster, old_cls, old_kw = momwire_bases.resolve(old)
+        n_roster, new_cls, new_kw = momwire_bases.resolve(new)
+        assert (o_roster, old_cls, old_kw) == (n_roster, new_cls, new_kw), old
+        assert axes_for(old_cls.capabilities) == axes_for(new_cls.capabilities)
 
 
 def test_antennaknobs_names_agree_with_the_momwire_names_they_bind():
@@ -284,7 +289,7 @@ def test_the_pulse_tab_actually_solves(ground):
         z = complex(
             MomwireEngine(Builder(), solver=spec.solver, **kwargs).impedance()[0]
         )
-    # Point-matched pulse on a coarse mesh is not bspline; it is a real
+    # Point-matched pulse on a coarse mesh is not bs2; it is a real
     # impedance, which is all this gate claims.
     assert 10.0 < z.real < 500.0, z
     assert abs(z.imag) < 500.0, z

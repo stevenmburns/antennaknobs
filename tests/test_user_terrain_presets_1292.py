@@ -257,7 +257,7 @@ def test_a_built_in_design_solves_on_the_users_terrain(userdir, client):
     req = {
         "geometry": "dipoles.invvee",
         "measurement_freq_mhz": 21.2,
-        "momwire_model": "bspline",
+        "momwire_model": "bs2",
         "az_elev_deg": 15.0,
         "elev_az_deg": 0.0,
         **_req("lake_bluff", edge_m=20.0, drop_m=8.0),

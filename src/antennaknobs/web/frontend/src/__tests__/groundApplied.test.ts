@@ -18,7 +18,7 @@ import { backendEntry, NEC5_REFL_COEF_REFUSAL, ROSTER_WITH_NEC5 } from "./backen
 import { SERVED_OPTION_SPECS } from "./optionSpecFixtures";
 
 const nec5 = ROSTER_WITH_NEC5.find((b) => b.name === "nec5")!;
-const bspline = backendEntry({
+const bs2 = backendEntry({
   ground_applied: { fast: "refl-coef", sommerfeld: "sommerfeld", mininec: "mininec" },
   ground_refusals: {},
 });
@@ -47,7 +47,7 @@ const slot = (over: Partial<GroundSlot> = {}): GroundSlot => ({
 describe("a ground the active solver refuses (AK#1856)", () => {
   it("NEC-5 refuses refl-coef in the served sentence; momwire runs it", () => {
     expect(groundRefusal(slot(), nec5)).toBe(NEC5_REFL_COEF_REFUSAL);
-    expect(groundRefusal(slot(), bspline)).toBeNull();
+    expect(groundRefusal(slot(), bs2)).toBeNull();
     expect(groundRefusal(slot({ method: "sommerfeld" }), nec5)).toBeNull();
     expect(groundRefusal(slot({ method: "mininec" }), nec5)).toBeNull();
   });
@@ -80,7 +80,7 @@ describe("a ground the active solver refuses (AK#1856)", () => {
 describe("what the active solver runs for a ground slot", () => {
   it("a momwire solver without the model runs refl-coef as the PEC image", () => {
     expect(appliedGroundChange(slot(), noRefl)).toBe("PEC image");
-    expect(appliedGroundChange(slot(), bspline)).toBeNull();
+    expect(appliedGroundChange(slot(), bs2)).toBeNull();
     expect(appliedGroundChange(slot({ method: "sommerfeld" }), noRefl)).toBeNull();
   });
 
@@ -92,7 +92,7 @@ describe("what the active solver runs for a ground slot", () => {
 
   it("the tab label carries the change only when there is one", () => {
     expect(groundSlotLabel(slot(), [], noRefl)).toBe("refl-coef → PEC image");
-    expect(groundSlotLabel(slot(), [], bspline)).toBe("refl-coef");
+    expect(groundSlotLabel(slot(), [], bs2)).toBe("refl-coef");
     expect(groundSlotLabel(slot(), [])).toBe("refl-coef");
   });
 });
@@ -115,7 +115,7 @@ describe("the pair line", () => {
 
 describe("a chart whose engines solve one ground differently", () => {
   const backends: Record<string, (typeof ROSTER_WITH_NEC5)[number]> = {
-    A: bspline,
+    A: bs2,
     B: noRefl,
     C: nec5,
   };

@@ -52,25 +52,25 @@ describe("the slot follows the design's kernel", () => {
   });
 
   it("the user's off wins over the default, and the user's on over its absence", () => {
-    const off = { ...stock("bspline"), ekOff: true };
-    expect(extendedKernelActive(entry("bspline"), off, DECK)).toBe(false);
-    const on = optsWithModel("bspline", { extended_kernel: true });
-    expect(extendedKernelActive(entry("bspline"), on, CATALOG)).toBe(true);
+    const off = { ...stock("bs2"), ekOff: true };
+    expect(extendedKernelActive(entry("bs2"), off, DECK)).toBe(false);
+    const on = optsWithModel("bs2", { extended_kernel: true });
+    expect(extendedKernelActive(entry("bs2"), on, CATALOG)).toBe(true);
   });
 
   it("falls back to reduced where the deck refuses it: a radius step at a junction", () => {
     // The sinusoidal Galerkin row: kernel=extended forbids a stepped-radius
-    // junction. Until momwire 0.82 this case was a buried wire on razor-2p.
+    // junction. Until momwire 0.82 this case was a buried wire on razor2p.
     const stepped = { ...DECK, has_stepped_radius_junction: true };
-    const name = "sinusoidal-galerkin";
+    const name = "sg";
     expect(extendedKernelActive(entry(name), stock(name), stepped)).toBe(false);
-    expect(extendedKernelActive(entry("bspline"), stock("bspline"), stepped)).toBe(true);
+    expect(extendedKernelActive(entry("bs2"), stock("bs2"), stepped)).toBe(true);
   });
 
-  it.each(["bspline", "razor-2p", "sinusoidal-galerkin"])(
+  it.each(["bs2", "razor2p", "sg"])(
     "%s: keeps it on beside a buried wire (above-ground wires only)",
     (name) => {
-      // B-spline since momwire 0.78 (momwire#1170), razor-2p since 0.82
+      // B-spline since momwire 0.78 (momwire#1170), razor2p since 0.82
       // (momwire#1614), Sin-Galerkin since 0.83 (momwire#1626): each serves
       // the kernel in part, so no served row forbids it and the deck's
       // default stands.
@@ -102,8 +102,8 @@ describe("the slot follows the design's kernel", () => {
   });
 
   it("says +EK on the chip where the default is in force", () => {
-    expect(backendDisplayLabel(entry("bspline"), stock("bspline"), DECK)).toMatch(/\+EK$/);
-    expect(backendDisplayLabel(entry("bspline"), stock("bspline"), CATALOG)).not.toMatch(
+    expect(backendDisplayLabel(entry("bs2"), stock("bs2"), DECK)).toMatch(/\+EK$/);
+    expect(backendDisplayLabel(entry("bs2"), stock("bs2"), CATALOG)).not.toMatch(
       /\+EK/,
     );
   });
@@ -111,35 +111,35 @@ describe("the slot follows the design's kernel", () => {
 
 describe("what the request says", () => {
   it("leaves the default to the server: no key, as on a catalog design", () => {
-    expect(payload("bspline", stock("bspline"), DECK)).not.toHaveProperty("extended_kernel");
-    expect(payload("bspline", stock("bspline"), CATALOG)).not.toHaveProperty(
+    expect(payload("bs2", stock("bs2"), DECK)).not.toHaveProperty("extended_kernel");
+    expect(payload("bs2", stock("bs2"), CATALOG)).not.toHaveProperty(
       "extended_kernel",
     );
   });
 
   it("sends the user's off against a deck's default, and only there", () => {
-    const off = { ...stock("bspline"), ekOff: true };
-    expect(payload("bspline", off, DECK).extended_kernel).toBe(false);
+    const off = { ...stock("bs2"), ekOff: true };
+    expect(payload("bs2", off, DECK).extended_kernel).toBe(false);
     // A catalog design's request stays byte-identical to before.
-    expect(payload("bspline", off, CATALOG)).toEqual(payload("bspline", stock("bspline"), CATALOG));
+    expect(payload("bs2", off, CATALOG)).toEqual(payload("bs2", stock("bs2"), CATALOG));
   });
 
   it("sends the user's on everywhere", () => {
-    const on = optsWithModel("bspline", { extended_kernel: true });
-    expect(payload("bspline", on, DECK).extended_kernel).toBe(true);
-    expect(payload("bspline", on, CATALOG).extended_kernel).toBe(true);
+    const on = optsWithModel("bs2", { extended_kernel: true });
+    expect(payload("bs2", on, DECK).extended_kernel).toBe(true);
+    expect(payload("bs2", on, CATALOG).extended_kernel).toBe(true);
   });
 });
 
 describe("the gear's EK toggle", () => {
   const EK = /extended kernel \(EK\)/;
 
-  function renderFor(design: DesignConstraintInputs, opts = stock("bspline")) {
+  function renderFor(design: DesignConstraintInputs, opts = stock("bs2")) {
     const onPatch = vi.fn();
     render(
       <BackendConfigModal
         slot="A"
-        backend={entry("bspline")}
+        backend={entry("bs2")}
         backends={SERVED_ROSTER}
         requiredBackends={null}
         design={design}

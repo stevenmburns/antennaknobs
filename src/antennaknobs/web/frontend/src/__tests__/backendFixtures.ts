@@ -46,7 +46,7 @@ export function backendOption(
 
 export function backendEntry(over: Partial<BackendEntry> = {}): BackendEntry {
   return {
-    name: "bspline",
+    name: "bs2",
     label: "B-spline",
     kind: "momwire",
     supports_ground: true,
@@ -76,10 +76,10 @@ export function backendEntry(over: Partial<BackendEntry> = {}): BackendEntry {
 // things to drift. Pinned against the live payload by
 // tests/test_frontend_option_spec_fixture.py.
 //
-// `bspline` alone carries `rotational_symmetry` (#1029): the option is offered
+// `bs2` alone carries `rotational_symmetry` (#1029): the option is offered
 // by capability, on the one backend whose `solve_strategy` axis lists "sector",
 // and the accelerators are excluded by their own capability rows — so the
-// family tuple is the bspline tuple WITHOUT it, the same split the sinusoidal
+// family tuple is the bs2 tuple WITHOUT it, the same split the sinusoidal
 // pair got over `feed_model`.
 const SIN_KWARGS = ["n_qp_const", "extended_kernel", "rotational_symmetry", "pair_reuse", "transmitted_anchors", "point_cplx_staged", "nec2_end_cap"];
 const SIN_GALERKIN_KWARGS = ["n_qp_const", "feed_model", "extended_kernel"];
@@ -118,7 +118,7 @@ export const SERVED_ROSTER: BackendRoster = ([
     options_schema: [backendOption()],
   }),
   backendEntry({
-    name: "sinusoidal-galerkin",
+    name: "sg",
     default_n_per_wire: 20,
     label: "Sin-Galerkin",
     model_kwargs: SIN_GALERKIN_KWARGS,
@@ -130,7 +130,7 @@ export const SERVED_ROSTER: BackendRoster = ([
   // for this family, so the density follows the degree tab. The accelerators
   // below take the same kwargs and deliberately serve no map.
   backendEntry({
-    name: "bspline",
+    name: "bs2",
     label: "B-spline",
     panel: "bspline",
     model_kwargs: BSPLINE_KWARGS,
@@ -171,7 +171,7 @@ export const SERVED_ROSTER: BackendRoster = ([
   // asserted the roster LENGTH, so the missing row cost nothing until a test
   // needed the one tab whose preset pins an axis.
   backendEntry({
-    name: "razor-2p",
+    name: "razor2p",
     label: "Razor (2-point)",
     model_kwargs: RAZOR_KWARGS,
     default_n_per_wire: 40,
@@ -285,13 +285,13 @@ export function optsWithModel(
 export const SERVED_SLOT_SEEDS: ServedSlotSeed[] = [
   {
     "slot": "A",
-    "backend": "bspline",
+    "backend": "bs2",
     "n_per_wire": 15,
     "model": {}
   },
   {
     "slot": "B",
-    "backend": "bspline",
+    "backend": "bs2",
     "n_per_wire": 20,
     "model": {
       "degree": 1
@@ -306,7 +306,7 @@ export const SERVED_SLOT_SEEDS: ServedSlotSeed[] = [
 ];
 
 /** Retired backend names, as served. */
-export const SERVED_ALIASES: Record<string, string> = {"triangular": "bspline"};
+export const SERVED_ALIASES: Record<string, string> = {"triangular": "bs2"};
 
 
 /** The composition line's served vocabulary (#1006 G2-7). Generated; pinned

@@ -767,7 +767,7 @@ def test_acceptance_two_wire_doublet_deck_link(client, fresh_decks):
             "design_freq_mhz": 14.0,
             "measurement_freq_mhz": 14.0,
             "solver": "momwire",
-            "momwire_model": "bspline",
+            "momwire_model": "bs2",
             "ground": False,
             "param": high["param"],
             "values": high["values"][:1],

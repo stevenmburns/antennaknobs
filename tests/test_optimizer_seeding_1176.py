@@ -64,7 +64,7 @@ MOXON_POOR = {"halfdriver": 2.31, "t0_factor": 0.34}
 
 def _moxon(seeded, budget, start=None, seed_state=0):
     ex = server.EXAMPLES["beams.moxon"]
-    base = {"geometry": "beams.moxon", "momwire_model": "bspline"}
+    base = {"geometry": "beams.moxon", "momwire_model": "bs2"}
     base.update(start or MOXON_POOR)
     return optimize(
         base,
@@ -143,7 +143,7 @@ def test_g1176_6_the_answer_is_a_point_that_was_actually_solved():
         )
         return ex.momwire_solve(req)
 
-    base = {"geometry": "beams.moxon", "momwire_model": "bspline", **MOXON_POOR}
+    base = {"geometry": "beams.moxon", "momwire_model": "bs2", **MOXON_POOR}
     res = optimize(
         base, MOXON_FREE, "swr", solve_fn=spy, max_evals=40, seed_surrogate=True
     )
@@ -165,7 +165,7 @@ def test_g1176_7_the_seed_stays_inside_the_bounds():
         seen.append((float(req["halfdriver"]), float(req["t0_factor"])))
         return ex.momwire_solve(req)
 
-    base = {"geometry": "beams.moxon", "momwire_model": "bspline", **MOXON_POOR}
+    base = {"geometry": "beams.moxon", "momwire_model": "bs2", **MOXON_POOR}
     optimize(base, MOXON_FREE, "swr", solve_fn=spy, max_evals=40, seed_surrogate=True)
     hd, t0 = np.array(seen).T
     assert hd.min() >= 2.30 - 1e-9 and hd.max() <= 2.60 + 1e-9
@@ -195,7 +195,7 @@ def test_g1176_8_one_knob_is_skipped():
     a decision rather than an accident."""
     ex = server.EXAMPLES["beams.moxon"]
     res = optimize(
-        {"geometry": "beams.moxon", "momwire_model": "bspline", **MOXON_POOR},
+        {"geometry": "beams.moxon", "momwire_model": "bs2", **MOXON_POOR},
         [MOXON_FREE[0]],
         "swr",
         solve_fn=ex.momwire_solve,

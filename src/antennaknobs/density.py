@@ -10,16 +10,16 @@ This table is the only place those numbers are written down. The web roster
 (``web/adapter.py``'s ``default_n_per_wire``) and the CLI both read it, so a
 density quoted from the app and the same density quoted from a command line
 cannot drift apart — before #1543 they were two tables and the CLI's was
-empty, which is how the app's razor-2p tab came to run at 15.
+empty, which is how the app's razor2p tab came to run at 15.
 
-Keys are the ROSTER names. The CLI's extra spellings (``bspline-d1``,
-``razor-nec5``) resolve to a key here rather than growing a row, because they
-are spellings of the same engine and a second row would be a second number to
-move.
+Keys are the ROSTER names. The CLI's extra spelling (``bs1``) and the
+spellings momwire#2091 renamed (``bspline``, ``razor-2p``, ...) resolve to a key
+here rather than growing a row, because they are spellings of the same engine
+and a second row would be a second number to move.
 
 WHERE EACH NUMBER COMES FROM
 
-- ``bspline`` is per DEGREE, and only bspline is: the degree IS the basis, and
+- ``bs2`` is per DEGREE, and only bs2 is: the degree IS the basis, and
   the basis is what sets the density. d=2 at 15 and d=1 at 20 are the
   basis-convergence census (docs/status/2026-07-20) — within 2% of the
   basis-agreed limit on 50/66 scorable designs at d=2, with d=1 needing the
@@ -38,11 +38,11 @@ WHERE EACH NUMBER COMES FROM
   floor of what it can adjudicate at this density (admissible rows fell
   158 to 140 as the errors shrank), so saying more needs a deeper
   reference. Even, so a centre-fed wire keeps a knot at its middle.
-- ``razor-2p`` and ``nec5`` at 40: one number for the two first-order
+- ``razor2p`` and ``nec5`` at 40: one number for the two first-order
   engines, so an A/B between momwire's formulation twin and the licensed
-  binary is not also an A/B on the mesh. It is higher than bspline's because
+  binary is not also an A/B on the mesh. It is higher than bs2's because
   both engines converge at FIRST order in the segment count (the #1525
-  density ladder: razor-2p's fitted order is ~0.9 against bs2 refined to 160
+  density ladder: razor2p's fitted order is ~0.9 against bs2 refined to 160
   per wire; on ΔΓ, the metric the July corpus benchmark scores on, its
   median at 40 is 0.0129 against bs2@160 where d=2 at 15 reads 0.0037 —
   AK#1553's re-cut), where bs2 is within a few percent of its limit at 15. EVEN because both want a source at a segment
@@ -52,7 +52,7 @@ WHERE EACH NUMBER COMES FROM
   (``AntennaBuilder.FRAMEWORK_PARAMS``), odd for the same feed-knot reason.
 - ``sinusoidal`` at 21: it is NEC-2's own basis, so it meshes as ``nec2`` and
   ``pynec`` do and an A/B across the three is not an A/B on the mesh.
-  ``sinusoidal-galerkin`` at 20 (both decided 2026-09-16 on #1543).
+  ``sg`` at 20 (both decided 2026-09-16 on #1543).
 - ``pulse`` at 41: a pulse row IS a segment, so the basis is odd-parity like
   ``nec2``'s, and it wants the denser mesh of a first-order basis (decided
   2026-09-16 on #1543).
@@ -66,15 +66,17 @@ meshes exactly as it did before #1543.
 
 from collections.abc import Mapping
 
+from .engine_names import canonical_model
+
 # Engine/roster name -> segments per quarter-wave at design_freq.
 DEFAULT_NSEGS: Mapping[str, int] = {
     "sinusoidal": 21,
-    "sinusoidal-galerkin": 20,
-    "bspline": 15,
+    "sg": 20,
+    "bs2": 15,
     "pulse": 41,
     "hmatrix": 30,
     "arrayblock": 21,
-    "razor-2p": 40,
+    "razor2p": 40,
     "pynec": 21,
     # OpenNEC is NEC-2 again (pyopennec), so it meshes as pynec and nec2 do.
     "opennec": 21,
@@ -95,7 +97,7 @@ DEFAULT_NSEGS: Mapping[str, int] = {
 # they are accelerators chosen for SIZE, and no census has measured a
 # per-degree density for them, so they keep one number across the tab.
 NSEGS_BY_DEGREE: Mapping[str, Mapping[int, int]] = {
-    "bspline": {1: 20, 2: 15, 3: 16},
+    "bs2": {1: 20, 2: 15, 3: 16},
 }
 
 
@@ -105,8 +107,10 @@ def default_nsegs(name: str, *, degree: int | None = None) -> int | None:
     None means "no antennaknobs opinion" and never 0 — the caller keeps the
     Builder framework default. A `degree` this engine has no per-degree row
     for falls back to its flat entry rather than to None, so an engine that
-    merely ACCEPTS a degree keeps one density across it.
+    merely ACCEPTS a degree keeps one density across it. A deprecated
+    spelling reads its canonical name's row.
     """
+    name = canonical_model(name)
     by_degree = NSEGS_BY_DEGREE.get(name)
     if by_degree is not None and degree is not None and degree in by_degree:
         return by_degree[degree]

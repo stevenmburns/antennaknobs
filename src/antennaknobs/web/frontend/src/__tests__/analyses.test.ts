@@ -168,7 +168,7 @@ describe("parseAnalyses", () => {
             param: "n_per_wire",
             values: [8, 12],
             log: true,
-            engines: ["momwire:bspline", "nec5"],
+            engines: ["momwire:bs2", "nec5"],
             grounds: ["finite:13,0.005"],
             note: null,
           },
@@ -189,7 +189,7 @@ describe("parseAnalyses", () => {
       ],
     });
     expect(got[0].workbench).toMatchObject({
-      engines: ["momwire:bspline", "nec5"],
+      engines: ["momwire:bs2", "nec5"],
       grounds: ["finite:13,0.005"],
     });
     expect(got[1].workbench).toMatchObject({ engines: null, grounds: null });
@@ -205,7 +205,7 @@ describe("parseAnalyses", () => {
             param: "n_per_wire",
             values: [8, 12],
             log: true,
-            engines: ["momwire:bspline"],
+            engines: ["momwire:bs2"],
             grounds: null,
             axes: ["designs", "engines", "bogus"],
             planes: [{ name: "rig", refused: null }, { name: "x", refused: "no plane 'x'" }],

@@ -321,7 +321,7 @@ export const SERVED_OPTION_SPECS: ModelOptionSpecs =
     "gate_label": null,
     "gate_on_value": null,
     "shown_when_value": null,
-    "description": "On a deck where a wire crosses the ground, fill the above-ground pairs with the rule used when nothing crosses, keeping the finer rule next to the crossing. Helps nec5-bspline and nec42-bspline when most of the antenna is above ground. Measured to move the input impedance by at most 3e-8 relative. Results change only in the last digits."
+    "description": "On a deck where a wire crosses the ground, fill the above-ground pairs with the rule used when nothing crosses, keeping the finer rule next to the crossing. Helps nec5-bs2 and nec42-bs2 when most of the antenna is above ground. Measured to move the input impedance by at most 3e-8 relative. Results change only in the last digits."
   },
   "kcl_nullspace": {
     "kind": "bool",
@@ -332,7 +332,7 @@ export const SERVED_OPTION_SPECS: ModelOptionSpecs =
     "gate_label": null,
     "gate_on_value": null,
     "shown_when_value": null,
-    "description": "Solve nec5-bspline's and nec42-bspline's junction conservation by eliminating one wire end per junction before the factor, instead of carrying the constraints through the solve. Fewer unknowns and no extra solves on junction-dense designs (coils, cages, grids). Results change only in the last digits."
+    "description": "Solve nec5-bs2's and nec42-bs2's junction conservation by eliminating one wire end per junction before the factor, instead of carrying the constraints through the solve. Fewer unknowns and no extra solves on junction-dense designs (coils, cages, grids). Results change only in the last digits."
   },
   "nec2_end_cap": {
     "kind": "bool",

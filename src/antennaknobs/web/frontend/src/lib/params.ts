@@ -187,7 +187,7 @@ export type ExampleDescriptor = {
   default_backend: string | null;
   /** Backend allowlist when the design is restricted to specific solvers,
    *  else null. Today: designs with PortAtEnd junction ports report
-   *  ["bspline"] — only the dense B-spline solver implements junction
+   *  ["bs2"] — only the dense B-spline solver implements junction
    *  ports (momwire#172), and NEC-2 has no equivalent card (issue #579).
    *  Derived server-side from the design's network spec. The UI disables
    *  the other backend tabs and withholds the solve with a hard (not

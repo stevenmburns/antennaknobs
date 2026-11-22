@@ -33,7 +33,7 @@ def _kept(client, text: str, model_options: dict | None):  # noqa: F811 — the 
     body = {
         "geometry": opened["key"],
         "solver": "momwire",
-        "momwire_model": "bspline",
+        "momwire_model": "bs2",
         "n_per_wire": 40,
         "ground": False,
         "design_freq_mhz": 28.0,
@@ -73,7 +73,7 @@ def test_a_kept_nec5_deck_with_ek_off_says_so_and_the_run_reproduces_it(
     z_web, cell, notes = _kept(client, text, {"extended_kernel": False})
     (note,) = [n for n in notes if _FLAG in n]
     assert "extended kernel off" in note
-    assert cell.engine == "momwire:bspline"
+    assert cell.engine == "momwire:bs2"
     followed = _run_z(tmp_path, capsys, text, cell, _FLAG)
     # To the sweep table's printed precision (two to three decimals).
     assert abs(followed - z_web) < 5e-3, (followed, z_web)

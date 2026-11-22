@@ -1,5 +1,5 @@
 {
-"about": "E2's tuning-map grid (docs/design/sweep-framework-examples.md), as scratch/sweep-examples/ex2_tuning.py computed it on antennaknobs 0.90.0 / momwire 0.66.0: dipoles.invvee, momwire:bspline at the design's own nominal_nsegs (21), average ground finite:13,0.005 (Sommerfeld-Norton), 28.47 MHz. Z[j][i] is at ANG[j], LF[i].",
+"about": "E2's tuning-map grid (docs/design/sweep-framework-examples.md), as scratch/sweep-examples/ex2_tuning.py computed it on antennaknobs 0.90.0 / momwire 0.66.0: dipoles.invvee, momwire:bs2 at the design's own nominal_nsegs (21), average ground finite:13,0.005 (Sommerfeld-Norton), 28.47 MHz. Z[j][i] is at ANG[j], LF[i].",
 "LF": [
 0.9,
 0.905,

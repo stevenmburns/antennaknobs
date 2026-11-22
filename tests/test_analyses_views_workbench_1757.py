@@ -4,7 +4,7 @@ Table, as ``antennaknobs analyze`` does.
 
 Each is the SERVED solve (the request the analysis chart sends, built from
 what ``/analyses`` served) against the CLI's ``analyze`` on the same
-analysis, both in free space on momwire:bspline at one pinned density:
+analysis, both in free space on momwire:bs2 at one pinned density:
 
 - R/X against frequency: the chart's grid for the served range (lib/sweep.ts
   `sweepGrid` on `specRange`, re-derived here) is the CLI's grid, and the
@@ -46,11 +46,11 @@ ORACLE = (
 )
 SOLVE = {
     "solver": "momwire",
-    "momwire_model": "bspline",
+    "momwire_model": "bs2",
     "n_per_wire": 15,
     "ground": False,
 }
-CLI_SOLVE = ["--ground", "free", "--engine", "momwire:bspline", "--nominal-nsegs", "15"]
+CLI_SOLVE = ["--ground", "free", "--engine", "momwire:bs2", "--nominal-nsegs", "15"]
 
 
 @pytest.fixture(scope="module")
@@ -278,7 +278,7 @@ def _table_cases(monkeypatch, client, capsys, tmp_path) -> list[dict]:
     ladder = an.convergence(
         name="table ladder",
         sweep=an.Sweep(an.DENSITY, values=(8, 12, 17)),
-        cross=an.Cross(engines=("momwire:bspline",)),
+        cross=an.Cross(engines=("momwire:bs2",)),
         views=(an.Table(),),
     )
     _offer(monkeypatch, [freq, fam, ladder])
@@ -314,7 +314,7 @@ def _table_cases(monkeypatch, client, capsys, tmp_path) -> list[dict]:
     _, out = _analyze(monkeypatch, capsys, tmp_path, "table ladder", density=True)
     recs = _param_sweep(client, w["param"], w["values"])
     c = _curve(
-        "momwire:bspline",
+        "momwire:bs2",
         [r["value"] for r in recs],
         [complex(r["z_re"], r["z_im"]) for r in recs],
     )

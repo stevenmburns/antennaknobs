@@ -31,7 +31,7 @@ needs_report = pytest.mark.skipif(not HAVE_REPORT, reason=SKIP_REASON)
 
 YAGI = "beams.yagi"
 # Rungs past the size reuse declines under in free space (N < 400), for the
-# workbench's razor-2p; the engine-level ladder below is bspline's.
+# workbench's razor2p; the engine-level ladder below is bs2's.
 RUNGS = (81, 101)
 
 # `antennaknobs.sweep` the module (the package also exports a `sweep` function).
@@ -184,7 +184,7 @@ def test_reuse_off_drops_the_compression_and_keeps_the_times():
 # --- in the workbench ----------------------------------------------------------
 
 
-def _records(client, metric, *, model="razor-2p", reuse=True, solver=None):
+def _records(client, metric, *, model="razor2p", reuse=True, solver=None):
     req = {
         "geometry": YAGI,
         "param": "n_per_wire",

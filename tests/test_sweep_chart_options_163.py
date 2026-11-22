@@ -263,7 +263,7 @@ def test_cli_callouts_refuses_an_unknown_mode():
         ("--callouts --use_smithchart", "--use_smithchart"),
         ("--r-range 1 2 --swr", "--swr"),
         ("--log --gain", "--gain"),
-        ("--engine momwire,momwire:razor-2p --callouts", "--panels"),
+        ("--engine momwire,momwire:razor2p --callouts", "--panels"),
     ],
 )
 def test_chart_flags_refuse_where_they_draw_nothing(extra, match):

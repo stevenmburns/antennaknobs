@@ -44,7 +44,7 @@ def _req(base: float) -> dict:
         "geometry": GEOMETRY,
         "measurement_freq_mhz": FREQ,
         "design_freq_mhz": FREQ,
-        "momwire_model": "bspline",
+        "momwire_model": "bs2",
         "ground": True,
         "ground_model": "terrain",
         "terrain": {"preset": "levee"},

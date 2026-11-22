@@ -57,7 +57,7 @@ const PLAIN = makeExample();
 
 function params(overrides: Partial<Parameters<typeof sweep.planSweepFreqs>[0]> = {}) {
   return {
-    backend: entry("bspline"),
+    backend: entry("bs2"),
     groundEnabled: false,
     groundModel: "fast" as const,
     currentExample: PLAIN,
