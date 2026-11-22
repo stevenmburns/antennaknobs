@@ -197,6 +197,7 @@ import {
   knobsParam,
   linkHref,
   linkKnobsOf,
+  linkOmission,
   linkKnobValues,
   linkSearch,
   type LinkState,
@@ -3806,6 +3807,14 @@ function DesignSessionBody({
         rangesOf(linkDeck?.ranges),
       )
     : [];
+  // What that link cannot carry yet (AK#2321, interim): said beside each
+  // chart's link button, and so for the address bar too.
+  const linkOmits = currentExample
+    ? linkOmission(currentSchema, currentValues, {
+        ...seedDefaults(currentExample.param_schema),
+        ...(currentExample.variant_values?.[currentVariant] ?? {}),
+      })
+    : null;
   const linkStateOf = (m: ChartModel | null): LinkState => ({
     design: geometry,
     knobs: linkKnobs,
@@ -4928,6 +4937,7 @@ function DesignSessionBody({
               ? { ...(editedValues ? { values: editedValues } : {}), ...(mapAxes ? { axes: mapAxes } : {}) }
               : null,
         }),
+      linkOmits,
       ...(charts.some((c) => c === null) ? { onDuplicate: () => duplicateChart(i) } : {}),
       ...(i > 0 ? { onClose: () => closeChart(i) } : {}),
     };

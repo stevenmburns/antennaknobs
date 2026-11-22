@@ -60,6 +60,10 @@ export type ChartChrome = {
    *  why no link was written (a part over what a link carries). Omitted: no
    *  button. */
   onCopyLink?: () => Promise<string | void> | undefined;
+  /** What this tab's link leaves out, said beside the link button while it
+   *  holds (AK#2321: a repeated group's edited members), or null. The
+   *  address bar follows the same link, so this is its notice too. */
+  linkOmits?: string | null;
 };
 
 /** The link button's tooltip: the link is one tab's, never the set. */
@@ -130,7 +134,7 @@ export function ChartChromeControls(chrome: ChartChrome) {
           </button>
         </>
       )}
-      {chrome.onCopyLink && <CopyLinkButton onCopy={chrome.onCopyLink} />}
+      {chrome.onCopyLink && <CopyLinkButton onCopy={chrome.onCopyLink} omits={chrome.linkOmits ?? null} />}
       {chrome.onDuplicate && (
         <button
           type="button"
@@ -170,14 +174,20 @@ export function ChartChromeControls(chrome: ChartChrome) {
 /** The chart's "link" button (AK#1838): copies the link and says so, with
  *  its length; a link it would not write (AK#2045: a part over what a link
  *  carries) says why instead, and nothing is copied. */
-function CopyLinkButton({ onCopy }: { onCopy: () => Promise<string | void> | undefined }) {
+function CopyLinkButton({
+  onCopy,
+  omits,
+}: {
+  onCopy: () => Promise<string | void> | undefined;
+  omits: string | null;
+}) {
   const [said, setSaid] = useState<{ ok: boolean; text: string } | null>(null);
   const [busy, setBusy] = useState(false);
   useEffect(() => {
     if (!said) return;
-    const t = window.setTimeout(() => setSaid(null), said.ok ? 2500 : 8000);
+    const t = window.setTimeout(() => setSaid(null), said.ok && !omits ? 2500 : 8000);
     return () => window.clearTimeout(t);
-  }, [said]);
+  }, [said, omits]);
   return (
     <>
       <button
@@ -194,7 +204,8 @@ function CopyLinkButton({ onCopy }: { onCopy: () => Promise<string | void> | und
           void p.then(
             (href) => {
               setBusy(false);
-              setSaid({ ok: true, text: typeof href === "string" ? `link copied (${href.length} characters)` : "link copied" });
+              const copied = typeof href === "string" ? `link copied (${href.length} characters)` : "link copied";
+              setSaid({ ok: true, text: omits ? `${copied}. ${omits}` : copied });
             },
             (err: unknown) => {
               setBusy(false);
@@ -205,10 +216,16 @@ function CopyLinkButton({ onCopy }: { onCopy: () => Promise<string | void> | und
       >
         {busy ? "…" : said ? (said.ok ? "copied" : "not copied") : "link"}
       </button>
-      {said && (
+      {said ? (
         <span className="chart-copy-link-why" role={said.ok ? "status" : "alert"} aria-label="Copy link">
           {said.text}
         </span>
+      ) : (
+        omits && (
+          <span className="chart-copy-link-omits" role="status" aria-label="What this link leaves out" title={omits}>
+            not all in link
+          </span>
+        )
       )}
     </>
   );

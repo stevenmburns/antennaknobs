@@ -5149,6 +5149,14 @@ div.opt-bands-readout {
   color: var(--muted);
   font-style: italic;
 }
+/* What this tab's link leaves out (AK#2321, interim): a short tag beside the
+   link button, the whole sentence in its tooltip and in Copy link's notice. */
+.chart-copy-link-omits {
+  color: var(--muted);
+  font-size: 0.85em;
+  font-style: italic;
+  cursor: help;
+}
 .zparam-reset {
   padding: 0 var(--space-2);
   background: var(--inset);
