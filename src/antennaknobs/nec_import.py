@@ -4168,11 +4168,14 @@ def _gh(card, wires, *, nec45=False):
     radius = card.f(8)
     if n_seg < 1:
         raise card.error(f"segment count must be >= 1, got {n_seg}")
-    if radius == 0.0 and len(card.vals) >= 9:
+    if (radius == 0.0 and len(card.vals) >= 9) or _gh_nec45_short_form(
+        [card.f(k) for k in range(len(card.vals))]
+    ):
         # NEC-4/5's layout puts the wire radii in F5/F6 and ISPX (0 or 1) in
         # F7, NEC-2's RAD: a NEC-4 helix read as NEC-2 has a zero radius
-        # (AK#1296; Cebik's NEC-4 tutorial decks). NEC-2 cannot spell it. A
-        # card that stops short of the ninth field is not that layout either.
+        # (AK#1296; Cebik's NEC-4 tutorial decks). NEC-2 cannot spell it.
+        # Eight fields with NEC-4's wire radii in place is that layout with
+        # ISPX left blank (AK#2125); seven is a NEC-2 card short of RAD.
         raise card.error(
             "the wire radius (NEC-2's ninth field) is zero; this is NEC-4 and "
             "NEC-5's GH layout (GH ITG NS TURNS ZLEN HR1 HR2 WR1 WR2 ISPX), "
@@ -6205,6 +6208,21 @@ def _literal(token: str) -> float | None:
         return None
 
 
+def _gh_nec45_short_form(vals) -> bool:
+    """An eight-field ``GH`` that NEC-4/NEC-5's layout reads whole and NEC-2's
+    cannot (AK#2125): ISPX left blank (0, a helix), so NEC-2's RAD is blank
+    too, while the two wire radii NEC-4 reads in F5/F6 are there -- positive
+    and thinner than the helix (a NEC-2 card missing only its RAD carries its
+    end radii A2/B2 there, the size of the helix's own). Seven fields is a
+    NEC-2 card missing its radius; NEC-4's reading lacks WR2 there too.
+    ``vals`` are the literal fields after the mnemonic, None where a field is
+    an SY expression (left to the card loop)."""
+    if len(vals) != 8 or any(v is None for v in vals[2:8]):
+        return False
+    hr = max(abs(vals[4]), abs(vals[5]))
+    return all(0.0 < w < hr for w in (vals[6], vals[7]))
+
+
 def _nec4_layout_lean(text: str) -> tuple[int, str, bool] | None:
     """``(line, mnemonic, leans)`` of the first card only NEC-4/NEC-5's layout
     can spell, or None (AK#1296, AK#1297; Steve's option (b), 2026-10-04).
@@ -6216,7 +6234,9 @@ def _nec4_layout_lean(text: str) -> tuple[int, str, bool] | None:
 
     - ``GH`` whose ninth field is a literal zero: NEC-2's RAD, which NEC-2
       cannot spell, and NEC-4's ISPX = 0 (a log spiral or a helix). ISPX = 1
-      reads in NEC-2 as a 1 m wire radius, so it is no tell;
+      reads in NEC-2 as a 1 m wire radius, so it is no tell. So is one that
+      stops at eight fields with NEC-4's wire radii in place
+      (`_gh_nec45_short_form`, AK#2125: EZNEC's NEC-4.2 probe decks);
     - ``GC 1`` / ``GC 2`` with I2 = 0: NEC-4's fixed-length forms; NEC-2's GC
       has no IX.
 
@@ -6267,7 +6287,7 @@ def _nec4_layout_lean(text: str) -> tuple[int, str, bool] | None:
             if field(0) == 4 or (field(2) or 0.0) < 0 or field(3) == 2:
                 nec5 = True
         elif lean is None and mnemonic == "GH":
-            if len(fields) >= 9 and fields[8] == 0.0:
+            if (len(fields) >= 9 and fields[8] == 0.0) or _gh_nec45_short_form(fields):
                 lean = (line_no, "GH")
         elif lean is None and mnemonic == "GC":
             if field(0) in (1.0, 2.0) and field(1) == 0.0:
