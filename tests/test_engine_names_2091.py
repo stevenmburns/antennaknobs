@@ -191,7 +191,7 @@ def test_an_old_analysis_reads_as_the_new_names():
     a = an.Analysis(
         "engines",
         an.Sweep(an.FREQUENCY, 14.0, 14.3),
-        cross=an.Cross(engines=("momwire:bspline", "momwire:razor-2p", "nec5")),
+        cross=(an.Cross(engines=("momwire:bspline", "momwire:razor-2p", "nec5")),),
         engine="momwire:sinusoidal-galerkin",
     )
     assert a.cross[0].engines == ("momwire:bs2", "momwire:razor2p", "nec5")
@@ -204,7 +204,7 @@ def test_an_old_analysis_reads_as_the_new_names():
     # A shared link written before the rename opens on the same engines.
     old_link = analyses_text.pack(
         "an.Analysis('engines', an.Sweep(an.FREQUENCY, 14.0, 14.3), "
-        "cross=an.Cross(engines=('momwire:bspline', 'momwire:razor-2p')))"
+        "cross=(an.Cross(engines=('momwire:bspline', 'momwire:razor-2p')),))"
     )
     (got,) = analyses_text.read_link(old_link)
     assert got.cross[0].engines == ("momwire:bs2", "momwire:razor2p")
