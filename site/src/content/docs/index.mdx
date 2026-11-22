@@ -29,22 +29,23 @@ import { Card, CardGrid, LinkCard } from "@astrojs/starlight/components";
 {/* What's-new box: refresh as part of the release ritual (bump the version,
     swap the highlights) — a stale "new" box is worse than none. */}
 
-<Card title="New in v0.123.2" icon="star">
-  **On momwire 0.95.1.** Its Windows zip adds the NEC-2 engines, and pair
-  reuse is certified on more platforms. No default changes.
+<Card title="New in v0.124.0" icon="star">
+  **On momwire 0.97.0, with shorter engine names.** The engines are now
+  `bs2`, `bs1`, `sg` and `razor2p` (were `bspline`, `bspline-d1`,
+  `sinusoidal-galerkin` and `razor-2p`). The old names still work in saved
+  settings, kept studies and on the command line, and are read as the new
+  ones. `razor-nec5` is retired.
 
-  **The Fill view's map names the design's wires.** Wires joined end to end
-  are solved as one, so a curtain's twenty wires solve as two. Those rows now
-  read `wire 15` and `wires 1–14, 16–20` instead of `wire 1` and `wire 2`.
-  Over a ground, the reuse counts come in two sections, the free-space term
-  and the ground terms, so the free-space numbers are not read as the whole
-  fill.
+  **NEC-4.2 decks: a wire listed twice is refused, as NEC-4.2 itself
+  does.** The answer it used to print for such a deck was meaningless. The
+  refusal names the deck's own GW tags and says which copy to delete.
 
-  **A PyNEC fix.** A PyNEC engine solved twice at different frequencies
-  answered the second solve with the first one's results. It reads its own
-  run now. Fresh engines, the usual path, were never affected.
+  **Smaller fixes.** NEC-4.2 decks with eight-field `GH` helices read as
+  NEC-4.2. PyNEC and OpenNEC compute a deck's transmission lines at the
+  deck's own speed of light. Copy link says when it leaves out a multiband
+  design's band settings.
 
-  Full notes: [v0.123.2](https://github.com/stevenmburns/antennaknobs/releases/tag/v0.123.2).
+  Full notes: [v0.124.0](https://github.com/stevenmburns/antennaknobs/releases/tag/v0.124.0).
 </Card>
 
 ## The whole pitch, in one line
