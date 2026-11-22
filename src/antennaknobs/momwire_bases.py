@@ -98,7 +98,7 @@ def cli_names() -> list[str]:
 
 def resolve(name: str) -> tuple[str, type, dict[str, object]] | None:
     """``(roster name, solver class, bound kwargs)`` for a CLI basis name, or
-    None when it names no basis. A deprecated spelling (``bs2``) resolves
+    None when it names no basis. A deprecated spelling (``bspline``) resolves
     as its canonical name; a retired one raises `RetiredEngineName`."""
     name = canonical_basis(name)
     roster, extra = ALIASES.get(name, (name, {}))
