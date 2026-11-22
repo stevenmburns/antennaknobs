@@ -328,3 +328,78 @@ def test_ispx_1_and_plain_nec2_cards_do_not_lean():
         "GW 1 9 0 0 0 0 0 1 0\nGC 0 0 1.2 .001 .002",
     ):
         assert _probe(geometry).dialect == "nec2", geometry
+
+
+# AK#2125: a GH that stops at eight fields with NEC-4's wire radii in place
+# is NEC-4's layout with ISPX left blank. EZNEC's NEC-4.2 probe decks write it
+# so; detection read them as NEC-2 and refused on a zero radius.
+SHORT_HELIX = "GH 1 24 1.0 0.3 0.15 0.15 0.002 0.002"
+
+
+def test_an_eight_field_gh_with_nec4s_wire_radii_reads_as_nec4():
+    deck = _probe(SHORT_HELIX)
+    assert (deck.dialect, deck.dialect_detected) == ("nec4", "nec4")
+    assert len(deck.wires) == 24
+    assert {w.radius for w in deck.wires} == {0.002}
+    # the same as the card with ISPX written out
+    full = _probe(SHORT_HELIX + " 0")
+    assert [(w.p1, w.p2) for w in deck.wires] == [(w.p1, w.p2) for w in full.wires]
+
+
+def test_an_eight_field_nec4_gh_read_as_nec2_is_refused_by_name():
+    with pytest.raises(ValueError, match="NEC-4 and NEC-5's GH layout"):
+        parse_nec(f"CE\n{SHORT_HELIX}\nGE 0\nEN\n", dialect="nec2")
+
+
+@pytest.mark.parametrize(
+    "geometry",
+    [
+        # NEC-2's own card missing only RAD: its end radii A2/B2 are the
+        # helix's size, not a wire's
+        "GH 1 8 0.3 0.9 0.1 0.1 0.1 0.1",
+        # a wire radius as fat as the helix, or a blank one
+        "GH 1 24 1.0 0.3 0.15 0.15 0.15 0.002",
+        "GH 1 24 1.0 0.3 0.15 0.15 0 0.002",
+    ],
+)
+def test_an_eight_field_gh_without_nec4s_wire_radii_keeps_the_plain_refusal(
+    geometry,
+):
+    with pytest.raises(ValueError, match="wire radius must be > 0"):
+        parse_nec(f"CE\n{geometry}\nGE 0\nEN\n")
+
+
+PROBES = (
+    Path(__file__).parent.parent
+    / "momwire"
+    / "tests"
+    / "fixtures"
+    / "eznec_nec42"
+    / "probes"
+)
+ISSUE_2125 = [
+    "p49",
+    "p50",
+    "p51",
+    "p52",
+    "p53",
+    "p74",
+    "p79",
+    "p80",
+    "p81",
+    "p82",
+    "p84",
+    "p85",
+]
+
+
+@pytest.mark.parametrize("stem", ISSUE_2125)
+def test_the_issues_probe_decks_read_as_nec4(stem):
+    """The twelve decks AK#2125 was filed on, through momwire's fixture tree
+    (the submodule at its recorded pointer; never copied here)."""
+    found = sorted(PROBES.glob(f"{stem}_gh_*.nec"))
+    if not found:
+        pytest.skip(f"momwire's probe deck {stem} is not checked out")
+    deck = parse_nec(found[0].read_text(), network=True)
+    assert (deck.dialect, deck.dialect_detected) == ("nec4", "nec4")
+    assert deck.wires
