@@ -100,12 +100,13 @@ export function CatalogPanel({
           // way back to what the design itself says.
           <button
             type="button"
-            className="design-reload-btn deck-open-btn"
+            className="design-reload-btn"
             onClick={onResetKnobs}
             disabled={reloadBusy}
-            title="Put every knob back on this design's own values: its file's defaults (re-read from disk for your own designs), or the selected variant's"
+            aria-label="Reset knobs"
+            title="Reset knobs: put every knob back on this design's own values (its file's defaults, re-read from disk for your own designs, or the selected variant's)"
           >
-            Reset knobs
+            ↺
           </button>
         )}
         {onOpenDeck && (
