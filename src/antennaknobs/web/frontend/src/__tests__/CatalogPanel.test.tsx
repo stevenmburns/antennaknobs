@@ -324,3 +324,44 @@ describe("CatalogPanel — adversarial", () => {
     expect(screen.queryByText(/need your OK to run/)).toBeNull();
   });
 });
+
+// --- Reset knobs: the way back to the design's own values -------------------
+// A link's `&knobs=` and the tab's own bag both outlive a reopened file; the
+// button is shown for any selected design (hosted too) and only when the
+// session wires it.
+describe("CatalogPanel — Reset knobs", () => {
+  function renderWithReset(onResetKnobs?: () => void, currentExample = example()) {
+    render(
+      <CatalogPanel
+        geomGroups={[group({ items: [currentExample] })]}
+        geometry={currentExample.name}
+        currentExample={currentExample}
+        geomFilter=""
+        setGeomFilter={vi.fn()}
+        setGeometry={vi.fn()}
+        currentVariant="default"
+        selectVariant={vi.fn()}
+        examplesError={null}
+        loadErrors={[]}
+        trustBusy={null}
+        trustDesign={vi.fn()}
+        onReloadDesign={vi.fn()}
+        reloadBusy={false}
+        canRescan={false}
+        {...(onResetKnobs ? { onResetKnobs } : {})}
+      />,
+    );
+  }
+
+  it("is absent when the session does not wire it", () => {
+    renderWithReset(undefined);
+    expect(screen.queryByRole("button", { name: "Reset knobs" })).toBeNull();
+  });
+
+  it("is shown on the hosted instance too, and fires on click", async () => {
+    const onResetKnobs = vi.fn();
+    renderWithReset(onResetKnobs);
+    await userEvent.setup().click(screen.getByRole("button", { name: "Reset knobs" }));
+    expect(onResetKnobs).toHaveBeenCalledTimes(1);
+  });
+});

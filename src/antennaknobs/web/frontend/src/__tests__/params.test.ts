@@ -235,6 +235,31 @@ describe("mergeSeededDefaults", () => {
     expect(out).toEqual({ len: 9.9, gap: 0.1 });
   });
 
+  it("moves a knob still at the old default on to an edited file's new one", () => {
+    // trap40_L_uH was never moved (9.91 = the old default); the file now says 5.27
+    const out = mergeSeededDefaults(
+      { trap40_L_uH: 5.27, coil_q: 300 },
+      { trap40_L_uH: 9.91, coil_q: 250 },
+      { trap40_L_uH: 9.91, coil_q: 300 },
+    );
+    // coil_q was moved off its old default (300 -> 250): it keeps the value
+    expect(out).toEqual({ trap40_L_uH: 5.27, coil_q: 250 });
+  });
+
+  it("keeps a moved knob even when its default changes", () => {
+    const out = mergeSeededDefaults({ len: 12.5 }, { len: 4.55 }, { len: 9.91 });
+    expect(out).toEqual({ len: 4.55 });
+  });
+
+  it("follows a new default inside group instances too", () => {
+    const out = mergeSeededDefaults(
+      { bands: [{ freq: 7.1 }, { freq: 7.1 }] },
+      { bands: [{ freq: 7.0 }, { freq: 3.6 }] },
+      { bands: [{ freq: 7.0 }, { freq: 7.0 }] },
+    );
+    expect(out.bands).toEqual([{ freq: 7.1 }, { freq: 3.6 }]);
+  });
+
   it("returns the existing bag by identity when nothing merged", () => {
     const existing = { len: 9.9 };
     expect(mergeSeededDefaults({ len: 12.5 }, existing)).toBe(existing);
