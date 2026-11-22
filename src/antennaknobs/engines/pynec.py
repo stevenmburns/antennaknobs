@@ -46,6 +46,7 @@ from ..wire_catalog import (
 from ..auto_match import design_freq_mhz as _design_freq_mhz
 from ..auto_match import make_reducer
 from ..network_reduce import C_LIGHT, poison_singular_sample
+from . import _multiport
 from ._nec_wire import effective_default_radius, nec_wire_material
 
 _logger = logging.getLogger(__name__)
@@ -992,6 +993,9 @@ class PyNECEngine(SimulationEngine):
             next_idx,
             y_at=self._compute_y_matrix,
             design_freq_mhz=_design_freq_mhz(self.builder),
+            # in the design's c, as the card-deck engines' (AK#2226, AK#2323)
+            wavelength_for=lambda f: _multiport.wavelength(self, f),
+            c_light_mhz_m=_multiport.reducer_c_light(self),
         )
 
         # Per-port drive points (issue #477): a delta-gap port drives its
@@ -1082,7 +1086,9 @@ class PyNECEngine(SimulationEngine):
         if self._network is not None and self._use_reducer:
             Y = self._compute_y_matrix(wavelength)
             _v, efficiency, p_in, budget = self._reducer.excited_state(Y, wavelength)
-            p_wire = self._wire_loss_from_currents(sc, wavelength)
+            p_wire = self._wire_loss_from_currents(
+                sc, wavelength, _multiport.reducer_c_light(self)
+            )
             if p_wire > 0.0 and p_in > 0.0:
                 budget = list(budget) + [("wire loss (I²R)", p_wire)]
                 efficiency = max(0.0, min(1.0, efficiency - p_wire / p_in))
@@ -1117,14 +1123,18 @@ class PyNECEngine(SimulationEngine):
             return 1.0, p_in, []
         return max(0.0, min(1.0, 1.0 - p_diss / p_in)), p_in, budget
 
-    def _wire_loss_from_currents(self, sc, wavelength):
+    def _wire_loss_from_currents(self, sc, wavelength, c_light_mhz_m=None):
         """Ohmic wire loss ½·Σ|I_seg|²·R'·l_seg in watts, integrated from
         the excited structure currents (issue #317). NEC solves the global
         LD 5 loading internally but exposes no structure-dissipation
         readout, so re-integrate it from the same segment currents the
         loss card shaped. R' is the exact solid-round-conductor internal
         resistance — the same law NEC's zint (Kelvin ber/bei) implements —
-        so this tracks NEC's own accounting to well under a percent."""
+        so this tracks NEC's own accounting to well under a percent.
+
+        `c_light_mhz_m` is the c `wavelength` was made with (AK#2323: the
+        multiport route's is the design's); None is SI, the expression an SI
+        design has always used."""
         sigma = (
             self._wire_spec.conductivity
             if self._wire_spec is not None
@@ -1132,7 +1142,11 @@ class PyNECEngine(SimulationEngine):
         )
         if sigma is None:
             return 0.0
-        omega = 2.0 * np.pi * C_LIGHT / wavelength
+        omega = (
+            2.0 * np.pi * C_LIGHT / wavelength
+            if c_light_mhz_m is None
+            else 2.0 * np.pi * c_light_mhz_m * 1e6 / wavelength
+        )
         r_per_m = float(
             np.real(wire_internal_impedance(omega, self._wire_radius, sigma))
         )
@@ -1158,7 +1172,7 @@ class PyNECEngine(SimulationEngine):
         current readout follow the segment (= card) direction — so this Y is
         natively in the authored-direction port convention that
         MomwireEngine normalizes to via its walk-direction signs."""
-        freq = C_LIGHT / wavelength / 1e6
+        freq = _multiport.frequency(self, wavelength)
         names = self._real_port_names
         n = len(names)
         Y = np.zeros((n, n), dtype=np.complex128)
@@ -1323,7 +1337,7 @@ class PyNECEngine(SimulationEngine):
 
     def impedance(self, sum_currents=False):
         if self._use_reducer:
-            wl = C_LIGHT / (self.builder.freq * 1e6)
+            wl = _multiport.wavelength(self, self.builder.freq)
             self._warn_if_somm_low_wires(wl)
             return self._reducer.driven_impedance(self._compute_y_matrix(wl), wl)
         self._set_freq_and_execute()
@@ -1338,7 +1352,7 @@ class PyNECEngine(SimulationEngine):
         if self._use_reducer:
             zs = np.empty((freqs.size, self._reducer.n_driven), dtype=np.complex128)
             for k, f in enumerate(freqs):
-                wl = C_LIGHT / (float(f) * 1e6)
+                wl = _multiport.wavelength(self, f)
                 # One singular sample must not cost the sweep (issue #647).
                 z = poison_singular_sample(
                     self._reducer.driven_impedance,
@@ -1376,15 +1390,20 @@ class PyNECEngine(SimulationEngine):
         the current is physically continuous through the shared endpoint, and
         at an end on the ground plane, which `_ge_flag` bonds to it (issue
         #1638: a vertical's base read 0 A)."""
+        wl = (
+            _multiport.wavelength(self, self.builder.freq)
+            if self._use_reducer
+            else C_LIGHT / (self.builder.freq * 1e6)
+        )
         if self._use_reducer:
-            self.c = self._excited_real_context(C_LIGHT / (self.builder.freq * 1e6))
+            self.c = self._excited_real_context(wl)
         self._set_freq_and_execute()
         sc = self.c.get_structure_currents(self._last_run)
         (
             self._excited_efficiency,
             self._excited_p_in,
             self._excited_power_budget,
-        ) = self._radiation_efficiency(sc, C_LIGHT / (self.builder.freq * 1e6))
+        ) = self._radiation_efficiency(sc, wl)
         return self._knot_currents(list(sc.get_current_segment_tag()), sc.get_current())
 
     def _knot_currents(self, all_tags, all_cur):
@@ -1437,7 +1456,7 @@ class PyNECEngine(SimulationEngine):
         p_source = None
         if self._use_reducer:
             self.c, p_source = self._excited_for_pattern(
-                C_LIGHT / (self.builder.freq * 1e6)
+                _multiport.wavelength(self, self.builder.freq)
             )
         self._set_freq_and_execute()
         ff = self._collect_pattern(
