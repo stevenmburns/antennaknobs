@@ -64,6 +64,7 @@ except ImportError:  # optional; built from source (see OPENNEC_MISSING)
 from ..engine import FarField
 from ..network import Load, load_impedance
 from ..network_reduce import C_LIGHT, poison_singular_sample
+from . import _multiport
 from .nec2 import refuse_nec2_geometry
 from .pynec import PyNECEngine
 
@@ -382,7 +383,7 @@ class OpenNECEngine(PyNECEngine):
     def _compute_y_matrix(self, wavelength):
         """The short-circuit Y at the real network ports (`_real_port_names`
         order), ``W^T Y_seg W`` from the cached solve."""
-        sol, i = self._solution(C_LIGHT / wavelength / 1e6)
+        sol, i = self._solution(_multiport.frequency(self, wavelength))
         return self._W.T @ sol.y[i] @ self._W
 
     # ----- the card route: EX sources, LD loads, NT stamps -----
@@ -431,7 +432,7 @@ class OpenNECEngine(PyNECEngine):
         power is the sources' (the card route without NT)."""
         if self._use_reducer:
             sol, i = self._solution(freq_mhz)
-            wl = C_LIGHT / (float(freq_mhz) * 1e6)
+            wl = _multiport.wavelength(self, freq_mhz)
             Y = self._compute_y_matrix(wl)
             V = self._reducer.resolve_voltages(self._reducer.apply_branches(Y, wl))
             n = len(self._real_port_names)
@@ -454,7 +455,7 @@ class OpenNECEngine(PyNECEngine):
         self._refuse_export_only()
         f = self.builder.freq
         if self._use_reducer:
-            wl = C_LIGHT / (f * 1e6)
+            wl = _multiport.wavelength(self, f)
             z = self._reducer.driven_impedance(self._compute_y_matrix(wl), wl)
             _refuse_nonfinite(self.engine_label, "impedance Z", z, f"at {f:.6g} MHz")
             return z
@@ -473,7 +474,7 @@ class OpenNECEngine(PyNECEngine):
         if self._use_reducer:
             zs = np.empty((freqs.size, self._reducer.n_driven), dtype=np.complex128)
             for k, f in enumerate(freqs):
-                wl = C_LIGHT / (float(f) * 1e6)
+                wl = _multiport.wavelength(self, f)
                 # One singular sample must not cost the sweep (issue #647).
                 z = poison_singular_sample(
                     self._reducer.driven_impedance,
@@ -525,7 +526,13 @@ class OpenNECEngine(PyNECEngine):
             self._excited_efficiency,
             self._excited_p_in,
             self._excited_power_budget,
-        ) = self._radiation_efficiency(sc, C_LIGHT / (f * 1e6))
+        ) = self._radiation_efficiency(
+            sc,
+            # the multiport route's wavelengths are the design's c (AK#2323)
+            _multiport.wavelength(self, f)
+            if self._use_reducer
+            else C_LIGHT / (f * 1e6),
+        )
         return self._knot_currents(list(sc.get_current_segment_tag()), sc.get_current())
 
     def gain_grid_dbi(self, thetas_deg, phis_deg, freq_mhz=None):
