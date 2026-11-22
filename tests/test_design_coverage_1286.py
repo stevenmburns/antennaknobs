@@ -33,12 +33,12 @@ from antennaknobs.web.examples import REGISTRY
 # not a capability one.
 _PROBEABLE = (
     "sinusoidal",
-    "sinusoidal-galerkin",
-    "bspline",
+    "sg",
+    "bs2",
     "pulse",
     "hmatrix",
     "arrayblock",
-    "razor-2p",
+    "razor2p",
 )
 
 
@@ -150,7 +150,7 @@ def test_derivation_agrees_with_the_solver_construction_probe():
         ("dipoles.invvee_apex", "sinusoidal", "node_gaps"),
         ("dipoles.invvee_apex", "pulse", "node_gaps"),
         ("wire.sterba_bl", "sinusoidal", "junction_ports"),
-        ("wire.sterba_bl", "razor-2p", "junction_ports"),
+        ("wire.sterba_bl", "razor2p", "junction_ports"),
         ("wire.sterba_bl", "pulse", "junction_ports"),
         ("verticals.elt_whip", "pulse", "per_wire_radius"),
         ("specialty.buried_dipole", "hmatrix", "buried"),
@@ -166,8 +166,8 @@ def test_known_refusals_are_present(design, backend, capability):
 def test_buried_refusals_are_present():
     """The half the construction probe cannot see, pinned by name.
 
-    Two solvers carry a buried fill: `bspline` for every class, and since
-    momwire#980 `sinusoidal-galerkin` — D1/D2 for the wholly buried and the
+    Two solvers carry a buried fill: `bs2` for every class, and since
+    momwire#980 `sg` — D1/D2 for the wholly buried and the
     mixed classes, D3 for the crossing junction. Between D2 and D3 that node
     was refused by name (momwire#1000) through the `buried+crossing_junction`
     row, so the connected screen's SG cell is pinned by READING momwire's row
@@ -183,14 +183,14 @@ def test_buried_refusals_are_present():
     ):
         cov = adapter.design_backend_coverage(design)
         assert "buried" in cov["needs"], design
-        assert "bspline" not in cov["refusals"], design
+        assert "bs2" not in cov["refusals"], design
         for backend in ("hmatrix", "arrayblock", "pulse"):
             assert cov["refusals"][backend]["capability"] == "buried", (
                 f"{backend} on {design}"
             )
     # sinusoidal serves wholly-buried and detached decks since momwire#1222
     # (0.66.0) and refuses the crossing node by its own row until #1223 stage
-    # 2 lands; read from the row, as razor-2p and SG are below.
+    # 2 lands; read from the row, as razor2p and SG are below.
     sin_caps = _spec("sinusoidal").solver.capabilities
     for design in (
         "specialty.buried_dipole",
@@ -208,11 +208,11 @@ def test_buried_refusals_are_present():
             assert row["reason"] == sentence, design
         else:
             assert "sinusoidal" not in cov["refusals"], design
-    # razor-2p serves buried decks since momwire#1149 (wholly-below and
+    # razor2p serves buried decks since momwire#1149 (wholly-below and
     # detached at U0/U1, the crossing node at U2). Read from its row, as the
     # SG cell below is, so the gate holds on either side of the pointer that
     # moves it.
-    razor_caps = _spec("razor-2p").solver.capabilities
+    razor_caps = _spec("razor2p").solver.capabilities
     for design in (
         "specialty.buried_dipole",
         "verticals.buried_radial_vertical",
@@ -223,30 +223,30 @@ def test_buried_refusals_are_present():
             razor_caps.buried
             and razor_caps.refusal("buried", adapter._CROSSING_NEED) is None
         ):
-            assert "razor-2p" not in cov["refusals"], design
+            assert "razor2p" not in cov["refusals"], design
         elif razor_caps.buried:
             # U0/U1 without U2: the crossing deck alone is refused, by the row.
             if adapter._CROSSING_NEED in cov["needs"]:
-                row = cov["refusals"]["razor-2p"]
+                row = cov["refusals"]["razor2p"]
                 assert row["reason"] == razor_caps.refusal(
                     "buried", adapter._CROSSING_NEED
                 ), design
             else:
-                assert "razor-2p" not in cov["refusals"], design
+                assert "razor2p" not in cov["refusals"], design
         else:
-            assert cov["refusals"]["razor-2p"]["capability"] == "buried", design
+            assert cov["refusals"]["razor2p"]["capability"] == "buried", design
     for design in ("specialty.buried_dipole", "verticals.elevated_buried_counterpoise"):
         cov = adapter.design_backend_coverage(design)
         assert adapter._CROSSING_NEED not in cov["needs"], design
-        assert "sinusoidal-galerkin" not in cov["refusals"], design
+        assert "sg" not in cov["refusals"], design
     cov = adapter.design_backend_coverage("verticals.buried_radial_vertical")
     assert adapter._CROSSING_NEED in cov["needs"]
-    sg_caps = _spec("sinusoidal-galerkin").solver.capabilities
+    sg_caps = _spec("sg").solver.capabilities
     sentence = sg_caps.refusal("buried", adapter._CROSSING_NEED)
     if sentence is None:  # momwire#980 D3 landed: the node is served
-        assert "sinusoidal-galerkin" not in cov["refusals"]
+        assert "sg" not in cov["refusals"]
     else:  # a momwire between D2 and D3: refused by that row, verbatim
-        row = cov["refusals"]["sinusoidal-galerkin"]
+        row = cov["refusals"]["sg"]
         assert row["capability"] == "buried+crossing_junction"
         assert row["reason"] == sentence
 
@@ -263,11 +263,11 @@ def test_a_plain_design_refuses_nowhere():
 
 
 def test_bspline_serves_every_design_in_the_catalog():
-    """bspline has every capability field set; nothing may refuse on it."""
+    """bs2 has every capability field set; nothing may refuse on it."""
     refused = [
         name
         for name in REGISTRY
-        if "bspline" in adapter.design_backend_coverage(name)["refusals"]
+        if "bs2" in adapter.design_backend_coverage(name)["refusals"]
     ]
     assert refused == []
 

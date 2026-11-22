@@ -57,7 +57,7 @@ def _examples() -> dict[str, list[an.Analysis]]:
     return {
         "E1": [
             an.convergence(
-                cross=an.Cross(engines=("momwire:bspline", "momwire:razor-2p", "nec5")),
+                cross=an.Cross(engines=("momwire:bs2", "momwire:razor2p", "nec5")),
                 ground="finite:13,0.005",
             )
         ],
@@ -94,14 +94,14 @@ def _examples() -> dict[str, list[an.Analysis]]:
         "E6": [
             an.convergence(
                 sweep=an.Sweep(an.DENSITY, 10, 500, points=20, spacing="log"),
-                cross=an.Cross(engines=("momwire:bspline", "momwire:razor-2p", "nec5")),
+                cross=an.Cross(engines=("momwire:bs2", "momwire:razor2p", "nec5")),
             )
         ],
         "E7": [
             an.convergence(
                 cross=(
                     an.Cross(designs=("dipoles.invvee", "dipoles.invvee_apex")),
-                    an.Cross(engines=("momwire:bspline", "momwire:razor-2p", "nec2")),
+                    an.Cross(engines=("momwire:bs2", "momwire:razor2p", "nec2")),
                 ),
             )
         ],
@@ -139,7 +139,7 @@ def test_e1_and_e3_print_as_the_spec_page_writes_them():
     e1, e3 = _examples()["E1"][0], _examples()["E3"][0]
     assert an.to_code(e1) == (
         "an.convergence(\n"
-        '    cross=an.Cross(engines=("momwire:bspline", "momwire:razor-2p", "nec5")),\n'
+        '    cross=an.Cross(engines=("momwire:bs2", "momwire:razor2p", "nec5")),\n'
         '    ground="finite:13,0.005",\n'
         ")"
     )
@@ -426,7 +426,7 @@ def test_e1_via_analyze_equals_the_sweep_command(monkeypatch, capsys, tmp_path):
             "--param",
             "nominal_nsegs",
             "--engine",
-            "momwire:bspline,momwire:razor-2p",
+            "momwire:bs2,momwire:razor2p",
             "--ground",
             "finite:13,0.005",
             "--fn",
@@ -500,7 +500,7 @@ def test_e6_via_analyze_equals_the_sweep_command_and_prints_zinf(
     density wrapper on, one engine at a time)."""
     e6 = an.convergence(
         sweep=an.Sweep(an.DENSITY, 10, 40, points=4, spacing="log"),
-        cross=an.Cross(engines=("momwire:bspline", "momwire:razor-2p")),
+        cross=an.Cross(engines=("momwire:bs2", "momwire:razor2p")),
     )
     monkeypatch.setattr(AntennaBuilder, "build_analyses", lambda self: [e6])
     calls = _record(monkeypatch, "_convergence_rows")
@@ -509,12 +509,12 @@ def test_e6_via_analyze_equals_the_sweep_command_and_prints_zinf(
     out = capsys.readouterr().out
     got = [c[1][0] for c in calls]
     assert len(got) == 2
-    assert "== tmp_segs convergence: momwire:bspline ==" in out
+    assert "== tmp_segs convergence: momwire:bs2 ==" in out
     assert len(_zinf_lines(out)) == 2
     calls.clear()
     cli(["sweep", "--builder", f"@{SSN}", "--param", "tmp_segs",
          "--range", "10", "40", "--npoints", "4", "--log",
-         "--engine", "momwire:bspline,momwire:razor-2p",
+         "--engine", "momwire:bs2,momwire:razor2p",
          "--fn", str(tmp_path / "s.png")])  # fmt: skip
     sweep_out = capsys.readouterr().out
     assert [c[1][0] for c in calls] == got
@@ -525,7 +525,7 @@ def test_e6_via_analyze_equals_the_sweep_command_and_prints_zinf(
     # The pre-AK#1757 path: the plain knob sweep, #1543's wrapper on.
     design = get_builder(f"@{SSN}")
     ground = cli_mod.resolve_ground(cli_mod._GROUND_UNSET, design)
-    for spec, rows in zip(("momwire:bspline", "momwire:razor-2p"), got, strict=True):
+    for spec, rows in zip(("momwire:bs2", "momwire:razor2p"), got, strict=True):
         factory = cli_mod.make_engine_factory(
             spec, ground, nominal_nsegs=cli_mod.engine_density(spec)
         )
@@ -546,14 +546,14 @@ def test_an_engine_refusing_the_design_is_a_named_cell(monkeypatch, capsys, tmp_
     monkeypatch.setitem(cli_mod.ENGINE_CLASSES, "refuser", _Refuses)
     a = an.convergence(
         sweep=an.Sweep(an.DENSITY, values=(8, 12, 17)),
-        cross=an.Cross(engines=("momwire:bspline", "refuser")),
+        cross=an.Cross(engines=("momwire:bs2", "refuser")),
     )
     _offer_on_invvee(monkeypatch, [a])
     cli(["analyze", "--builder", "dipoles.invvee", "--analysis", "convergence",
          "--fn", str(tmp_path / "a.png")])  # fmt: skip
     out = capsys.readouterr().out
     assert "refuser: refused: this engine refuses the design" in out
-    assert "momwire:bspline  Z∞ =" in out
+    assert "momwire:bs2  Z∞ =" in out
 
 
 def test_code_prints_the_analysis(capsys):

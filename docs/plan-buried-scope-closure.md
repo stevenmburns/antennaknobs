@@ -137,7 +137,7 @@ The feed gap's lower end connected to nothing (the screen is detached), so
 the source had no return path, and |Z| ≈ 61–69 kΩ was that open circuit read
 by two engines. The design now carries four elevated radials on the gap's
 lower end, still a pure `split` deck. At nominal_nsegs 21 over 13 / 0.005 it
-reads 38.17 + j0.81 Ω (bs2), 37.99 − j0.77 Ω (razor-2p) and 37.99 − j0.80 Ω
+reads 38.17 + j0.81 Ω (bs2), 37.99 − j0.77 Ω (razor2p) and 37.99 − j0.80 Ω
 (NEC-5, the exported deck). The analysis below is the record of the old deck.
 
 `elevated_buried_counterpoise` is a `split` deck (above and below, nothing at
@@ -324,7 +324,7 @@ phase 3) and its EK-under-a-medium item.
   - **AK#1456:** cross-engine comparisons inherit each engine's fed-segment
     size, which matters at near-open feeds (from U6);
   - **momwire#1066:** SinusoidalGalerkin's slope jump across a crossing node
-    grows under refinement, while bspline's halves. Nothing gated moves.
+    grows under refinement, while bs2's halves. Nothing gated moves.
 - **U9 reached users** in momwire 0.56.0, which antennaknobs v0.79.0 ships
   on.
 

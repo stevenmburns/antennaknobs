@@ -608,7 +608,7 @@ def test_a_port_positioned_at_half_of_two_segments():
 
 
 def test_momwire_splits_a_multi_port_wire_as_its_reference_engines_do():
-    """AK#1519: bs2 meshes the pieces PyNEC does, razor-2p the pieces NEC-5
+    """AK#1519: bs2 meshes the pieces PyNEC does, razor2p the pieces NEC-5
     does."""
     from momwire import RazorSolver
 

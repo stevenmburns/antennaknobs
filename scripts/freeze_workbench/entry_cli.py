@@ -8,7 +8,7 @@ nominal_nsegs``, Mike WA7ARK who will not get as far as pip::
 
     antennaknobs-cli --help
     antennaknobs-cli sweep --param nominal_nsegs --builder dipoles.invvee:dipole
-    antennaknobs-cli sweep --engine momwire:bspline --use_smithchart
+    antennaknobs-cli sweep --engine momwire:bs2 --use_smithchart
 
 Every argument is passed through untouched, so the documentation for `python
 -m antennaknobs` is the documentation for this.

@@ -13,9 +13,9 @@ it degrades F/B — measured on the `contact` variant with PyNEC over a
 Sommerfeld ground, where a solve takes about a second.
 
 HEAVY (`heavy_mesh`, run manually). The same questions asked of the rod
-design itself on razor-2p, plus the rods-versus-contact difference, the
-RDF, and bspline's feed impedance (bspline and sinusoidal-Galerkin serve the
-deck since momwire#1187). A razor-2p lane's first solve builds the
+design itself on razor2p, plus the rods-versus-contact difference, the
+RDF, and bs2's feed impedance (bs2 and sinusoidal-Galerkin serve the
+deck since momwire#1187). A razor2p lane's first solve builds the
 below-ground tables (~90 s, ~350 MB); the rest reuse them, and the lane
 takes about two minutes.
 """
@@ -152,13 +152,13 @@ def _razor_solver(b, ground=AVERAGE):
 
 @pytest.mark.parametrize("ground", [AVERAGE, POOR], ids=["average", "poor"])
 def test_razor_2p_serves_the_rod_deck(ground):
-    """razor-2p's own buried pre-flight — the check that runs before a fill
+    """razor2p's own buried pre-flight — the check that runs before a fill
     — passes the default deck over both soils the docstring quotes."""
     assert _razor_solver(Builder(), ground).buried_serve_refusal() is None
 
 
 # momwire#1187 (momwire 0.63.0) asks the below/below grazing floor only of
-# pairs inside the R1 cap. Before it, bspline and SG refused this deck by name
+# pairs inside the R1 cap. Before it, bs2 and SG refused this deck by name
 # on the rod tops' pair, ~246 m apart, whose value is served as zero anyway.
 # The guard asks the BUILD, not the version: the submodule pointer runs ahead
 # of the PyPI release, so a build with the fix and one without can both say
@@ -171,7 +171,7 @@ _FLOOR_ASKS_INSIDE_THE_CAP = hasattr(momwire._sommerfeld_below, "below_r1_cap")
 @pytest.mark.skipif(
     not _FLOOR_ASKS_INSIDE_THE_CAP,
     reason="installed momwire predates momwire#1187 (no "
-    "_sommerfeld_below.below_r1_cap): bspline and SG refuse the rod deck on "
+    "_sommerfeld_below.below_r1_cap): bs2 and SG refuse the rod deck on "
     "the grazing floor until the pin reaches momwire 0.63.0",
 )
 @pytest.mark.parametrize("ground", [AVERAGE, POOR], ids=["average", "poor"])
@@ -196,11 +196,11 @@ def test_bspline_and_galerkin_serve_the_rod_deck(solver, ground):
 @pytest.mark.skipif(
     not _FLOOR_ASKS_INSIDE_THE_CAP,
     reason="installed momwire predates momwire#1187: the app's default lane "
-    "(bspline) refuses the rod deck until the pin reaches momwire 0.63.0",
+    "(bs2) refuses the rod deck until the pin reaches momwire 0.63.0",
 )
 def test_the_apps_default_lane_loads_the_rod_deck():
     """What the web app does on load: a request naming no momwire model gets
-    bspline, over the finite Sommerfeld ground the design's
+    bs2, over the finite Sommerfeld ground the design's
     `ground_requirement` selects, and the engine it builds carries no
     refusal."""
     from antennaknobs.web import adapter
@@ -231,7 +231,7 @@ def test_nec2_family_is_refused_by_name_on_the_rod_deck():
         refusal = cov["refusals"][backend]
         assert refusal["capability"] == "buried"
         assert "below" in refusal["reason"]
-    assert "razor-2p" not in cov["refusals"]
+    assert "razor2p" not in cov["refusals"]
 
 
 # ---------------------------------------------------------------------------
@@ -242,7 +242,7 @@ def test_nec2_family_is_refused_by_name_on_the_rod_deck():
 # feed impedance here (979 - 359j ohm) is nothing like the 532 ohm momwire
 # and NEC-5 agree on. What any ground connection does show is the terminated
 # traveling wave: power into the resistor, and F/B that goes when it does.
-# The same two questions are asked of the ROD design on razor-2p below.
+# The same two questions are asked of the ROD design on razor2p below.
 # ---------------------------------------------------------------------------
 
 
@@ -289,7 +289,7 @@ def test_contact_removing_the_termination_degrades_fb():
 
 
 # ---------------------------------------------------------------------------
-# HEAVY: the rod design on razor-2p (~2 min for the lane, ~350 MB)
+# HEAVY: the rod design on razor2p (~2 min for the lane, ~350 MB)
 # ---------------------------------------------------------------------------
 
 
@@ -325,13 +325,13 @@ def test_heavy_rods_beverage_on_razor_2p():
 @pytest.mark.heavy_mesh
 @pytest.mark.skipif(
     not _FLOOR_ASKS_INSIDE_THE_CAP,
-    reason="installed momwire predates momwire#1187: bspline refuses the rod deck",
+    reason="installed momwire predates momwire#1187: bs2 refuses the rod deck",
 )
 def test_heavy_rods_beverage_on_bspline():
-    """The app's default lane on the rod design, average soil. bspline sits
+    """The app's default lane on the rod design, average soil. bs2 sits
     about 0.3 % from NEC-5 here (675.196 - 98.488j ohm at the feed against
-    NEC-5's 677.002 - 97.638j, the known bspline-vs-NEC-5 buried formulation
-    difference the module docstring states), so the pin is bspline's own
+    NEC-5's 677.002 - 97.638j, the known bs2-vs-NEC-5 buried formulation
+    difference the module docstring states), so the pin is bs2's own
     number, and the gap is held under 0.5 % so a regression toward or away
     from NEC-5 is seen."""
     b = Builder()

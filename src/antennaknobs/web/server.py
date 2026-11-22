@@ -156,7 +156,7 @@ def _physical_cpu_count() -> int:
 #   - An older OPENBLAS_NUM_THREADS=1 pin predates PyNEC bundling OpenBLAS
 #     (its factorization stayed parallel via MKL back then); with the current
 #     stack it would serialize the LU phase of every big solve — the pin vs
-#     NPROC is 2.3× on pynec (12.8 → 5.5 s) and 1.6× on bspline (7.3 →
+#     NPROC is 2.3× on pynec (12.8 → 5.5 s) and 1.6× on bs2 (7.3 →
 #     4.6 s) at ~4000 basis on a 4C/8T box (issue #377).
 #   - Physical over logical is a DEFAULT, not a measured win everywhere: the
 #     preference follows the kernel path (refl-coef prefers physical, free

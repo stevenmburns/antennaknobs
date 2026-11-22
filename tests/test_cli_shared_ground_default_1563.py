@@ -119,12 +119,12 @@ def test_format_ground_names_every_spelling():
 def test_convergence_table_prints_the_shared_ground_under_each_header(capsys):
     ant.cli(
         f"sweep --builder {DIPOLE} --param nominal_nsegs --markers 8 "
-        f"--engine momwire:bspline,momwire:sinusoidal --fn /dev/null".split()
+        f"--engine momwire:bs2,momwire:sinusoidal --fn /dev/null".split()
     )
     plt.close("all")
     pairs = _ground_lines(capsys.readouterr().out)
     assert pairs == [
-        ("momwire:bspline", "finite 13/0.005 (Sommerfeld-Norton)"),
+        ("momwire:bs2", "finite 13/0.005 (Sommerfeld-Norton)"),
         ("momwire:sinusoidal", "finite 13/0.005 (Sommerfeld-Norton)"),
     ]
 
@@ -132,11 +132,11 @@ def test_convergence_table_prints_the_shared_ground_under_each_header(capsys):
 def test_convergence_table_prints_an_explicit_ground(capsys):
     ant.cli(
         f"sweep --builder {DIPOLE} --param nominal_nsegs --markers 8 "
-        f"--ground finite --engine momwire:bspline --fn /dev/null".split()
+        f"--ground finite --engine momwire:bs2 --fn /dev/null".split()
     )
     plt.close("all")
     pairs = _ground_lines(capsys.readouterr().out)
-    assert pairs == [("momwire:bspline", "finite 13/0.005 (Sommerfeld-Norton)")]
+    assert pairs == [("momwire:bs2", "finite 13/0.005 (Sommerfeld-Norton)")]
 
 
 def test_frequency_sweep_names_its_one_ground(capsys):

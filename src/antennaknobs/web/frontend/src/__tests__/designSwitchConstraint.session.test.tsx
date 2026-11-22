@@ -102,8 +102,8 @@ const RESTRICTED: ExampleDescriptor = {
   name: "dipoles.invvee_apex",
   label: "invvee apex",
   requires_backends: [
-    "bspline",
-    "sinusoidal-galerkin",
+    "bs2",
+    "sg",
     "hmatrix",
     "arrayblock",
     "nec5",
@@ -112,7 +112,7 @@ const RESTRICTED: ExampleDescriptor = {
   // here is "overkill" and the SOFT mismatch overlay shows. That state before
   // the switch is what Steve's repro starts from and what my earlier tests
   // omitted.
-  default_backend: "bspline",
+  default_backend: "bs2",
   has_stepped_radius_junction: false,
   has_buried_wire: false,
 };

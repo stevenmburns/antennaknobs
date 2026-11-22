@@ -75,7 +75,7 @@ function renderGroundPanel(overrides: GroundOverrides = {}) {
   };
   const view = render(
     <GroundPanel
-      backend={entry("bspline")}
+      backend={entry("bs2")}
       groundEnabled={false}
       groundType="finite"
       finiteGroundMethod="fast"

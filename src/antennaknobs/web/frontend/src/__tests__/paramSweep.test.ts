@@ -164,7 +164,7 @@ describe("Z∞", () => {
   });
 
   it("gives a rough estimate its feed-mesh reason, and nothing else one", () => {
-    // dipoles.invvee on bspline, the app ladder: the gap wire goes 1 → 3.
+    // dipoles.invvee on bs2, the app ladder: the gap wire goes 1 → 3.
     const nSeg = [17, 23, 33, 47, 65, 95, 133];
     const fed = [0.1, 0.1, 0.1, 0.1, 0.1, 0.1 / 3, 0.1 / 3];
     const rough = { re: 55.14, im: -9.67, p: null, status: "rough" as const };

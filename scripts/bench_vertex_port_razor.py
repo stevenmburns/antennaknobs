@@ -1,6 +1,6 @@
-"""Does razor-2p's node-gap path earn a tab on vertex-port designs? (AK#1267 follow-up)
+"""Does razor2p's node-gap path earn a tab on vertex-port designs? (AK#1267 follow-up)
 
-`_VERTEX_PORT_WITHHELD = ("razor-2p",)` records that `RazorSolver` SERVES
+`_VERTEX_PORT_WITHHELD = ("razor2p",)` records that `RazorSolver` SERVES
 momwire's series node gap (momwire#603) and solves the one catalog design that
 uses one, but is not offered as a tab because nobody had driven that path.
 This is that drive. It changes no code and no tab list -- it produces the
@@ -15,7 +15,7 @@ one knob at a time around the default, plus three corners. Those are the knobs
 a user can actually move behind the tab, so the sample is the space the
 decision is about -- not decks invented for the occasion.
 
-Against `bs2` and `sinusoidal-galerkin` at matched mesh: two INDEPENDENT
+Against `bs2` and `sg` at matched mesh: two INDEPENDENT
 converged formulations, whose spread is the yardstick razor is measured
 against. Comparing razor to one of them would measure the pair's
 disagreement as if it were razor's error.
@@ -50,7 +50,7 @@ _HERE = Path(__file__).resolve().parent
 sys.path.insert(0, str(_HERE))
 
 DESIGN = "dipoles.invvee_apex"
-ENGINES = ("bs2", "sing", "razor-2p")
+ENGINES = ("bs2", "sing", "razor2p")
 RUNGS = (21, 42, 84, 168)
 GROUNDS = {
     # The design's docstring states its A/B in free space, and the catalog
@@ -112,8 +112,8 @@ def _build(b, engine, ground):
         return MomwireEngine(b, solver=BSplineSolver, solver_kwargs={"degree": 2}, **kw)
     if engine == "sing":
         return MomwireEngine(b, solver=SinusoidalGalerkinSolver, **kw)
-    if engine == "razor-2p":
-        # The TAB's preset, not a bare RazorSolver: `razor-2p` binds the
+    if engine == "razor2p":
+        # The TAB's preset, not a bare RazorSolver: `razor2p` binds the
         # identified two-point quadrature, and measuring the unbound class
         # would answer about a configuration no tab offers.
         return MomwireEngine(
@@ -161,7 +161,7 @@ def worker_main(engine, nseg, ground_key, params_json):
         # inside the engine and absorbs them into `_advisory_recorder`, so
         # nothing propagates out to an outer recorder. It would have reported
         # "razor raises no advisory on this design", which is the opposite of
-        # true: razor-2p raises `RazorFarMeshClass` on every deck.
+        # true: razor2p raises `RazorFarMeshClass` on every deck.
         out["advisories"] = [
             f"{a['category']}: {a['text'][:240]}" for a in eng.advisories
         ]

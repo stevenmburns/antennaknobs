@@ -1,8 +1,8 @@
 """The per-engine default density is ONE table, and both front ends read it.
 
 antennaknobs#1543. Before it there were two tables and they disagreed: the web
-roster carried `default_n_per_wire` (razor-2p 40, nec5 20) and the CLI carried
-nothing at all, so `--engine momwire:razor-2p` ran at the Builder framework
+roster carried `default_n_per_wire` (razor2p 40, nec5 20) and the CLI carried
+nothing at all, so `--engine momwire:razor2p` ran at the Builder framework
 default while the app's razor tab was documented at 40 and — because a slot
 preserved its N across an engine swap — actually served 15.
 
@@ -52,19 +52,19 @@ def _roster():
 def test_the_values():
     """The decided numbers, written out (#1543, 2026-09-16).
 
-    razor-2p and nec5 share 40 so an A/B between momwire's formulation twin
+    razor2p and nec5 share 40 so an A/B between momwire's formulation twin
     and the licensed binary is not also an A/B on the mesh; nec5 moved from
-    20 to get there. bspline is per degree and its flat entry is the degree-2
+    20 to get there. bs2 is per degree and its flat entry is the degree-2
     value.
     """
     assert dict(DEFAULT_NSEGS) == {
         "sinusoidal": 21,
-        "sinusoidal-galerkin": 20,
-        "bspline": 15,
+        "sg": 20,
+        "bs2": 15,
         "pulse": 41,
         "hmatrix": 30,
         "arrayblock": 21,
-        "razor-2p": 40,
+        "razor2p": 40,
         "pynec": 21,
         "opennec": 21,  # NEC-2 again, through pyopennec
         "nec5": 40,
@@ -72,7 +72,7 @@ def test_the_values():
         "nec42": 21,
     }
     assert {k: dict(v) for k, v in NSEGS_BY_DEGREE.items()} == {
-        "bspline": {1: 20, 2: 15, 3: 16},
+        "bs2": {1: 20, 2: 15, 3: 16},
     }
 
 
@@ -99,8 +99,8 @@ def test_an_engine_with_no_entry_has_no_opinion():
 def test_a_degree_the_engine_has_no_row_for_falls_back_to_the_flat_entry():
     """An engine that merely ACCEPTS a degree keeps one density across it —
     hmatrix and arrayblock are the live cases."""
-    assert default_nsegs("bspline", degree=1) == 20
-    assert default_nsegs("bspline", degree=9) == 15
+    assert default_nsegs("bs2", degree=1) == 20
+    assert default_nsegs("bs2", degree=9) == 15
     assert default_nsegs("hmatrix", degree=1) == 30
     assert default_nsegs("arrayblock", degree=3) == 21
 
@@ -108,9 +108,9 @@ def test_a_degree_the_engine_has_no_row_for_falls_back_to_the_flat_entry():
 def test_the_per_degree_map_is_handed_out_fresh():
     """It crosses the wire and reaches a CLI resolver; a shared mapping would
     let one caller edit the table for every other."""
-    first = nsegs_by_degree("bspline")
+    first = nsegs_by_degree("bs2")
     first[2] = "mutated"
-    assert nsegs_by_degree("bspline") == {1: 20, 2: 15, 3: 16}
+    assert nsegs_by_degree("bs2") == {1: 20, 2: 15, 3: 16}
 
 
 # --------------------------------------------------------------------------
@@ -148,15 +148,16 @@ def test_the_roster_carries_no_density_literal_of_its_own():
     "spec, expected",
     [
         # The two first-order engines, at the one number.
-        ("momwire:razor-2p", 40),
-        ("momwire:razor-nec5", 40),  # deprecated spelling, same engine
+        ("momwire:razor2p", 40),
+        ("momwire:razor-2p", 40),  # deprecated spelling, same engine
+        ("momwire:razor-nec5", None),  # retired: no density, refused by name
         ("nec5", 40),
-        # bspline per degree, through both spellings of the degree.
-        ("momwire:bspline", 15),
-        ("momwire:bspline-d1", 20),
+        # bs2 per degree, through both spellings of the degree.
+        ("momwire:bs2", 15),
+        ("momwire:bs1", 20),
         # The rest.
         ("momwire:sinusoidal", 21),
-        ("momwire:sinusoidal-galerkin", 20),
+        ("momwire:sg", 20),
         ("momwire:hmatrix", 30),
         ("momwire:arrayblock", 21),
         ("pynec", 21),

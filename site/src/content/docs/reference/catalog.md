@@ -42,36 +42,36 @@ reflection-coefficient method's by-name refusal never lands in your lap.
 `wire.beverage` is a 1.5 wl, 2.5 m high Beverage for 160 m (245.8 m of #14
 at 1.83 MHz) with a 500 Ω terminator, a 9:1 feed transformer, and a 1.8 m
 ground rod at each end; the beam points toward the terminated end. The rods
-cross into the soil, and momwire's `bspline` (the app's default),
-`sinusoidal-galerkin` and `razor-2p` all serve them. At the defaults, against a licensed NEC-5 at the same mesh:
+cross into the soil, and momwire's `bs2` (the app's default),
+`sg` and `razor2p` all serve them. At the defaults, against a licensed NEC-5 at the same mesh:
 
 | 1.83 MHz, defaults | feed Z (Ω) | peak | F/B | RDF |
 | --- | --- | --- | --- | --- |
-| `razor-2p`, average soil (13, 0.005) | 677.0 − j97.6 | −9.10 dBi | 19.1 dB | 11.95 dB |
+| `razor2p`, average soil (13, 0.005) | 677.0 − j97.6 | −9.10 dBi | 19.1 dB | 11.95 dB |
 | NEC-5, average soil | 677.0 − j97.6 | −9.10 dBi | 19.2 dB | 11.95 dB |
-| `razor-2p`, poor soil (13, 0.002) | 750.9 − j269.8 | −8.14 dBi | 19.5 dB | 12.22 dB |
+| `razor2p`, poor soil (13, 0.002) | 750.9 − j269.8 | −8.14 dBi | 19.5 dB | 12.22 dB |
 | NEC-5, poor soil | 751.0 − j270.0 | −8.14 dBi | 19.3 dB | 12.22 dB |
 
-The feed is the antenna side of the transformer. `razor-2p` and NEC-5 are
-0.02 Ω apart on the 50 Ω side of it. `bspline` and `sinusoidal-galerkin`
+The feed is the antenna side of the transformer. `razor2p` and NEC-5 are
+0.02 Ω apart on the 50 Ω side of it. `bs2` and `sg`
 agree with each other to 0.1 Ω and read about 0.3 % from NEC-5:
 
 | feed Z (Ω), same mesh | average soil | poor soil |
 | --- | --- | --- |
 | NEC-5 | 677.00 − j97.64 | 750.99 − j269.96 |
-| `razor-2p` | 676.99 − j97.57 | 750.92 − j269.84 |
-| `bspline` | 675.20 − j98.49 | 748.95 − j269.43 |
-| `sinusoidal-galerkin` | 675.17 − j98.54 | 748.85 − j269.49 |
+| `razor2p` | 676.99 − j97.57 | 750.92 − j269.84 |
+| `bs2` | 675.20 − j98.49 | 748.95 − j269.43 |
+| `sg` | 675.17 − j98.54 | 748.85 − j269.49 |
 
 That 2 Ω at the feed (0.2 Ω on the 50 Ω side) is the known difference
-between momwire's B-spline buried formulation and NEC-5's; `razor-2p` is
+between momwire's B-spline buried formulation and NEC-5's; `razor2p` is
 NEC-5's formulation, which is why it lands on it. The low absolute gain is normal for a
 Beverage, which is judged by its RDF (the receiving directivity factor, peak
 gain over average gain). The rods are the wire's own radius, because momwire
 does not yet serve two radii with two crossing nodes. The `contact` variant
-stops the down-leads on the ground plane instead of in rods; there `razor-2p`,
-`bspline` and NEC-5 agree to within 4 Ω at the feed (532.2 − j0.3 Ω on
-`razor-2p`, average soil), a matched line. The module
+stops the down-leads on the ground plane instead of in rods; there `razor2p`,
+`bs2` and NEC-5 agree to within 4 Ω at the feed (532.2 − j0.3 Ω on
+`razor2p`, average soil), a matched line. The module
 docstring carries the rest: rod depth, the terminator's share of the power,
 and a real 16 mm rod on NEC-5.
 :::

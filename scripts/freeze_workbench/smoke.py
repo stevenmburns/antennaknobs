@@ -247,7 +247,7 @@ def main(argv: list[str]) -> int:
         names = [b.get("name") for b in caps.get("backends", [])]
         print("gate 2 OK: /healthz ok, backends =", names)
         if "momwire" not in " ".join(str(n) for n in names) and not any(
-            "bspline" in str(n) or "momwire" in str(n) for n in names
+            "bs2" in str(n) or "momwire" in str(n) for n in names
         ):
             print("FAIL: no momwire backend in /capabilities")
             return 1
@@ -397,7 +397,7 @@ def main(argv: list[str]) -> int:
             "--builder",
             "dipoles.invvee:dipole",
             "--engine",
-            "momwire:bspline",
+            "momwire:bs2",
             "--markers",
             "8",
             "16",

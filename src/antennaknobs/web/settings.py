@@ -29,7 +29,7 @@ apply, and the entry it names keeps its built-in default.
     method = "fast"          # [ground] is the older spelling of slot X
 
     [slots.A]                # solver slots A, B, C; D and E when added (AK#1801)
-    backend = "bspline"
+    backend = "bs2"
     n_per_wire = 15
     model = { degree = 2 }
 

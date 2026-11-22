@@ -69,11 +69,11 @@ STUB = (("GW 4,3,", "GW 5,3,0.,.125,0.,.1,.125,0.,.0005\r\nGW 4,3,"),)
 NEC5 = 195.34 - 57.458j
 NEC5_LINES = 62.826 - 75.677j
 
-# razor-2p is one computation on both routes: float noise (2.7e-15 measured).
-# bspline is AK's default `BSplineSolver` against serve's `basis="bspline"`,
+# razor2p is one computation on both routes: float noise (2.7e-15 measured).
+# bs2 is AK's default `BSplineSolver` against serve's `basis="bs2"`,
 # two differently configured lanes; 0017's row in
 # `test_two_routes_agree_corpus_1584.py` carries the same 2.2e-04 at 5e-4.
-BAR = {"razor-2p": 1e-12, "bspline": 5e-4}
+BAR = {"razor2p": 1e-12, "bs2": 5e-4}
 
 
 def _variant(tmp_path, swaps, name) -> Path:
@@ -128,14 +128,14 @@ def test_a_pinned_node_is_still_kept(tmp_path):
     assert {"nt1b", "nt2b"} <= set(net.ports)
 
 
-@pytest.mark.parametrize("basis", ["razor-2p", "bspline"])
+@pytest.mark.parametrize("basis", ["razor2p", "bs2"])
 def test_leaving_the_node_out_is_the_pinned_circuit(tmp_path, basis):
     """Exact up to round-off: Y12 = 0, so nothing reads the node a pin holds."""
     pinned = _variant(tmp_path, [PINNED], "pinned.nec")
     assert _z(DECK, basis) == pytest.approx(_z(pinned, basis), rel=1e-12)
 
 
-@pytest.mark.parametrize("basis", ["razor-2p", "bspline"])
+@pytest.mark.parametrize("basis", ["razor2p", "bs2"])
 @pytest.mark.parametrize("variant", ["dan", "mirror"])
 def test_the_ak_route_answers_the_seam(tmp_path, basis, variant):
     swaps = [] if variant == "dan" else list(MIRROR)
@@ -143,7 +143,7 @@ def test_the_ak_route_answers_the_seam(tmp_path, basis, variant):
     pinned = _variant(tmp_path, [*swaps, PINNED], f"{variant}_pinned.nec")
     z, ref = _z(path, basis), _seam(pinned, basis)
     assert abs(z - ref) / abs(ref) < BAR[basis], (z, ref)
-    if basis == "razor-2p":
+    if basis == "razor2p":
         # NEC-5's own basis: the licensed engine's printed digits, both
         # orders (two loads in series either way round).
         assert abs(z - NEC5) < 5e-3, z
@@ -152,8 +152,8 @@ def test_the_ak_route_answers_the_seam(tmp_path, basis, variant):
 def test_open_stubs_on_the_two_sides_answer_nec5(tmp_path):
     """The TL variant. It never failed (a line holds its far node), so this
     is a guard on AK#1617's two-port spelling for lines, not a regression
-    test: razor-2p lands 5.5e-05 from NEC-5's printout."""
-    z = _z(_variant(tmp_path, LINES, "lines.nec"), "razor-2p")
+    test: razor2p lands 5.5e-05 from NEC-5's printout."""
+    z = _z(_variant(tmp_path, LINES, "lines.nec"), "razor2p")
     assert abs(z - NEC5_LINES) / abs(NEC5_LINES) < 1e-4, z
 
 
@@ -167,7 +167,7 @@ NEC5_K3_STUB = 187.13 + 23.127j
 NEC5_K3_LOADS = 132.42 + 99.409j
 
 
-@pytest.mark.parametrize("basis", ["razor-2p", "bspline"])
+@pytest.mark.parametrize("basis", ["razor2p", "bs2"])
 @pytest.mark.parametrize(
     ("swaps", "nec5"),
     [((), NEC5_K3_STUB), (K3_LOADS, NEC5_K3_LOADS)],
@@ -178,10 +178,10 @@ def test_objects_on_two_wires_at_a_three_wire_node_answer_nec5(
 ):
     """NEC-5 puts each object in its own wire's branch there, one node gap per
     wire end (AK#1886). Each address keeps its own `PortAtVertex`, the NT ends
-    included: a positioned gap cannot name the branch, and razor-2p refused
+    included: a positioned gap cannot name the branch, and razor2p refused
     one ("an ARCLENGTH cannot name which of that node's branches"), while
-    bspline answered the stub deck 191.51 + 28.53j. That is bspline's own
-    answer, not the spelling's: the seam's bspline gives the same."""
+    bs2 answered the stub deck 191.51 + 28.53j. That is bs2's own
+    answer, not the spelling's: the seam's bs2 gives the same."""
     path = _variant(tmp_path, [*STUB, *swaps], "k3.nec")
     pinned = _variant(tmp_path, [*STUB, *swaps, PINNED], "k3_pinned.nec")
     # One vertex port per wire end: wire 2's end 2 and wire 3's end 1.
@@ -191,5 +191,5 @@ def test_objects_on_two_wires_at_a_three_wire_node_answer_nec5(
     assert ports[b] == PortAtVertex(b, end="p0")
     z, ref = _z(path, basis), _seam(pinned if not swaps else path, basis)
     assert abs(z - ref) / abs(ref) < BAR[basis], (z, ref)
-    if basis == "razor-2p":
+    if basis == "razor2p":
         assert abs(z - nec5) < 0.01, z

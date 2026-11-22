@@ -6,9 +6,9 @@ per-engine extrapolated Z∞ marker, plus a table on stdout.
 
 What is gated here, matching the issue's own gate paragraph:
 
-  1. a dipole ladder on momwire:bspline and momwire:razor-2p gives two
+  1. a dipole ladder on momwire:bs2 and momwire:razor2p gives two
      monotone trajectories whose Z∞ estimates agree with each other
-     and with a high-N bspline solve, and the achieved-N column shows the
+     and with a high-N bs2 solve, and the achieved-N column shows the
      parity rounding;
   2. a frequency sweep with two engines draws two loci;
   3. the existing single-engine sweeps print no convergence table (their
@@ -85,16 +85,16 @@ def _parse_convergence_table(text):
 def test_density_ladder_two_engines_converge_and_agree(capsys):
     ant.cli(
         f"sweep --builder {DIPOLE} --param nominal_nsegs {RANGE} --ground free "
-        f"--engine momwire:bspline,momwire:razor-2p --fn /dev/null".split()
+        f"--engine momwire:bs2,momwire:razor2p --fn /dev/null".split()
     )
     out = capsys.readouterr().out
     table = _parse_convergence_table(out)
-    assert set(table) == {"momwire:bspline", "momwire:razor-2p"}
+    assert set(table) == {"momwire:bs2", "momwire:razor2p"}
 
     # Achieved N tracks the ladder rung, and the two engines' PARITY
-    # rounding differs (bspline odd, razor-2p even) at every rung.
-    bs_ach = [a for _, a, _ in table["momwire:bspline"]["rows"]]
-    rz_ach = [a for _, a, _ in table["momwire:razor-2p"]["rows"]]
+    # rounding differs (bs2 odd, razor2p even) at every rung.
+    bs_ach = [a for _, a, _ in table["momwire:bs2"]["rows"]]
+    rz_ach = [a for _, a, _ in table["momwire:razor2p"]["rows"]]
     assert all(n % 2 == 1 for n in bs_ach), bs_ach
     assert all(n % 2 == 0 for n in rz_ach), rz_ach
     assert bs_ach != rz_ach
@@ -109,12 +109,12 @@ def test_density_ladder_two_engines_converge_and_agree(capsys):
         # Four rungs of a smooth ladder: an estimate, with its status named.
         assert table[name]["status"] in ("asymptotic", "rough", "converged")
 
-    z_bs = table["momwire:bspline"]["z_star"]
-    z_rz = table["momwire:razor-2p"]["z_star"]
+    z_bs = table["momwire:bs2"]["z_star"]
+    z_rz = table["momwire:razor2p"]["z_star"]
     # The two engines' Z∞ estimates agree with each other...
     assert abs(z_bs - z_rz) / abs(z_bs) < 0.02
 
-    # ...and with a high-N (nominal 160) bspline reference solve, the same
+    # ...and with a high-N (nominal 160) bs2 reference solve, the same
     # seam tolerance the density studies (#1525) use.
     from momwire import BSplineSolver
 
@@ -135,7 +135,7 @@ def test_two_engine_frequency_sweep_draws_two_loci(monkeypatch):
     try:
         ant.cli(
             f"sweep --builder {DIPOLE} --npoints 3 "
-            "--engine momwire:bspline,momwire:razor-2p "
+            "--engine momwire:bs2,momwire:razor2p "
             "--use_smithchart --fn /dev/null".split()
         )
         fig = plt.gcf()
@@ -145,7 +145,7 @@ def test_two_engine_frequency_sweep_draws_two_loci(monkeypatch):
             for line in ax.get_lines()
             if not line.get_label().startswith("_")
         }
-        assert labels == {"momwire:bspline", "momwire:razor-2p"}
+        assert labels == {"momwire:bs2", "momwire:razor2p"}
     finally:
         plt.close("all")
 
@@ -217,7 +217,7 @@ def test_swr_refuses_multiple_engines():
     msg = str(
         _expect_system_exit(
             f"sweep --builder {DIPOLE} --swr "
-            "--engine momwire:bspline,momwire:razor-2p --fn /dev/null"
+            "--engine momwire:bs2,momwire:razor2p --fn /dev/null"
         )
     )
     assert "--swr" in msg
@@ -259,7 +259,7 @@ def test_markers_add_rungs_at_exactly_the_densities_named(capsys):
 
     _sweep_convergence(
         B(),
-        [("momwire:bspline", lambda b: MomwireEngine(b))],
+        [("momwire:bs2", lambda b: MomwireEngine(b))],
         rng=(8.0, 24.0),
         npoints=3,
         use_smithchart=False,
@@ -284,7 +284,7 @@ def test_markers_alone_are_the_whole_ladder(capsys):
     B = importlib.import_module("antennaknobs.designs.dipoles.invvee").Builder
     _sweep_convergence(
         B(),
-        [("momwire:bspline", lambda b: MomwireEngine(b))],
+        [("momwire:bs2", lambda b: MomwireEngine(b))],
         rng=None,
         npoints=None,
         use_smithchart=False,

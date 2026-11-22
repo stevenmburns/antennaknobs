@@ -56,7 +56,7 @@ LEVEL = _crossing_fill.NodeArm(0.5025, 0.5025, 0, "start", "above")
 @pytest.mark.parametrize(
     "kw",
     [{}, {"worth": _RAZOR_NODE_WORTH, "levers": _RAZOR_NODE_LEVERS}],
-    ids=["bspline", "razor"],
+    ids=["bs2", "razor"],
 )
 def test_the_crossing_summary_says_where_how_long_and_what_to_do(kw):
     text = _crossing_text(LEVEL, **kw)
@@ -115,7 +115,7 @@ def test_the_far_mesh_summary():
     assert "Doubling the segments roughly halves" in got
     # momwire#1831: the engine by the model name the user picks, not the
     # retired short form.
-    assert "bspline is already converged" in got
+    assert "bs2 is already converged" in got
     assert "bs2" not in got
 
 
@@ -148,7 +148,7 @@ def _jeff_engine(spec):
 
 
 def test_jeffs_deck_serves_the_summary_beside_momwires_text():
-    eng = _jeff_engine("momwire:bspline")
+    eng = _jeff_engine("momwire:bs2")
     eng.impedance()
     (adv,) = [a for a in eng.advisories if a["category"] == "CoarseCrossingNode"]
     assert adv["text"].startswith("crossing node: wire 0's start")
@@ -187,7 +187,7 @@ def test_the_cli_echoes_the_summary_once_and_never_the_far_mesh_one(capsys):
 )
 def test_jeffs_deck_keeps_the_extended_kernel_above_ground(solver_name):
     # His deck carries EK and a buried stake. B-spline (momwire 0.78,
-    # momwire#1170), razor-2p (momwire 0.82, momwire#1614) and Sin-Galerkin
+    # momwire#1170), razor2p (momwire 0.82, momwire#1614) and Sin-Galerkin
     # (momwire 0.83, momwire#1626) serve the kernel on the wires above the
     # ground, so nothing falls back and no fallback note is composed.
     import momwire

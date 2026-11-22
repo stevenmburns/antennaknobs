@@ -240,7 +240,7 @@ in `fly.toml`'s `[env]` if the VM grows:
 | Env var | Default | Applies to |
 |---|---|---|
 | `ANTENNAKNOBS_HOSTED` | *(unset → off)* | **master switch** — set to `1` to enforce the caps below |
-| `ANTENNAKNOBS_MAX_BASIS` | `7000` | dense momwire (bspline / sinusoidal) — full N×N |
+| `ANTENNAKNOBS_MAX_BASIS` | `7000` | dense momwire (bs2 / sinusoidal) — full N×N |
 | `ANTENNAKNOBS_MAX_BASIS_COMPRESSED` | `9000` | `arrayblock` / `hmatrix` (block-low-rank, ~0.6× dense memory) |
 | `ANTENNAKNOBS_MAX_BASIS_PYNEC` | `7000` | PyNEC (full dense N×N, same as dense momwire) |
 | `ANTENNAKNOBS_MAX_SWEEP_POINTS` | `500` | points in one sweep request, refused (413) above it |
@@ -271,11 +271,11 @@ a deploy that runs more than one machine gets one slot per machine.
 ## Sweep memory budget (`ANTENNAKNOBS_SWEPT_MEM_MB`)
 
 Separate from the size caps (and **not** gated on `ANTENNAKNOBS_HOSTED`):
-momwire ≥ 0.9 runs frequency sweeps on the bspline-family solvers through a
+momwire ≥ 0.9 runs frequency sweeps on the B-spline family solvers through a
 k-batched fill whose transient memory is budgeted by the solver's
 `swept_mem_mb` kwarg (momwire default 256 MB — right for local use). When
 `ANTENNAKNOBS_SWEPT_MEM_MB` is set, the web adapter injects it into every
-bspline-family solve, **overriding** any client-sent `model_options` value —
+B-spline family solve, **overriding** any client-sent `model_options` value —
 deployment owns the policy. This repo's `fly.toml` sets `64` so two concurrent
 worst-case sweeps stay well inside the 2 GB VM (~1.6× worst-case sweep latency;
 production-shaped sweeps are unaffected). Sinusoidal has no batched sweep path

@@ -268,7 +268,7 @@ def test_the_packed_form_carries_no_flag():
 _TERRAIN_SOLVE_REQ = {
     "geometry": "dipoles.invvee",
     "measurement_freq_mhz": 21.2,
-    "momwire_model": "bspline",
+    "momwire_model": "bs2",
     "ground": True,
     "ground_model": "terrain",
     "terrain": {"preset": "levee"},

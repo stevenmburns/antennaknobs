@@ -37,7 +37,7 @@ at A, the same feed gap, the same radials (``n_radials``, evenly spaced from
 +x, the first one under the hairpin, each λ/4 long).
 
 Measured 2026-11-19, 40 m (7.1 MHz), base 0.5 m, three radials, momwire
-`nec5-bspline` (the default engine) at the design density (149 segments for
+`nec5-bs2` (the default engine) at the design density (149 segments for
 the hairpin, 106-107 for the others), design frequency. Δφ is the phase of the
 current at the centre of the λ/2 section less that at the centre of the λ/4
 section, both taken upward along the axis; co-phased means Δφ near 0°. Gains in

@@ -10,7 +10,7 @@ import type { BackendEntry } from "../lib/backends";
 import type { SolveRequest } from "../lib/api";
 
 const BACKEND: BackendEntry = {
-  name: "bspline",
+  name: "bs2",
   label: "B-spline",
   kind: "momwire",
   supports_ground: true,

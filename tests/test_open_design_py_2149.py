@@ -94,7 +94,7 @@ def test_the_proxy_builder_answers_every_hook_as_the_design_does():
 def test_the_proxy_builder_solves_bit_for_bit_like_the_design():
     cls, name, src = catalog_source()
     proxy = sb.sandboxed_builder(name, src)
-    engine = cli.make_engine_factory("momwire:bspline", "free")
+    engine = cli.make_engine_factory("momwire:bs2", "free")
     f = float(cls.default_params["freq"])
     with warnings.catch_warnings():
         warnings.simplefilter("ignore")

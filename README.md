@@ -117,7 +117,7 @@ point — agreement between independent engines is your confidence check.
 | | **PyNEC** | **momwire** |
 |---|---|---|
 | What | Python binding to the compiled C++ **NEC2** engine | In-house **method-of-moments** engines, pure-Python core with optional C++ accelerators |
-| Basis | NEC2 thin-wire (pulse/sinusoidal) | Three bases — sinusoidal, B-spline (degree 1–2) and razor-2p (NEC-5's razor-blade testing on a tent basis) — plus H-matrix and array-block accelerators built on the B-spline basis |
+| Basis | NEC2 thin-wire (pulse/sinusoidal) | Three bases — sinusoidal, B-spline (degree 1–2) and razor2p (NEC-5's razor-blade testing on a tent basis) — plus H-matrix and array-block accelerators built on the B-spline basis |
 | Speed | Very fast single-frequency solves | Fast; C++ accelerators (pybind11) for assembly/quadrature, pure-Python fallback |
 | Ground | Sommerfeld–Norton finite ground (default) or the faster reflection-coefficient approximation | Same two models on every solver (momwire ≥ 0.8.0): true Sommerfeld–Norton or the faster reflection-coefficient approximation; the engine API defaults to free space (the web workbench turns ground on) |
 | Install | Prebuilt wheel from the `python-necpp` fork release (OpenBLAS vendored) | C++ accelerator built from the `momwire` submodule |
@@ -128,17 +128,16 @@ point — agreement between independent engines is your confidence check.
 ```bash
 --engine momwire                 # momwire (default), default B-spline basis
 --engine momwire:sinusoidal      # NEC2-style three-term basis (cross-validator)
---engine momwire:bspline         # degree-1/2 B-spline Galerkin basis
+--engine momwire:bs2             # B-spline Galerkin basis, degree 2 (bs1: degree 1)
 --engine momwire:hmatrix         # B-spline + hierarchical-matrix (ACA) acceleration
 --engine momwire:arrayblock      # element-aware block solver for arrays
 --engine pynec                   # NEC2 via PyNEC (needs the optional pynec-accel)
 --engine opennec                 # NEC2 via OpenNEC (needs the optional pyopennec, a release wheel)
---engine momwire:sinusoidal-galerkin            # three-term basis, Galerkin testing
---engine momwire:sinusoidal-galerkin-converged  # same, with the converged feed model
---engine momwire:razor-2p      # NEC-5 razor-blade testing on a tent basis, the interactive lane
+--engine momwire:sg              # three-term basis, Galerkin testing, converged feed
+--engine momwire:razor2p         # NEC-5 razor-blade testing on a tent basis, the interactive lane
 ```
 
-**Razor-2p** (`momwire:razor-2p`, deprecated spelling `momwire:razor-nec5`)
+**Razor-2p** (`momwire:razor2p`)
 is a tent-basis solver tested by NEC-5's own razor-blade (mixed-potential
 path) rule rather than point matching or Galerkin testing — a check you can
 run without the licensed NEC-5 binary. It binds NEC-5's identified
@@ -154,7 +153,7 @@ full guidance and refusal boundary (no extended kernel, no junction/node-
 gap ports, no ground contact over a finite ground).
 
 **NEC-compatible vs converged feed** (sinusoidal-Galerkin only): the plain
-`sinusoidal-galerkin` drives NEC's segment-wide gap — it reproduces NEC/EZNEC
+`sg` drives NEC's segment-wide gap — it reproduces NEC/EZNEC
 behaviour, including the well-known reactance drift as the mesh refines, which
 is what you want when cross-checking against NEC results. The `-converged`
 variant (web: the "Converged" feed-model setting on the Sin-Galerkin solver)
@@ -351,7 +350,7 @@ python -m antennaknobs compare_patterns \
 
 # Cross-check one design across two backends
 python -m antennaknobs compare_patterns \
-    --builders beams.moxon beams.moxon --engines pynec momwire:bspline --fn check.png
+    --builders beams.moxon beams.moxon --engines pynec momwire:bs2 --fn check.png
 
 # Optimize length and arm angle of an inverted-V dipole for a 50 Ω match
 python -m antennaknobs optimize --builder dipoles.invvee \

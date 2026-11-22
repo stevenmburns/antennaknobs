@@ -144,7 +144,7 @@ _INVVEE_15M = {
     "geometry": "dipoles.invvee",
     "base": 15.0,
     "measurement_freq_mhz": 28.5,
-    "momwire_model": "bspline",
+    "momwire_model": "bs2",
     "ground": True,
     "az_elev_deg": 15.0,
     "elev_az_deg": 0.0,
@@ -245,7 +245,7 @@ def _sweep(client: TestClient, req: dict, freqs: list[float]):
 _SWEEP_REQ = {
     "geometry": "dipoles.invvee",
     "measurement_freq_mhz": 28.47,
-    "momwire_model": "bspline",
+    "momwire_model": "bs2",
 }
 
 

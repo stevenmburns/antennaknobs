@@ -40,7 +40,7 @@ EN
 SOLVE = {
     "geometry": "dipoles.invvee",
     "measurement_freq_mhz": 28.47,
-    "momwire_model": "bspline",
+    "momwire_model": "bs2",
     "_session": "pin-405",
     "_seq": 1,
 }
@@ -173,8 +173,8 @@ def test_every_session_request_goes_through_the_pin():
 
 def test_off_unless_hosted():
     c = hosting.UsageCounters(enabled=False)
-    c.inc("ak_solves_total", "dipoles.invvee", "bspline", "free")
-    assert c.value("ak_solves_total", "dipoles.invvee", "bspline", "free") == 0
+    c.inc("ak_solves_total", "dipoles.invvee", "bs2", "free")
+    assert c.value("ak_solves_total", "dipoles.invvee", "bs2", "free") == 0
     assert c.exposition() == ""
     # And the server's own instance is built from the hosted switch.
     assert server._METRICS.enabled is server._HOSTED
@@ -187,16 +187,14 @@ def test_a_live_solve_and_its_session_are_counted(client, counters, off_fly):
         # Same request again: a cache hit is not a solve the server paid for.
         ws.send_text(json.dumps({**SOLVE, "_seq": 2}))
         assert json.loads(ws.receive_text())["cache_hit"] is True
-    assert counters.series("ak_solves_total") == {
-        ("dipoles.invvee", "bspline", "free"): 1
-    }
+    assert counters.series("ak_solves_total") == {("dipoles.invvee", "bs2", "free"): 1}
     assert counters.series("ak_sessions_total") == {("catalog",): 1}
     # A second connection is a second session.
     with client.websocket_connect("/ws") as ws:
         ws.send_text(json.dumps({**SOLVE, "ground": True, "ground_model": "pec"}))
         ws.receive_text()
     assert counters.value("ak_sessions_total", "catalog") == 2
-    assert counters.value("ak_solves_total", "dipoles.invvee", "bspline", "pec") == 1
+    assert counters.value("ak_solves_total", "dipoles.invvee", "bs2", "pec") == 1
 
 
 def test_deck_opens_are_counted_by_dialect_and_outcome(
@@ -219,14 +217,12 @@ def test_deck_opens_are_counted_by_dialect_and_outcome(
     # under the literal "deck", never its key or file name.
     key = ok.json()["key"]
     with client.websocket_connect("/ws") as ws:
-        ws.send_text(
-            json.dumps({"geometry": key, "momwire_model": "bspline", "_seq": 1})
-        )
+        ws.send_text(json.dumps({"geometry": key, "momwire_model": "bs2", "_seq": 1}))
         assert "error" not in json.loads(ws.receive_text())
     assert counters.value("ak_sessions_total", "deck") == 1
     text = counters.exposition()
     assert key not in text and "d.nec" not in text
-    assert 'ak_solves_total{design="deck",engine="bspline",ground="free"} 1' in text
+    assert 'ak_solves_total{design="deck",engine="bs2",ground="free"} 1' in text
 
 
 @pytest.mark.parametrize(
@@ -249,7 +245,7 @@ def test_engine_and_ground_labels_come_from_fixed_rosters():
 
     models = adapter._BACKENDS_BY_NAME
     assert hosting.engine_label({"solver": "nec5"}, models) == "nec5"
-    assert hosting.engine_label({"momwire_model": "bspline"}, models) == "bspline"
+    assert hosting.engine_label({"momwire_model": "bs2"}, models) == "bs2"
     assert hosting.engine_label({}, models) == "momwire"
     assert hosting.engine_label({"momwire_model": "x" * 99}, models) == "other"
     assert hosting.engine_label({"solver": "../etc"}, models) == "other"
@@ -263,14 +259,13 @@ def test_engine_and_ground_labels_come_from_fixed_rosters():
 
 def test_exposition_is_prometheus_text():
     c = hosting.UsageCounters(enabled=True)
-    c.inc("ak_solves_total", "dipoles.invvee", "bspline", "free")
-    c.inc("ak_solves_total", "dipoles.invvee", "bspline", "free")
+    c.inc("ak_solves_total", "dipoles.invvee", "bs2", "free")
+    c.inc("ak_solves_total", "dipoles.invvee", "bs2", "free")
     c.inc("ak_deck_opens_total", "nec2", "ok")
     text = c.exposition()
     assert "# TYPE ak_solves_total counter" in text
     assert (
-        'ak_solves_total{design="dipoles.invvee",engine="bspline",ground="free"} 2'
-        in text
+        'ak_solves_total{design="dipoles.invvee",engine="bs2",ground="free"} 2' in text
     )
     assert 'ak_deck_opens_total{dialect="nec2",outcome="ok"} 1' in text
     assert "# TYPE ak_sessions_total counter" in text

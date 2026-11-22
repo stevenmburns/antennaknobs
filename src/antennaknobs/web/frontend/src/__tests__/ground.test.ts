@@ -16,13 +16,13 @@ const UNSUPPORTED = backendEntry({
 
 describe("resolveGroundModel", () => {
   it("is 'pec' for groundType 'pec' regardless of backend", () => {
-    expect(resolveGroundModel("pec", entry("bspline"), "fast")).toBe("pec");
+    expect(resolveGroundModel("pec", entry("bs2"), "fast")).toBe("pec");
     expect(resolveGroundModel("pec", UNSUPPORTED, "sommerfeld")).toBe("pec");
   });
 
   it("is 'terrain' for groundType 'terrain' on a terrain-capable backend", () => {
     expect(resolveGroundModel("terrain", entry("pynec"), "fast")).toBe("terrain");
-    expect(resolveGroundModel("terrain", entry("sinusoidal-galerkin"), "fast")).toBe("terrain");
+    expect(resolveGroundModel("terrain", entry("sg"), "fast")).toBe("terrain");
   });
 
   it("degrades 'terrain' to 'fast' on a backend without terrain (and ground) support", () => {
@@ -30,8 +30,8 @@ describe("resolveGroundModel", () => {
   });
 
   it("mirrors finiteGroundMethod for groundType 'finite' on a ground-capable backend", () => {
-    expect(resolveGroundModel("finite", entry("bspline"), "fast")).toBe("fast");
-    expect(resolveGroundModel("finite", entry("bspline"), "sommerfeld")).toBe("sommerfeld");
+    expect(resolveGroundModel("finite", entry("bs2"), "fast")).toBe("fast");
+    expect(resolveGroundModel("finite", entry("bs2"), "sommerfeld")).toBe("sommerfeld");
   });
 
   it("falls back to 'fast' for groundType 'finite' on a backend without ground support", () => {
@@ -41,7 +41,7 @@ describe("resolveGroundModel", () => {
 
 describe("groundSummaryLabel", () => {
   it("is 'free space' when ground is disabled, regardless of model", () => {
-    expect(groundSummaryLabel(false, entry("bspline"), "pec", "levee")).toBe("free space");
+    expect(groundSummaryLabel(false, entry("bs2"), "pec", "levee")).toBe("free space");
   });
 
   it("is 'free space' when the backend doesn't support ground even if enabled", () => {
@@ -49,23 +49,23 @@ describe("groundSummaryLabel", () => {
   });
 
   it("labels 'PEC ground'", () => {
-    expect(groundSummaryLabel(true, entry("bspline"), "pec", "levee")).toBe("PEC ground");
+    expect(groundSummaryLabel(true, entry("bs2"), "pec", "levee")).toBe("PEC ground");
   });
 
   it("labels 'terrain (<preset>)'", () => {
-    expect(groundSummaryLabel(true, entry("bspline"), "terrain", "cliff")).toBe("terrain (cliff)");
+    expect(groundSummaryLabel(true, entry("bs2"), "terrain", "cliff")).toBe("terrain (cliff)");
   });
 
   it("labels 'reflection-coef ground' for the fast finite method", () => {
-    expect(groundSummaryLabel(true, entry("bspline"), "fast", "levee")).toBe("reflection-coef ground");
+    expect(groundSummaryLabel(true, entry("bs2"), "fast", "levee")).toBe("reflection-coef ground");
   });
 
   it("labels 'MININEC-type ground' for the mininec finite method (AK#1655)", () => {
-    expect(groundSummaryLabel(true, entry("bspline"), "mininec", "levee")).toBe("MININEC-type ground");
+    expect(groundSummaryLabel(true, entry("bs2"), "mininec", "levee")).toBe("MININEC-type ground");
   });
 
   it("labels 'Sommerfeld ground' for the sommerfeld finite method", () => {
-    expect(groundSummaryLabel(true, entry("bspline"), "sommerfeld", "levee")).toBe("Sommerfeld ground");
+    expect(groundSummaryLabel(true, entry("bs2"), "sommerfeld", "levee")).toBe("Sommerfeld ground");
   });
 });
 

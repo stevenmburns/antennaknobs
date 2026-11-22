@@ -573,7 +573,7 @@ def test_the_nec5_export_declares_itself_and_round_trips_under_detection():
 # NOFILE is its only marker, and the licensed NEC-5 (x13) solved it to
 # 87.321 - j2.6375 with the source at the END of segment 11 (20 segments, so
 # 0.55 of the wire). Read half-and-half (the source at the segment centre, as
-# before), razor-2p -- NEC-5's own formulation -- lands 1.65 ohm off; read
+# before), razor2p -- NEC-5's own formulation -- lands 1.65 ohm off; read
 # wholly NEC-5 it lands within 0.01.
 DAN_VERTICAL = """CM Dan AC6LA NE0 XYZ Dipole: vertical 20.4 m dipole, centre 12 m, 7.2 MHz
 CE

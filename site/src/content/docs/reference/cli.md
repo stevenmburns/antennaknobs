@@ -200,7 +200,7 @@ printed tables go to stderr for that run:
 
 ```bash
 python -m antennaknobs sweep --builder dipoles.invvee:dipole --param freq \
-    --engine momwire:bspline --csv - --fn /dev/null > dipole.csv
+    --engine momwire:bs2 --csv - --fn /dev/null > dipole.csv
 ```
 
 ## Analyses
@@ -286,7 +286,7 @@ invvee's `convergence` gives exactly the table and `Z∞` of
 
 ```bash
 python -m antennaknobs sweep --builder dipoles.invvee --param nominal_nsegs \
-    --engine momwire:bspline,momwire:razor-2p,nec5 --ground finite:13,0.005
+    --engine momwire:bs2,momwire:razor2p,nec5 --ground finite:13,0.005
 ```
 
 and each curve of its `height` is `sweep --param base --range 2 20 --npoints
@@ -376,7 +376,7 @@ with engines and grounds under the same cap of 6:
   angle_deg=15`.
 
 A curve's label joins what makes it, in the order the crosses are written:
-`dipoles.invvee_apex, momwire:razor-2p`, or `rig, angle_deg = 30`. Tables print
+`dipoles.invvee_apex, momwire:razor2p`, or `rig, angle_deg = 30`. Tables print
 one block per curve, and a refused curve keeps its place in the legend.
 
 The study `feed spelling (E7)` (see [Studies](#studies)) compares the stock
@@ -389,9 +389,9 @@ NEC2_EXE=$(command -v nec2c) python -m antennaknobs analyze --study "feed spelli
 ```
 
 ```text
-dipoles.invvee, momwire:bspline  Z∞ = 55.144-9.674j  (rough: not yet asymptotic, first order assumed)
+dipoles.invvee, momwire:bs2  Z∞ = 55.144-9.674j  (rough: not yet asymptotic, first order assumed)
 ...
-dipoles.invvee_apex, momwire:razor-2p  Z∞ = 54.464-12.271j  (p = 1.08, asymptotic)
+dipoles.invvee_apex, momwire:razor2p  Z∞ = 54.464-12.271j  (p = 1.08, asymptotic)
 dipoles.invvee_apex, nec2: refused: this design uses PortAtVertex (a series apex feed at a junction knot), which NEC-2 cannot represent ...
 ```
 
@@ -913,7 +913,7 @@ def build_studies():
             name="feed spelling (E7)",
             cross=(
                 an.Cross(designs=("dipoles.invvee", "dipoles.invvee_apex")),
-                an.Cross(engines=("momwire:bspline", "momwire:razor-2p", "nec2")),
+                an.Cross(engines=("momwire:bs2", "momwire:razor2p", "nec2")),
             ),
         ),
     ]
@@ -990,7 +990,7 @@ an.band_swr(
             an.Cell(an.State("low", design="dipoles.invvee", base=5.0), engine="nec5"),
             an.Cell(
                 an.State("tall", design="dipoles.invvee", variant="dipole", base=12.0),
-                engine="momwire:bspline",
+                engine="momwire:bs2",
             ),
         ),
     ),
@@ -1171,17 +1171,17 @@ The `--engine` flag selects the solver:
 ```bash
 --engine momwire                 # momwire (default), default (B-spline) basis
 --engine momwire:sinusoidal      # NEC-2's own formulation (basis, testing and feed)
---engine momwire:sinusoidal-galerkin            # same basis, Galerkin testing, converged feed
---engine momwire:bspline         # B-spline Galerkin basis
---engine momwire:bspline-d1      # …at degree 1 (bs1) — the cheapest d1-vs-d2 convergence check
+--engine momwire:sg              # same basis, Galerkin testing, converged feed
+--engine momwire:bs2             # B-spline Galerkin basis, degree 2 (the default basis)
+--engine momwire:bs1             # …at degree 1 — the cheapest d1-vs-d2 convergence check
 --engine momwire:hmatrix         # B-spline + hierarchical-matrix (ACA) acceleration
 --engine momwire:arrayblock      # element-aware block solver for arrays
---engine momwire:razor-2p      # NEC-5 formulation twin, NEC-5's identified quadrature — the interactive lane
+--engine momwire:razor2p         # NEC-5 formulation twin, NEC-5's identified quadrature — the interactive lane
 --engine pynec                   # the NEC-2 reference backend (needs pynec-accel)
 --engine nec5                    # a licensed LOCAL NEC-5 binary (joins the roster only when $NEC5_EXE points at one)
 ```
 
-`nec5` is the real engine, not to be confused with `momwire:razor-2p`:
+`nec5` is the real engine, not to be confused with `momwire:razor2p`:
 the latter is momwire's independently written formulation *twin* (same
 basis and testing rule, transcribed from the manual), while `--engine nec5`
 drives an actual user-licensed NEC-5 binary through its card deck and
@@ -1192,7 +1192,7 @@ capabilities, and the license terms that keep it strictly local.
 **There is no `-converged` suffix any more** (momwire#654). It bound a
 zero-width gap in place of the sinusoidal-Galerkin solver's NEC-style
 segment-wide one, and that zero-width gap is now the solver's own default —
-so the plain `sinusoidal-galerkin` name means what the suffixed one used to,
+so the plain `sg` name means what the suffixed one used to,
 and a command line carrying the old spelling should simply drop it. The
 impedance converges to the B-spline answer instead of reproducing NEC's
 mesh-dependent reactance drift, which is worth two to three orders of
@@ -1205,16 +1205,17 @@ survives as a solver option rather than a roster name: pick it from the web
 panel's feed-model control, or pass `feed_model="segment"` when constructing
 the solver yourself. See [Solvers & accuracy](/reference/solver/).
 
-`razor-2p` is `RazorSolver`'s only `--basis` roster name — a tent basis
+`razor2p` is `RazorSolver`'s only `--basis` roster name — a tent basis
 tested by NEC-5's own razor-blade (mixed-potential path) rule, transcribed
 from the NEC-5 manual rather than chosen for convenience, so its
 convergence behaviour is checkable without the licensed binary. It binds
 the two-point testing-path rule (momwire#316), reproduces NEC-5's testing
 *formulation* without the licensed binary, and at a working mesh it does
 track the licensed engine closely (0.003–0.007 Ω, momwire#603). Its limit
-is `bspline-d2`'s, reached more slowly — it does not converge somewhere
-NEC-5-specific. `razor-nec5` remains as a deprecated alias, so an existing
-command line keeps working.
+is `bs2`'s, reached more slowly — it does not converge somewhere
+NEC-5-specific. Its older spellings `razor-2p` (deprecated with momwire
+0.97.0, still read) and `razor-nec5` (retired: refused with the name to use)
+are covered under [Engine names](#engine-names).
 
 The class's other quadrature — the default, converged Gauss-Legendre lane
 — is not a `--basis` name: it left the roster in momwire#753 (2026-09-02,
@@ -1225,7 +1226,7 @@ two-point quadrature rule that made the match near-exact; keeping
 full-order Gauss-Legendre on the testing path is now useful for exactly
 one question — whether a coarse-mesh disagreement is the testing rule's
 own error or NEC-5's quadrature shortcut — and it costs about 20× the
-time to ask it versus `razor-2p`
+time to ask it versus `razor2p`
 (free space N=1600, one box, momwire 0.44.0: 20.2 s against 0.97 s; over
 a finite ground at N=800, 11.1 s against 0.64 s). Memory is no longer the
 differentiator it once was: since momwire#742 gave both lanes the same
@@ -1236,6 +1237,27 @@ N=1600. Both serve the extended kernel, series node gaps, and ground
 contact over PEC and the Sommerfeld ground; neither serves junction ports —
 see [Solvers & accuracy](/reference/solver/#razor-the-nec-5-formulation-twin)
 for the full guidance and refusal boundary.
+
+### Engine names
+
+momwire 0.97.0 renamed its bases (momwire#2091), and antennaknobs follows: a
+short name carries no dash and names the basis alone, and a long name, the
+form momwire's NEC launchers take, is dialect then basis (`nec5-bs2`,
+`nec42-bs2`, `nec5-razor2p`, `nec42-sinusoidal`).
+
+| was | now |
+|---|---|
+| `bspline` | `bs2` |
+| `bspline-d1` | `bs1` |
+| `sinusoidal-galerkin` | `sg` |
+| `razor-2p` | `razor2p` |
+| `razor-nec5` | retired: refused, with "use 'razor2p'" |
+
+`sinusoidal`, `pulse`, `hmatrix` and `arrayblock` are unchanged. The old
+spellings are still read wherever an engine is named — `--engine`, a kept
+run, a study, a saved workbench slot, a request to the server — and solve
+exactly as the new name does; nothing antennaknobs prints uses them. They
+will be removed no earlier than two minor momwire releases after 0.97.0.
 
 `momwire` is the default so a plain install works without the optional
 `pynec-accel` package. See [The solver & accuracy](/reference/solver/) for which
@@ -1250,11 +1272,11 @@ wavelength at the design frequency, so a long wire gets proportionally more:
 
 | `--engine` | N (segments per λ/4) |
 | --- | --- |
-| `momwire:razor-2p`, `nec5` | 40 |
-| `momwire:bspline` | 15 |
-| `momwire:bspline-d1` | 20 |
+| `momwire:razor2p`, `nec5` | 40 |
+| `momwire:bs2` | 15 |
+| `momwire:bs1` | 20 |
 | `momwire:pulse` | 41 |
-| `momwire:sinusoidal-galerkin` | 20 |
+| `momwire:sg` | 20 |
 | `momwire:hmatrix` | 30 |
 | `momwire:sinusoidal`, `momwire:arrayblock`, `pynec`, `nec2`, `nec42` | 21 |
 | `momwire` (no basis) | 21 |
@@ -1263,7 +1285,7 @@ The number is segments per quarter-wave at the design frequency, so it is
 comparable across designs, and the run prints it beside the engine name:
 
 ```
-engine momwire:razor-2p: N=40 segments/wire (engine default)
+engine momwire:razor2p: N=40 segments/wire (engine default)
 ```
 
 These are the same values the app's solver slots use. `--nominal-nsegs N`
@@ -1271,7 +1293,7 @@ overrides any of them:
 
 ```bash
 python -m antennaknobs pattern --builder beams.yagi \
-    --engine momwire:razor-2p --nominal-nsegs 61
+    --engine momwire:razor2p --nominal-nsegs 61
 ```
 
 A bare `--engine momwire` keeps the framework default of 21 — it is the
@@ -1281,7 +1303,7 @@ design that pins `nominal_nsegs` in its own params keeps winning, and a
 segment counts, and the run says so instead of naming a density:
 
 ```
-engine momwire:razor-2p: the file's own segment counts
+engine momwire:razor2p: the file's own segment counts
 ```
 
 ### Convergence studies
@@ -1293,7 +1315,7 @@ on stdout.
 
 ```bash
 python -m antennaknobs sweep --builder dipoles.invvee:dipole \
-    --param nominal_nsegs --engine momwire:bspline,momwire:razor-2p \
+    --param nominal_nsegs --engine momwire:bs2,momwire:razor2p \
     --use_smithchart --fn convergence.png
 ```
 
@@ -1322,19 +1344,19 @@ knob). Keep `--markers` for the few densities you want to see beside it.
 The table is grouped one block per engine:
 
 ```text
-== nominal_nsegs convergence: momwire:bspline ==
+== nominal_nsegs convergence: momwire:bs2 ==
 ground: free space
 nominal_N  N_ach     R (Ω)     X (Ω)      |ΔΓ|
         8     17    71.240    -5.612    0.0038
        13     25    71.266    -5.388    0.0023
        21     41    71.291    -5.183    0.0009
        34     65    71.309    -5.051    0.0000
-momwire:bspline  Z∞ = 71.339-4.826j  (rough: not yet asymptotic, first order assumed)
+momwire:bs2  Z∞ = 71.339-4.826j  (rough: not yet asymptotic, first order assumed)
 ```
 
 `nominal_N` is the rung asked for; `N_ach` is the total segment count the
 engine actually meshed at that rung — engines round the density to their own
-parity (razor-2p and nec5 even; bspline, nec2, and pynec odd), so two engines
+parity (razor2p and nec5 even; bs2, nec2, and pynec odd), so two engines
 given the same `nominal_N` do not mesh at the same `N_ach`, and this column
 is where that shows up. `|ΔΓ|` is the reflection-coefficient distance to that
 engine's own finest rung, the same ladder metric the density studies (#1525)
@@ -1396,13 +1418,13 @@ python -m antennaknobs sweep --builder wire.dipole --extended-kernel
 It matters for **fat wires** — segments not much longer than the wire radius —
 and is a fraction of a percent on ordinary thin wire; see
 [the extended thin-wire kernel](/reference/solver/#the-extended-thin-wire-kernel-ek).
-Every momwire basis but `pulse` serves it — `sinusoidal-galerkin` since
-momwire 0.27.0 (momwire#246/#287/#299), and `razor-2p` with it. The
+Every momwire basis but `pulse` serves it — `sg` since
+momwire 0.27.0 (momwire#246/#287/#299), and `razor2p` with it. The
 refusals left are combinations: with `use_singular_enrichment`
 (momwire#271), with a wire below the ground plane (on every basis but
-`bspline`, which from momwire 0.78 serves the above-ground pairs, keeps the
+`bs2`, which from momwire 0.78 serves the above-ground pairs, keeps the
 reduced kernel on the buried ones and warns), and with a radius step at a
-junction on `sinusoidal-galerkin`. Each exits with a named message rather
+junction on `sg`. Each exits with a named message rather
 than a reduced-kernel answer under an extended-kernel request. The flag applies only to momwire: passing it with `--engine pynec` is an
 error.
 
@@ -1413,9 +1435,9 @@ like an absent card, leaves it off). A deck read as **NEC-4 or NEC-5**
 program solves it: NEC-5's kernel behaves as the extended one, and NEC-4's
 thin-wire model is equivalent to it and ignores an `EK` card, which the
 import note says. Where the basis or the deck refuses the kernel (`pulse`, a
-buried wire on any basis but `bspline`), that default falls back to the
+buried wire on any basis but `bs2`), that default falls back to the
 reduced kernel with an `advisory:` line on stderr instead of refusing. On
-`bspline` a deck with buried wires keeps the kernel on its above-ground
+`bs2` a deck with buried wires keeps the kernel on its above-ground
 wires, and the advisory says the buried ones kept the reduced kernel. `--no-extended-kernel`
 turns the kernel off whatever the deck says; `--extended-kernel` asks for it
 outright, and still refuses where it cannot run. The same goes for
@@ -1444,7 +1466,7 @@ cross-validation:
 ```bash
 python -m antennaknobs compare_patterns \
   --builders beams.moxon beams.moxon \
-  --engines pynec momwire:bspline --fn check.png
+  --engines pynec momwire:bs2 --fn check.png
 ```
 
 With a licensed NEC-5 binary on the machine (`export NEC5_EXE=...`), `nec5`
@@ -1846,7 +1868,7 @@ in the last digits.
 
 On a vertical over 48 buried radials, one thread, a nec42-sinusoidal solve
 went from 22.9 to 6.5 s with the vectorised fill. On a 30-point sweep over 24
-radials, nec5-bspline went from 63.8 to 40.4 s with shared tables, each point
+radials, nec5-bs2 went from 63.8 to 40.4 s with shared tables, each point
 a fresh process.
 
 ## Faster wires near and through the ground (opt-in)
@@ -1857,14 +1879,14 @@ crossing it. All are off by default.
 
 | option | tab | env | what it does |
 |---|---|---|---|
-| **factored rod columns** | B-spline, razor-2p | `ANTENNAKNOBS_FACTORED_COLUMNS=1` | fills a buried rod's column of entries under a vertical from shared factors (momwire#1860) |
-| **shared near-ground tables** | B-spline, razor-2p | `ANTENNAKNOBS_HEIGHT_SHEET_RECAL=1` | builds one table for a wire just above the ground and reads it from both parts of the fill |
+| **factored rod columns** | B-spline, razor2p | `ANTENNAKNOBS_FACTORED_COLUMNS=1` | fills a buried rod's column of entries under a vertical from shared factors (momwire#1860) |
+| **shared near-ground tables** | B-spline, razor2p | `ANTENNAKNOBS_HEIGHT_SHEET_RECAL=1` | builds one table for a wire just above the ground and reads it from both parts of the fill |
 | **lighter above-ground rule at a crossing** | B-spline | `ANTENNAKNOBS_CROSSING_ABOVE_RULE=1` | fills the above-ground part of a crossing at the rule the no-rod design uses |
-| **table for wires crossing the ground** *(approximate)* | B-spline, razor-2p | — | reads the crossing entries from one table per frequency; input impedance moves by about 0.1 Ω on an EFHW |
+| **table for wires crossing the ground** *(approximate)* | B-spline, razor2p | — | reads the crossing entries from one table per frequency; input impedance moves by about 0.1 Ω on an EFHW |
 
 On an EFHW deck with a 3 m buried rod and a 4 m counterpoise 1 cm above
 Sommerfeld ground, an 11-point sweep through the app on an 8-core laptop went
-from 14.4 to 12.0 s on nec5-razor-2p and from 27.2 to 23.9 s on nec5-bspline
+from 14.4 to 12.0 s on nec5-razor2p and from 27.2 to 23.9 s on nec5-bs2
 with the first two switches on.
 
 **Last digits or approximate.** momwire's own feature list records, for each

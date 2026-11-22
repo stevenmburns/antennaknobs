@@ -88,13 +88,13 @@ def test_multi_engine_knob_sweep_prints_a_block_per_engine(capsys):
     try:
         ant.cli(
             f"sweep --builder {DIPOLE} --param length_factor --range 0.95 1.0 "
-            "--npoints 2 --ground free --engine momwire:bspline,momwire:razor-2p "
+            "--npoints 2 --ground free --engine momwire:bs2,momwire:razor2p "
             "--panels --fn /dev/null".split()
         )
     finally:
         plt.close("all")
     out = capsys.readouterr().out
-    for spec in ("momwire:bspline", "momwire:razor-2p"):
+    for spec in ("momwire:bs2", "momwire:razor2p"):
         assert len(_rows(out, f"== length_factor sweep: {spec} ==")) == 2
 
 
@@ -103,20 +103,20 @@ def test_deck_sweep_says_the_file_meshes_itself(tmp_path, capsys):
     deck.write_text(DECK)
     try:
         ant.cli(
-            f"sweep --builder @{deck} --engine momwire:razor-2p --npoints 2 "
+            f"sweep --builder @{deck} --engine momwire:razor2p --npoints 2 "
             "--fn /dev/null".split()
         )
     finally:
         plt.close("all")
     err = capsys.readouterr().err
-    assert "engine momwire:razor-2p: the file's own segment counts" in err
+    assert "engine momwire:razor2p: the file's own segment counts" in err
     assert "engine default" not in err and "N=40" not in err
 
 
 def test_catalog_sweep_still_names_the_engine_density(capsys):
     try:
         ant.cli(
-            f"sweep --builder {DIPOLE} --engine momwire:razor-2p --npoints 2 "
+            f"sweep --builder {DIPOLE} --engine momwire:razor2p --npoints 2 "
             "--ground free --fn /dev/null".split()
         )
     finally:

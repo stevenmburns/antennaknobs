@@ -74,7 +74,7 @@ import { entry, SERVED_ROSTER,
 } from "./backendFixtures";
 import { SERVED_OPTION_SPECS } from "./optionSpecFixtures";
 
-const BSPLINE_FAMILY = ["bspline", "hmatrix", "arrayblock"];
+const BSPLINE_FAMILY = ["bs2", "hmatrix", "arrayblock"];
 
 function withModel(name: string, over: Record<string, unknown>): BackendOpts {
   const base = defaultOptsFor(entry(name), SERVED_OPTION_SPECS);
@@ -174,16 +174,16 @@ describe.each(BSPLINE_FAMILY)("%s — the panel the schema draws", (name) => {
       "n_qp_pair: auto",
       "feed source smoothing",
       "K≥3 junction singular enrichment",
-      // The sector-route switch (#1029), offered on bspline ALONE once the
+      // The sector-route switch (#1029), offered on bs2 ALONE once the
       // pinned momwire declares the route (0.60.0); unticked by default. The
       // accelerators' capability rows exclude it, so their panels stay at
       // the family's four boxes.
-      ...(name === "bspline"
+      ...(name === "bs2"
         ? [
             "rotational symmetry (radial screens)",
-            // ADDED with momwire 0.87.0 (#1809), bspline alone, unticked.
+            // ADDED with momwire 0.87.0 (#1809), bs2 alone, unticked.
             "reuse repeated geometry (faster fill)",
-            // ADDED with momwire 0.88.0 (#1847), bspline alone, unticked.
+            // ADDED with momwire 0.88.0 (#1847), bs2 alone, unticked.
             "share buried tables across a sweep (faster)",
             // ADDED with momwire 0.89.0 (#1860), from its registry (AK#2233).
             "factored rod columns (faster)",
@@ -325,14 +325,14 @@ describe.each(BSPLINE_FAMILY)("%s — the panel the schema draws", (name) => {
       "n_qp_pair: auto",
       "feed source smoothing",
       "K≥3 junction singular enrichment",
-      // ADDED with momwire 0.60.0 (#1029), on bspline alone: the generic
+      // ADDED with momwire 0.60.0 (#1029), on bs2 alone: the generic
       // loop draws it last, in spec order, above the axis-governed feed model.
-      ...(name === "bspline"
+      ...(name === "bs2"
         ? [
             "rotational symmetry (radial screens)",
-            // ADDED with momwire 0.87.0 (#1809), bspline alone, in spec order.
+            // ADDED with momwire 0.87.0 (#1809), bs2 alone, in spec order.
             "reuse repeated geometry (faster fill)",
-            // ADDED with momwire 0.88.0 (#1847), bspline alone, in spec order.
+            // ADDED with momwire 0.88.0 (#1847), bs2 alone, in spec order.
             "share buried tables across a sweep (faster)",
             // ADDED with momwire 0.89.0 (#1860), from its registry (AK#2233).
             "factored rod columns (faster)",
@@ -390,8 +390,8 @@ describe("the backends that never had a bespoke panel", () => {
     ]);
   });
 
-  it("razor-2p draws only the shared mesh knobs, the kernel toggle and the features momwire serves it", () => {
-    mount(entry("razor-2p"), defaultOptsFor(entry("razor-2p"), SERVED_OPTION_SPECS));
+  it("razor2p draws only the shared mesh knobs, the kernel toggle and the features momwire serves it", () => {
+    mount(entry("razor2p"), defaultOptsFor(entry("razor2p"), SERVED_OPTION_SPECS));
     const c = controls();
     expect(c.boxes.map((x) => x.label)).toEqual([
       "extended kernel (EK)",

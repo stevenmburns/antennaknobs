@@ -34,25 +34,25 @@ def _cases():
     cases = [
         # Real ladders quoted in AK#1781 (3-decimal prints).
         {
-            "name": "hentenna razor-2p (R, X)",
+            "name": "hentenna razor2p (R, X)",
             "x": HEN_X,
             "re": [42.905, 42.965, 43.027, 43.072, 43.095, 43.111, 43.121],
             "im": [46.449, 44.793, 42.232, 40.607, 39.746, 39.296, 39.072],
         },
         {
-            "name": "hentenna razor-2p X only",
+            "name": "hentenna razor2p X only",
             "x": HEN_X,
             "re": [0.0] * 7,
             "im": [46.449, 44.793, 42.232, 40.607, 39.746, 39.296, 39.072],
         },
         {
-            "name": "hentenna bspline (R, X)",
+            "name": "hentenna bs2 (R, X)",
             "x": BS_X,
             "re": [43.040, 43.038, 43.085, 43.083, 43.102, 43.112, 43.119],
             "im": [38.754, 38.827, 38.883, 38.906, 38.915, 38.915, 38.915],
         },
         {
-            "name": "hentenna bspline X only",
+            "name": "hentenna bs2 X only",
             "x": BS_X,
             "re": [0.0] * 7,
             "im": [38.754, 38.827, 38.883, 38.906, 38.915, 38.915, 38.915],
@@ -136,12 +136,12 @@ def _feed_mesh_cases():
     uniform = [10, 20, 40, 80, 160]
     return [
         {
-            "name": "invvee bspline: 1 -> 3 segments between N 65 and 95",
+            "name": "invvee bs2: 1 -> 3 segments between N 65 and 95",
             "x": INV_BS_X,
             "fed_len": [0.1] * 5 + [0.1 / 3] * 2,
         },
         {
-            "name": "invvee razor-2p: the 2 -> 4 jump beats the held step",
+            "name": "invvee razor2p: the 2 -> 4 jump beats the held step",
             "x": INV_RZ_X,
             "fed_len": [0.05] * 6 + [0.025],
         },

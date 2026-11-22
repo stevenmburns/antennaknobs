@@ -32,7 +32,7 @@ def test_frequency_sweep_file(tmp_path):
     out = tmp_path / "f.csv"
     ant.cli(
         f"sweep --builder {DIPOLE} --param freq --npoints 3 "
-        f"--engine momwire:bspline --fn /dev/null --csv {out}".split()
+        f"--engine momwire:bs2 --fn /dev/null --csv {out}".split()
     )
     head, rows = _read(str(out))
     assert head == ["freq", "R_ohm", "X_ohm"]
@@ -50,7 +50,7 @@ def test_csv_is_the_same_solve_as_the_swr_table(tmp_path):
     out = tmp_path / "s.csv"
     ant.cli(
         f"sweep --builder {DIPOLE} --swr --npoints 3 --z0 75 "
-        f"--engine momwire:bspline --fn /dev/null --csv {out}".split()
+        f"--engine momwire:bs2 --fn /dev/null --csv {out}".split()
     )
     head, rows = _read(str(out))
     assert head == ["freq", "R_ohm", "X_ohm", "SWR"]
@@ -65,7 +65,7 @@ def test_density_two_engines_to_stdout_is_clean_csv(capsys):
     to stderr), one N_ach/R/X/dGamma group per engine."""
     ant.cli(
         f"sweep --builder {DIPOLE} --param nominal_nsegs --range 8 34 "
-        "--npoints 3 --engine momwire:bspline,momwire:razor-2p "
+        "--npoints 3 --engine momwire:bs2,momwire:razor2p "
         "--fn /dev/null --csv -".split()
     )
     cap = capsys.readouterr()
@@ -73,7 +73,7 @@ def test_density_two_engines_to_stdout_is_clean_csv(capsys):
     assert head[0] == "nominal_N"
     assert head[1:] == [
         f"{e} {c}"
-        for e in ("momwire:bspline", "momwire:razor-2p")
+        for e in ("momwire:bs2", "momwire:razor2p")
         for c in ("N_ach", "R_ohm", "X_ohm", "dGamma")
     ]
     assert [int(r[0]) for r in rows] == sorted(int(r[0]) for r in rows)
@@ -81,7 +81,7 @@ def test_density_two_engines_to_stdout_is_clean_csv(capsys):
     # dGamma is against each engine's own finest rung: zero on the last row.
     assert float(rows[-1][4]) == 0.0 and float(rows[-1][8]) == 0.0
     # The printed table is still printed, on stderr.
-    assert "convergence: momwire:bspline" in cap.err
+    assert "convergence: momwire:bs2" in cap.err
     assert "convergence" not in cap.out
 
 
@@ -89,15 +89,15 @@ def test_two_engine_knob_sweep_has_a_group_per_engine(tmp_path):
     out = tmp_path / "k.csv"
     ant.cli(
         f"sweep --builder {DIPOLE} --param length_factor --npoints 3 "
-        f"--engine momwire:bspline,momwire:razor-2p --fn /dev/null --csv {out}".split()
+        f"--engine momwire:bs2,momwire:razor2p --fn /dev/null --csv {out}".split()
     )
     head, rows = _read(str(out))
     assert head == [
         "length_factor",
-        "momwire:bspline R_ohm",
-        "momwire:bspline X_ohm",
-        "momwire:razor-2p R_ohm",
-        "momwire:razor-2p X_ohm",
+        "momwire:bs2 R_ohm",
+        "momwire:bs2 X_ohm",
+        "momwire:razor2p R_ohm",
+        "momwire:razor2p X_ohm",
     ]
     assert len(rows) == 3 and all(len(r) == 5 for r in rows)
 
@@ -107,14 +107,14 @@ def test_analyze_frequency_sweep_has_swr(tmp_path):
     ant.cli(
         f"analyze --builder {DIPOLE} --analysis".split()
         + ["band SWR"]
-        + f"--engine momwire:bspline --csv {out} --fn /dev/null".split()
+        + f"--engine momwire:bs2 --csv {out} --fn /dev/null".split()
     )
     head, rows = _read(str(out))
     assert head == [
         "MHz",
-        "momwire:bspline R_ohm",
-        "momwire:bspline X_ohm",
-        "momwire:bspline SWR",
+        "momwire:bs2 R_ohm",
+        "momwire:bs2 X_ohm",
+        "momwire:bs2 SWR",
     ]
     assert len(rows) > 3
     assert all(float(r[3]) >= 1.0 for r in rows)
@@ -125,7 +125,7 @@ def test_analyze_map_refuses(tmp_path):
         ant.cli(
             f"analyze --builder {DIPOLE} --analysis".split()
             + ["tuning map"]
-            + f"--engine momwire:bspline --csv {tmp_path / 'm.csv'}".split()
+            + f"--engine momwire:bs2 --csv {tmp_path / 'm.csv'}".split()
         )
 
 

@@ -16,7 +16,7 @@
 //     fails, the B-slot pin carries slot A's model;
 //   - listedPlan putting every cell on the active slot (ignoring its
 //     engine): "…and the saved study re-solves exactly those requests"
-//     fails, both cells are sent on bspline degree 2;
+//     fails, both cells are sent on bs2 degree 2;
 //   - buildRequestFor dropping the state's variant: the variant test fails,
 //     the cell is sent at the default variant.
 import { describe, it, expect, afterEach, beforeEach, vi } from "vitest";
@@ -339,7 +339,7 @@ describe("keep pins as a study", () => {
       freqs,
     });
     r.analyses.extra = [
-      keptStudy("feeds/mine:pinned sweeps", [cellFor(pins[0], "momwire:bspline"), cellFor(pins[1], "momwire:bspline-d1")],
+      keptStudy("feeds/mine:pinned sweeps", [cellFor(pins[0], "momwire:bs2"), cellFor(pins[1], "momwire:bs1")],
                 freqs, groundSpec(pins[0].req)),
     ];
     fireEvent.click(within(dialog).getByRole("button", { name: "save as study" }));

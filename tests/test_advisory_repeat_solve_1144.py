@@ -46,7 +46,7 @@ COARSE = 4  # the advisory is about h and h/a, not mesh: 0.18 s against 5.1 s
 
 REQ = {
     "geometry": "verticals.buried_radial_vertical",
-    "backend": "bspline",
+    "backend": "bs2",
     "ground": True,
     "ground_model": "sommerfeld",
     "n_per_wire": COARSE,
@@ -117,7 +117,7 @@ def test_g1144_6_a_clean_deck_stays_clean_across_repeats():
     _bs._BASIS_POLY_CACHE.clear()
     clean = {
         "geometry": "dipoles.invvee",
-        "momwire_model": "bspline",
+        "momwire_model": "bs2",
         "design_freq_mhz": 28.47,
         "measurement_freq_mhz": 28.47,
         "n_per_wire": COARSE,

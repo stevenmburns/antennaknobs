@@ -18,8 +18,8 @@ import {
 import { SERVED_OPTION_SPECS } from "./optionSpecFixtures";
 
 describe("modelOptionsForRequest", () => {
-  it("sinusoidal-galerkin sends exactly n_qp_const and feed_model", () => {
-    const b = entry("sinusoidal-galerkin");
+  it("sg sends exactly n_qp_const and feed_model", () => {
+    const b = entry("sg");
     const result = modelOptionsForRequest(b, {
       ...defaultOptsFor(b, SERVED_OPTION_SPECS),
       model: { n_qp_const: 11, feed_model: "point" },
@@ -59,7 +59,7 @@ describe("modelOptionsForRequest", () => {
     expect(result).not.toHaveProperty("feed_model");
   });
 
-  it("bspline sends the nineteen b-spline kwargs, feed_model among them", () => {
+  it("bs2 sends the nineteen b-spline kwargs, feed_model among them", () => {
     const model = {
       degree: 1,
       n_qp_pair: 5,
@@ -72,7 +72,7 @@ describe("modelOptionsForRequest", () => {
       enrichment_min_k: 4,
       n_qp_source: 17,
     };
-    const result = modelOptionsForRequest(entry("bspline"), {
+    const result = modelOptionsForRequest(entry("bs2"), {
       nPerWire: 15, // not forwarded — geometry sizing, not a model kwarg
       wireRadius: 0.0005, // not forwarded
       model,
@@ -224,16 +224,16 @@ describe("modelOptionsForRequest", () => {
     // "point" since momwire#654 made it the solver's default — the wire
     // format still carries the value explicitly, so a request says which
     // source ran regardless of which momwire the server has.
-    expect(stock("sinusoidal-galerkin")).toBe(
+    expect(stock("sg")).toBe(
       '{"n_qp_const":8,"feed_model":"point"}',
     );
-    // bspline alone carries `rotational_symmetry` (#1029, momwire 0.60.0),
+    // bs2 alone carries `rotational_symmetry` (#1029, momwire 0.60.0),
     // `pair_reuse` (#1809, momwire 0.87.0), `transmitted_anchors`
     // (#1847, momwire 0.88.0), the four EFHW levers (#1860, 0.89.0) and
     // `kcl_nullspace` (#1898, 0.91.0); the first two EFHW levers on by
     // default since momwire 0.94.0 (#1951, sent explicitly per AK#2317);
     // the accelerators' stock payload is exactly the family's, unchanged.
-    expect(stock("bspline")).toBe(
+    expect(stock("bs2")).toBe(
       BSPLINE_JSON.slice(0, -1) +
         ',"rotational_symmetry":false,"pair_reuse":false,"transmitted_anchors":false' +
         ',"factored_columns":true,"height_sheet_recal":true,"crossing_table":false' +
@@ -277,7 +277,7 @@ describe("modelOptionsForRequest", () => {
     const armed = (name: string) => optsWithModel(name, { extended_kernel: true });
 
     it("rides as `extended_kernel: true` on every basis that serves it", () => {
-      for (const name of ["sinusoidal", "bspline", "hmatrix", "arrayblock"]) {
+      for (const name of ["sinusoidal", "bs2", "hmatrix", "arrayblock"]) {
         expect(modelOptionsForRequest(entry(name), armed(name), SERVED_OPTION_SPECS)).toHaveProperty(
           "extended_kernel",
           true,
@@ -286,7 +286,7 @@ describe("modelOptionsForRequest", () => {
     });
 
     it("is ABSENT — not false — with the toggle off", () => {
-      for (const name of ["sinusoidal", "bspline", "hmatrix", "arrayblock"]) {
+      for (const name of ["sinusoidal", "bs2", "hmatrix", "arrayblock"]) {
         const b = entry(name);
         expect(modelOptionsForRequest(b, defaultOptsFor(b, SERVED_OPTION_SPECS), SERVED_OPTION_SPECS)).not.toHaveProperty(
           "extended_kernel",
@@ -312,8 +312,8 @@ describe("modelOptionsForRequest", () => {
       // #299) — an armed slot sends it like any other basis.
       expect(
         modelOptionsForRequest(
-          entry("sinusoidal-galerkin"),
-          armed("sinusoidal-galerkin"),
+          entry("sg"),
+          armed("sg"),
           SERVED_OPTION_SPECS,
         ),
       ).toEqual({ n_qp_const: 8, feed_model: "point", extended_kernel: true });
@@ -329,10 +329,10 @@ describe("modelOptionsForRequest", () => {
       // combination — which is what it always did for a request the UI did
       // not intercept.
       const enriched = {
-        ...armed("bspline"),
-        model: { ...armed("bspline").model, use_singular_enrichment: true },
+        ...armed("bs2"),
+        model: { ...armed("bs2").model, use_singular_enrichment: true },
       };
-      const out = modelOptionsForRequest(entry("bspline"), enriched, SERVED_OPTION_SPECS);
+      const out = modelOptionsForRequest(entry("bs2"), enriched, SERVED_OPTION_SPECS);
       expect(out.use_singular_enrichment).toBe(true);
       expect(out.extended_kernel).toBe(true);
     });
@@ -343,7 +343,7 @@ describe("modelOptionsForRequest", () => {
   });
 
   it("uses the SERVED default for a knob the slot never set", () => {
-    const result = modelOptionsForRequest(entry("bspline"), {
+    const result = modelOptionsForRequest(entry("bs2"), {
       nPerWire: 30,
       wireRadius: 5e-4,
       model: {},

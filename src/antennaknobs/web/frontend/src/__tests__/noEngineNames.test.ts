@@ -26,22 +26,27 @@ const FILES: [string, string][] = [
 ];
 
 /** Engine and panel names, as string literals. Property access (`opts.model`)
- *  is not a name; a quoted `"bspline"` is.
+ *  is not a name; a quoted `"bs2"` is.
  *
  *  The `kind` union (`"momwire" | "pynec" | "opennec" | "nec5" | "nec2" | "nec42"`) is deliberately NOT here:
  *  it is the served payload's own field type, not a branch on an engine, and a
  *  client cannot type the wire without it. */
 const ENGINE_NAME = new RegExp(
   [
-    '"bspline"',
-    '"bspline-d1"',
+    '"bs2"',
+    '"bs1"',
     '"sinusoidal"',
-    '"sinusoidal-galerkin"',
+    '"sg"',
     '"sin-galerkin"',
     '"hmatrix"',
     '"arrayblock"',
-    '"razor-2p"',
+    '"razor2p"',
     '"razor-nec5"',
+    // The spellings momwire#2091 renamed, banned here as their new names are.
+    '"bspline"',
+    '"bspline-d1"',
+    '"sinusoidal-galerkin"',
+    '"razor-2p"',
     '"pynec"',
     '"opennec"',
     '"nec5"',
@@ -103,8 +108,8 @@ describe("no engine names in the two files the unit is about", () => {
     for (const [, src] of FILES) {
       expect(codeLines(src).length).toBeGreaterThan(50);
     }
-    const control = 'const x = "bspline";';
-    expect(control.match(ENGINE_NAME)).toEqual(['"bspline"']);
+    const control = 'const x = "bs2";';
+    expect(control.match(ENGINE_NAME)).toEqual(['"bs2"']);
     ENGINE_NAME.lastIndex = 0;
   });
 });
@@ -123,8 +128,8 @@ describe("the residue shrinks, and the reasons are written down", () => {
 
   it("the slot seeds and the retired-name alias are SERVED, not local", () => {
     // Both were engine names in this file until #1006 G2-6:
-    //   A: { backend: "bspline", nPerWire: 15 }
-    //   name === "triangular" ? "bspline" : name
+    //   A: { backend: "bs2", nPerWire: 15 }
+    //   name === "triangular" ? "bs2" : name
     // The first is three product decisions, the second a compatibility
     // mapping the server already made on the solve path. Neither is a fact
     // the client should own.
@@ -133,8 +138,8 @@ describe("the residue shrinks, and the reasons are written down", () => {
     // documentation and fails — which it did on first writing. Prose about a
     // deleted branch is not the branch.
     const code = codeLines(backendsSrc).map((l) => l.line).join("\n");
-    expect(code).not.toContain('backend: "bspline"');
-    expect(code).not.toContain('"triangular" ? "bspline"');
+    expect(code).not.toContain('backend: "bs2"');
+    expect(code).not.toContain('"triangular" ? "bs2"');
     expect(code).toContain("ServedSlotSeed");
     expect(code).toContain("aliases[name] ?? name");
   });

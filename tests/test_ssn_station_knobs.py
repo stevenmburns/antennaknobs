@@ -15,7 +15,7 @@ from test_simnec_import import _SCRIPT_M, _el, _ssn
 from antennaknobs.cli import make_engine_factory
 from antennaknobs.file_designs import builder_from_text
 
-_ENGINE = make_engine_factory("momwire:razor-2p", None)
+_ENGINE = make_engine_factory("momwire:razor2p", None)
 
 
 def _line(ft="100", label="T1"):

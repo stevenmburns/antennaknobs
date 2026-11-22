@@ -169,9 +169,9 @@ def test_convergence_overlay_draws_each_engines_zstar(capture, monkeypatch, caps
 @pytest.mark.parametrize(
     "extra,match",
     [
-        ("--engine momwire,momwire:razor-2p --overlay --panels", "--panels"),
+        ("--engine momwire,momwire:razor2p --overlay --panels", "--panels"),
         ("--overlay", "two or more"),
-        ("--engine momwire,momwire:razor-2p --overlay --use_smithchart", "smith"),
+        ("--engine momwire,momwire:razor2p --overlay --use_smithchart", "smith"),
     ],
 )
 def test_overlay_refusals(extra, match):
@@ -191,6 +191,6 @@ def test_multi_engine_callouts_accept_overlay_as_the_layout(monkeypatch):
     )
     ant.cli(
         "sweep --builder dipoles.invvee:dipole --param length_factor "
-        "--engine momwire,momwire:razor-2p --overlay --callouts".split()
+        "--engine momwire,momwire:razor2p --overlay --callouts".split()
     )
     assert seen["overlay"] is True and seen["panels"] is False

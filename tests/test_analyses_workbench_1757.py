@@ -33,7 +33,7 @@ INVVEE = {
     "geometry": "dipoles.invvee",
     "measurement_freq_mhz": 28.47,
     "design_freq_mhz": 28.47,
-    "momwire_model": "bspline",
+    "momwire_model": "bs2",
     "n_per_wire": 9,
 }
 
@@ -171,7 +171,7 @@ def test_e1_convergence_runs_as_the_density_ladder(invvee):
     # The engine cross, and the one ground E1 names, as the chart's
     # preselection (a listed engine no slot holds is the chart's to skip,
     # not the server's: the list is served whole).
-    assert w["engines"] == ["momwire:bspline", "momwire:razor-2p", "nec5"]
+    assert w["engines"] == ["momwire:bs2", "momwire:razor2p", "nec5"]
     assert w["grounds"] == ["finite:13,0.005"]
     # The chart's metric picker offers all four fill metrics (AK#2327), the
     # first by default; the note naming the ones not drawn is the chart's.

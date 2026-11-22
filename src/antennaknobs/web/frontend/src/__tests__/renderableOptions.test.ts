@@ -9,8 +9,8 @@
  *
  * Rule 2 is the one a generic renderer drops by accident, and dropping it is a
  * behaviour CHANGE dressed as a refactor. The two cases below are the ones
- * that would actually ship wrong: `bspline` accepts `feed_model` and has never
- * offered a feed-model control, and `razor-2p` accepts `degree` while its
+ * that would actually ship wrong: `bs2` accepts `feed_model` and has never
+ * offered a feed-model control, and `razor2p` accepts `degree` while its
  * basis axis holds only "tent".
  */
 import { describe, expect, it } from "vitest";
@@ -27,14 +27,14 @@ import { SERVED_OPTION_SPECS } from "./optionSpecFixtures";
 const SPECS: ModelOptionSpecs = SERVED_OPTION_SPECS;
 
 describe("rule 2 — an axis governs whether its kwarg is offered", () => {
-  it("DOES offer feed_model on bspline now", () => {
+  it("DOES offer feed_model on bs2 now", () => {
     // This test used to assert the opposite, and the change is the point.
     // The row declared `feed_model: ("segment-gap",)` while the constructor
     // defaulted to the POINT gap (momwire#891) — so the axis was
     // mis-declared as single-valued and rule 2 correctly hid a control that
     // should have existed. The rule did not change; the data it reads was
     // wrong, and a rule reading wrong data is exactly as wrong as the data.
-    const b = entry("bspline");
+    const b = entry("bs2");
     expect(b.model_kwargs).toContain("feed_model");
     expect(b.axes!.feed_model).toEqual(["point-gap", "segment-gap"]);
     expect(renderableOptions(b, SPECS)).toContain("feed_model");
@@ -43,22 +43,22 @@ describe("rule 2 — an axis governs whether its kwarg is offered", () => {
   it("still does NOT offer it where the solver refuses the value", () => {
     // `sinusoidal` accepts the kwarg and REFUSES "point" (momwire#212), so
     // its axis is honestly single-valued and rule 2 hides the control. That
-    // is the case that keeps rule 2 meaningful now that bspline offers it.
+    // is the case that keeps rule 2 meaningful now that bs2 offers it.
     const b = entry("sinusoidal");
     expect(b.axes!.feed_model).toEqual(["segment-gap"]);
     expect(renderableOptions(b, SPECS)).not.toContain("feed_model");
   });
 
-  it("DOES offer feed_model on sinusoidal-galerkin, which has the choice", () => {
+  it("DOES offer feed_model on sg, which has the choice", () => {
     // The other side of the same rule — without this, "never offer
     // feed_model" would pass and be wrong.
-    const b = entry("sinusoidal-galerkin");
+    const b = entry("sg");
     expect(b.axes!.feed_model).toEqual(["point-gap", "segment-gap"]);
     expect(renderableOptions(b, SPECS)).toContain("feed_model");
   });
 
-  it("does NOT offer degree on razor-2p", () => {
-    const b = entry("razor-2p");
+  it("does NOT offer degree on razor2p", () => {
+    const b = entry("razor2p");
     // Same two layers. `RazorSolver` accepts `degree` — asserted server-side
     // by construction in test_backend_model_kwargs_1006.py — and its basis
     // axis holds one value, so neither the payload nor the panel gets it.
@@ -67,14 +67,14 @@ describe("rule 2 — an axis governs whether its kwarg is offered", () => {
     expect(renderableOptions(b, SPECS)).not.toContain("degree");
   });
 
-  it("DOES offer degree on bspline, whose basis axis has two values", () => {
-    expect(renderableOptions(entry("bspline"), SPECS)).toContain("degree");
+  it("DOES offer degree on bs2, whose basis axis has two values", () => {
+    expect(renderableOptions(entry("bs2"), SPECS)).toContain("degree");
   });
 });
 
 describe("rule 3 — a kwarg no axis governs is driven by the kwarg list", () => {
-  it("offers the quadrature and enrichment knobs on the bspline family", () => {
-    const got = renderableOptions(entry("bspline"), SPECS);
+  it("offers the quadrature and enrichment knobs on the bs2 family", () => {
+    const got = renderableOptions(entry("bs2"), SPECS);
     for (const k of [
       "n_qp_pair",
       "n_qp_source",
@@ -90,10 +90,10 @@ describe("rule 3 — a kwarg no axis governs is driven by the kwarg list", () =>
     }
   });
 
-  it("offers n_qp_const on the sinusoidal family and NOT on the bspline one", () => {
+  it("offers n_qp_const on the sinusoidal family and NOT on the bs2 one", () => {
     // The asymmetry that looks like a mistake, pinned on both sides.
     expect(renderableOptions(entry("sinusoidal"), SPECS)).toContain("n_qp_const");
-    expect(renderableOptions(entry("bspline"), SPECS)).not.toContain("n_qp_const");
+    expect(renderableOptions(entry("bs2"), SPECS)).not.toContain("n_qp_const");
   });
 
   it("offers nothing for a backend that takes no kwargs", () => {
@@ -107,7 +107,7 @@ describe("a momwire that cannot describe its axes keeps its knobs", () => {
     // Applying rule 2 with an empty `axisControls` would hide `degree` — a
     // control that momwire has always shown — so the fallback is what stops
     // this refactor regressing every installed user.
-    const legacy: BackendEntry = { ...entry("bspline"), axes: null };
+    const legacy: BackendEntry = { ...entry("bs2"), axes: null };
     const got = renderableOptions(legacy, SPECS);
     expect(got).toContain("degree");
     // ...and it still cannot invent a knob the backend does not accept.

@@ -76,7 +76,7 @@ def test_the_jacketed_deck_round_trips_its_ld5():
 
 
 def test_the_reopened_deck_solves_to_the_design_s_own_z():
-    razor = make_engine_factory("momwire:razor-2p", None)
+    razor = make_engine_factory("momwire:razor2p", None)
     native = complex(razor(_JacketedDipole()).impedance()[0])
     reopened = complex(razor(_reopened(_deck(_JacketedDipole()))).impedance()[0])
     assert reopened == pytest.approx(native, rel=1e-6)

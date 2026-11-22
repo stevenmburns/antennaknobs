@@ -42,10 +42,10 @@ outside CI, against `nec5cl`, which is licensed and cannot run here.
 
 AND ONE ON HOW TO MEASURE IT. Every number in a comparison must come from ONE
 configuration. This gate runs both routes in their DEFAULTS, which are two
-different bspline lanes -- so a row's bar can be a lane difference rather
+different bs2 lanes -- so a row's bar can be a lane difference rather
 than a defect. Drafting these rows across mixed configurations produced two
 confidently wrong readings in a row (that serve lagged AK on four decks; that
-AK sat at the noise floor on 0011/0029/0030). At matched razor-2p the two
+AK sat at the noise floor on 0011/0029/0030). At matched razor2p the two
 routes agree to float noise on every deck here (8.3e-14 at worst).
 """
 
@@ -99,8 +99,8 @@ EXPECTED = {
     # the licensed NEC-5 to 0.00 % under a matched basis. What is left on the
     # first two is a BSPLINE-LANE difference between the two routes --
     # this gate runs AK's default `BSplineSolver` against serve's default
-    # `basis="bspline"`, and those two lanes are not configured identically.
-    # Set both to razor-2p and the same decks agree to float noise:
+    # `basis="bs2"`, and those two lanes are not configured identically.
+    # Set both to razor2p and the same decks agree to float noise:
     # 0016 6.1e-15, 0018 5.2e-16, 0116/0117 1.1e-14.
     #
     # Recorded carefully because an earlier draft of this file got it
@@ -108,8 +108,8 @@ EXPECTED = {
     # measured in BSPLINE compared against AK figures measured in RAZOR --
     # mixed configurations. serve was never behind: at matched basis it is
     # exact on all four.
-    "0016_network-connection-test": (5e-4, "the two bspline lanes differ"),
-    "0018_network-connection-test": (5e-4, "the two bspline lanes differ"),
+    "0016_network-connection-test": (5e-4, "the two bs2 lanes differ"),
+    "0018_network-connection-test": (5e-4, "the two bs2 lanes differ"),
     # NOT a lane difference, and a convergence ladder is what said so. The
     # 2-3e-4 rows above refine AWAY -- 0016 goes 3.43e-04, 2.58e-05, 4.60e-06,
     # 2.42e-07, 4.47e-10 at r = 1, 3, 5, 7, 15 -- which is what a
@@ -143,7 +143,7 @@ EXPECTED = {
     # say. Against the licensed NEC-5 at r = 11: AK 2.118e-02, AK with the
     # split disabled 1.999e-02, serve 2.564e-02 -- every variant three to four
     # times FURTHER from NEC-5 than they are from each other, and all still
-    # converging. The disagreement sits inside the bspline basis error. So this
+    # converging. The disagreement sits inside the bs2 basis error. So this
     # row is a CONSISTENCY bar, not a defect with a known fix; closing it by
     # making AK sever the wire the way serve does would buy float noise here
     # and has no accuracy evidence behind it. AK#1622.
@@ -152,7 +152,7 @@ EXPECTED = {
     # FIXED by AK#1617: two network ports at ONE junction now take the
     # POSITIONED spelling instead of the vertex one, which is what serve does
     # for every network end. 12.62 % -> 0.00 % against the licensed NEC-5, and
-    # 1.4e-01 -> 2.2e-04 here, joining its neighbours at the bspline-lane
+    # 1.4e-01 -> 2.2e-04 here, joining its neighbours at the bs2-lane
     # difference.
     #
     # They are NOT merged into one port, and the licensed engine is why:
@@ -161,15 +161,15 @@ EXPECTED = {
     # 0016 (both `2,3`) the identical 114.4700 + 21.0960j. 0017 MIXES them
     # and NEC-5 returns 195.3400 - 57.4580j, a DIFFERENT circuit. Merging
     # them (an earlier draft did) turns 0017 into 0016 and costs 55.37 %.
-    "0017_network-connection-test": (5e-4, "the two bspline lanes differ"),
-    # AK#1608 part 1 fixed its sign, and at matched razor-2p the two routes now
+    "0017_network-connection-test": (5e-4, "the two bs2 lanes differ"),
+    # AK#1608 part 1 fixed its sign, and at matched razor2p the two routes now
     # agree to 2.3e-15 (2.8e-01 before). What is left is 0116's mechanism, five
     # times over: serve cuts each of the five elements at its feed knot, which
     # clamps the degree-2 B-spline there, and AK keeps each element whole with a
     # positioned feed. At degree 1, with no continuity to differ on, the routes
     # agree to 8.1e-05; at degree 2, 4.51e-02. Both are far from the licensed
     # NEC-5 (AK 9.4e-02, serve 1.34e-01), so like 0116 this is a consistency
-    # bar inside the bspline basis error, not a defect with a known fix.
+    # bar inside the bs2 basis error, not a defect with a known fix.
     "0028_17-10m-log-per-arrl-ant-book": (5e-2, "basis continuity at the cut, AK#1622"),
 }
 

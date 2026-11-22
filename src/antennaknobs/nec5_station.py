@@ -276,7 +276,7 @@ def _refuse_ports(net):
                 "deck cannot: NEC-5's current at a free end is zero by its end "
                 "condition, and the binary refuses a source at that knot "
                 "(measured), so the end-port feed has no NEC-5 spelling. Run "
-                "the design on momwire (bspline)"
+                "the design on momwire (bs2)"
             )
         raise StationDeckRefusal(
             f"port {name!r} ({type(port).__name__}) has no NEC-5 station-deck "
@@ -695,7 +695,7 @@ def station_deck(
     engine      : an engine already built on ``builder`` that solves its
                   network by reduction (``_reducer`` and
                   ``_compute_y_matrix``), whose antenna Y the knots are
-                  measured on. Default: momwire's ``bspline`` over
+                  measured on. Default: momwire's ``bs2`` over
                   ``ground``. The measurement needs a node-voltage map, not
                   NEC-5's own digits, so another basis serves.
 
@@ -725,7 +725,7 @@ def station_deck(
         if engine is None:
             from .cli import make_engine_factory  # noqa: PLC0415 — on use
 
-            engine = make_engine_factory("momwire:bspline", ground)(builder)
+            engine = make_engine_factory("momwire:bs2", ground)(builder)
         red = getattr(engine, "_reducer", None)
         if not hasattr(red, "tuned_network"):
             raise StationDeckRefusal(
@@ -899,7 +899,7 @@ def station_deck(
     if engine is None:
         from .cli import make_engine_factory  # noqa: PLC0415 — on use
 
-        engine = make_engine_factory("momwire:bspline", ground)(builder)
+        engine = make_engine_factory("momwire:bs2", ground)(builder)
     Y, y_names = _solver_y(engine, freq_mhz)
     if sorted(y_names) != sorted(real_nodes):
         missing = set(real_nodes) ^ set(y_names)

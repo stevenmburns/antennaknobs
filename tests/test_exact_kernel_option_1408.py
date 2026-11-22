@@ -147,7 +147,7 @@ def test_the_option_spec_is_served_with_auto_as_its_default():
 
 
 def test_the_roster_offers_it_where_momwire_serves_it():
-    # bspline since momwire 0.76.0 (#1408); razor-2p since 0.77.0 (#1433).
+    # bs2 since momwire 0.76.0 (#1408); razor2p since 0.77.0 (#1433).
     from antennaknobs.web import server  # noqa: F401
     from antennaknobs.web.adapter import backend_roster
 
@@ -156,7 +156,7 @@ def test_the_roster_offers_it_where_momwire_serves_it():
         for b in backend_roster(have_pynec=True, have_nec5=True, have_nec2=True)
         if "exact_kernel" in b["model_kwargs"]
     }
-    assert offered == ({"bspline", "razor-2p"} if SERVED else set())
+    assert offered == ({"bs2", "razor2p"} if SERVED else set())
 
 
 # --------------------------------------------------------------------------
@@ -236,7 +236,7 @@ def test_the_web_adapter_passes_the_choice_through():
     from antennaknobs.web import adapter
 
     eng = adapter._make_momwire_engine(
-        {"momwire_model": "bspline", "model_options": {"exact_kernel": "off"}},
+        {"momwire_model": "bs2", "model_options": {"exact_kernel": "off"}},
         _Dipole(dict(_Dipole.default_params)),
     )
     assert "exact_kernel" not in eng._kernel_solver_kwargs()

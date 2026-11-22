@@ -4,8 +4,8 @@ The served row has always said what a backend SERVES. momwire#882 added the
 compositional axes — basis, testing, charge support, kernel, quadrature, solve
 strategy, feed model, plus the derived ground model and wire position — and
 this is the seam that carries them to the panel, so a user can see that
-`bspline` and `hmatrix` are the same physics differing in assembly and that
-`sinusoidal-galerkin` differs from `sinusoidal` in the testing.
+`bs2` and `hmatrix` are the same physics differing in assembly and that
+`sg` differs from `sinusoidal` in the testing.
 
 Three things are gated here, and the third is the one with content.
 
@@ -115,8 +115,8 @@ def test_the_payload_is_json_and_stable():
     """Sets are not JSON, and set iteration order is not stable across runs —
     a response fixture built on either would churn. The seam sorts."""
     rows = _rows()
-    assert json.loads(json.dumps(rows["bspline"])) == rows["bspline"]
-    for values in rows["bspline"]["axes"].values():
+    assert json.loads(json.dumps(rows["bs2"])) == rows["bs2"]
+    for values in rows["bs2"]["axes"].values():
         assert values == sorted(values)
 
 
@@ -132,14 +132,14 @@ def test_the_one_axis_pairs_are_visible_through_the_seam():
     r = _rows()
     for a, b, axis in (
         ("hmatrix", "arrayblock", "solve_strategy"),
-        ("sinusoidal", "sinusoidal-galerkin", "testing"),
+        ("sinusoidal", "sg", "testing"),
     ):
         differ = {k for k in r[a]["axes"] if r[a]["axes"][k] != r[b]["axes"][k]}
         assert axis in differ, f"{a} vs {b}: {axis} not visible"
 
 
 def test_point_matching_forbids_the_point_gap_feed():
-    """Coupling 1 (momwire#212). `sinusoidal` and `sinusoidal-galerkin` are
+    """Coupling 1 (momwire#212). `sinusoidal` and `sg` are
     one basis differing in testing — and the testing DRAGS the feed model
     with it, because a zero-width gap sitting on a match point is undefined
     for point-matched collocation. So the pair differs in two axes, and the
@@ -147,8 +147,8 @@ def test_point_matching_forbids_the_point_gap_feed():
     r = _rows()
     assert r["sinusoidal"]["axes"]["testing"] == ["point-matching"]
     assert "point-gap" not in r["sinusoidal"]["axes"]["feed_model"]
-    assert r["sinusoidal-galerkin"]["axes"]["testing"] == ["galerkin"]
-    assert "point-gap" in r["sinusoidal-galerkin"]["axes"]["feed_model"]
+    assert r["sg"]["axes"]["testing"] == ["galerkin"]
+    assert "point-gap" in r["sg"]["axes"]["feed_model"]
 
 
 def test_the_accelerators_cannot_reach_the_buried_cell():
@@ -159,7 +159,7 @@ def test_the_accelerators_cannot_reach_the_buried_cell():
     which is exactly the kind of unreachable cell #1006 asks the product
     space to make countable."""
     r = _rows()
-    assert "buried" in r["bspline"]["axes"]["wire_position"]
+    assert "buried" in r["bs2"]["axes"]["wire_position"]
     for accel in ("hmatrix", "arrayblock"):
         assert "buried" not in r[accel]["axes"]["wire_position"], accel
         # ...and nothing else about the geometry moved: still above ground

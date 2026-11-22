@@ -29,7 +29,7 @@ DIPOLE = {
     "variant": "dipole",
     "measurement_freq_mhz": 28.47,
     "design_freq_mhz": 28.47,
-    "momwire_model": "bspline",
+    "momwire_model": "bs2",
     "n_per_wire": 9,
 }
 
@@ -318,7 +318,7 @@ def test_a_client_that_goes_away_stops_the_sweep(monkeypatch):
         t.join(timeout=10)
 
 
-@pytest.mark.parametrize("model", ["bspline", "razor-2p"])
+@pytest.mark.parametrize("model", ["bs2", "razor2p"])
 def test_a_density_record_carries_the_clis_achieved_segment_count(client, model):
     """AK#1781: the workbench extrapolates Z∞ against the achieved segment
     count, so each record carries it, and it is the CLI density study's own

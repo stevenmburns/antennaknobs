@@ -26,7 +26,7 @@ import pytest
 import antennaknobs.web.server  # noqa: F401 — resolves the adapter import cycle
 from antennaknobs.web.adapter import backend_roster
 
-FAMILY = ("bspline", "hmatrix", "arrayblock")
+FAMILY = ("bs2", "hmatrix", "arrayblock")
 WL = 42.83
 
 
@@ -93,7 +93,7 @@ def test_the_point_matched_solver_still_does_not_expose_it():
 
 def test_razor_still_does_not_expose_it():
     """Its feed is a node port; there is no gap to choose."""
-    row = _rows()["razor-2p"]
+    row = _rows()["razor2p"]
     assert "feed_model" not in row["model_kwargs"]
     assert row["axes"]["feed_model"] == ["node-port"]
 
@@ -140,7 +140,7 @@ def test_a_catalog_solve_through_the_ADAPTER_is_unchanged(design):
         req = {
             "geometry": design,
             "solver": "momwire",
-            "momwire_model": "bspline",
+            "momwire_model": "bs2",
             "n_per_wire": 15,
             "model_options": {"degree": 2, **model_options},
         }
@@ -173,7 +173,7 @@ def test_the_adapter_anchor_is_not_vacuous():
         req = {
             "geometry": design,
             "solver": "momwire",
-            "momwire_model": "bspline",
+            "momwire_model": "bs2",
             "n_per_wire": 15,
             "model_options": {"degree": 2, **model_options},
         }

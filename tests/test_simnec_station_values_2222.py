@@ -101,7 +101,7 @@ def _rig_z(net):
         def build_network(self):
             return net
 
-    return complex(make_engine_factory("momwire:razor-2p", None)(B()).impedance()[0])
+    return complex(make_engine_factory("momwire:razor2p", None)(B()).impedance()[0])
 
 
 def test_values_lists_what_the_chain_reader_reads_in_saved_units():
@@ -203,7 +203,7 @@ class _Hybrid(AntennaBuilder):
 
 
 def test_a_design_knob_drives_the_station_value():
-    eng = make_engine_factory("momwire:razor-2p", None)
+    eng = make_engine_factory("momwire:razor2p", None)
     for coax_m in (12.0, 20.0):
         b = _Hybrid({**_Hybrid.default_params, "coax_m": coax_m})
         got = complex(eng(b).impedance()[0])

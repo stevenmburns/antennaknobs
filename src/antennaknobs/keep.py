@@ -51,6 +51,7 @@ from pathlib import Path
 
 from . import analyses as an
 from . import studies
+from .engine_names import RetiredEngineName, canonical_engine_spec, canonical_model
 
 #: What each keep was made from, in the header's words.
 ORIGINS = {
@@ -73,7 +74,7 @@ _X_KINDS = ("frequency", "knob", "density")
 _PART = re.compile(r"[A-Za-z0-9][A-Za-z0-9_-]{0,63}")
 _MAX_DEPTH = 8
 
-# An engine spec as ``--engine`` spells one (``momwire:bspline-d1``). A kept
+# An engine spec as ``--engine`` spells one (``momwire:bs1``). A kept
 # spec is checked against this before it is written into a file; whether the
 # engine is on this machine is the run's question, not the keep's.
 _ENGINE = re.compile(r"[a-z][a-z0-9]*(:[a-z0-9][a-z0-9-]*)?")
@@ -280,7 +281,7 @@ _GROUND_KINDS = {"fast": "finite-fast", "sommerfeld": "finite", "mininec": "mini
 def engine_of(req: Mapping, who: str, notes: list[str] | None = None) -> str:
     """The ``--engine`` spec the solve request ``req`` was solved on: its
     ``solver``, and for momwire its model (a B-spline at degree 1 is
-    ``bspline-d1``, the CLI's spelling). An engine option the request sets
+    ``bs1``, the CLI's spelling). An engine option the request sets
     off its default has no ``--engine`` spelling: the spec is still the
     engine's, and ``notes`` says which options a run leaves at defaults."""
     from .cli import MOMWIRE_BASES, MOMWIRE_BASIS_VARIANTS
@@ -293,16 +294,17 @@ def engine_of(req: Mapping, who: str, notes: list[str] | None = None) -> str:
     if solver != "momwire":
         spec = solver
     else:
-        model = req.get("momwire_model") or "bspline"
+        # A deprecated spelling (momwire#2091) keeps as the name it now is.
+        model = canonical_model(req.get("momwire_model") or "bs2")
         degree = opts.get("degree")
-        if model == "bspline" and degree in (None, 2):
-            spec, skip = "momwire:bspline", {"degree"}
-        elif model == "bspline" and degree == 1:
-            spec, skip = "momwire:bspline-d1", {"degree"}
-        elif model == "bspline":
+        if model == "bs2" and degree in (None, 2):
+            spec, skip = "momwire:bs2", {"degree"}
+        elif model == "bs2" and degree == 1:
+            spec, skip = "momwire:bs1", {"degree"}
+        elif model == "bs2":
             raise KeepError(
                 f"{who}: a B-spline of degree {degree} has no --engine spelling "
-                "(bspline is degree 2, bspline-d1 degree 1)"
+                "(bs2 is degree 2, bs1 degree 1)"
             )
         elif model in MOMWIRE_BASES or model in MOMWIRE_BASIS_VARIANTS:
             spec = f"momwire:{model}"
@@ -741,8 +743,9 @@ def _drawn(
 
 def _norm(field: str, spec: str):
     """A spec as what it solves on, so two spellings of one engine or
-    ground compare equal (bare ``momwire`` is the B-spline, ``razor-nec5``
-    is ``razor-2p``; a finite ground's default soil written or not)."""
+    ground compare equal (bare ``momwire`` is the B-spline, a deprecated
+    spelling such as ``momwire:razor-2p`` is ``momwire:razor2p``; a finite
+    ground's default soil written or not)."""
     if field == "grounds":
         from .cli import parse_ground
 
@@ -750,9 +753,11 @@ def _norm(field: str, spec: str):
             return parse_ground(spec)
         except argparse.ArgumentTypeError:
             return spec
-    return {"momwire": "momwire:bspline", "momwire:razor-nec5": "momwire:razor-2p"}.get(
-        spec, spec
-    )
+    try:
+        spec = canonical_engine_spec(spec)
+    except RetiredEngineName:
+        return spec
+    return {"momwire": "momwire:bs2"}.get(spec, spec)
 
 
 def _with_axis(a: an.Analysis, field: str, specs) -> an.Analysis:

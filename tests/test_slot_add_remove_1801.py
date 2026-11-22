@@ -97,12 +97,12 @@ def test_an_empty_slot_d_table_makes_slot_d_on_the_first_solver(cat, local):
 
 
 def test_slot_d_takes_its_own_settings(cat, local):
-    payload = _load(cat, local, '[slots.D]\nbackend = "bspline"\nn_per_wire = 31\n')
+    payload = _load(cat, local, '[slots.D]\nbackend = "bs2"\nn_per_wire = 31\n')
     assert payload["problems"] == []
     seeds = ui_settings.overlay_slots(
         list(cat.stock_slots), payload["slots"], _first(cat)
     )
-    assert seeds[3]["backend"] == "bspline"
+    assert seeds[3]["backend"] == "bs2"
     assert seeds[3]["n_per_wire"] == 31
 
 

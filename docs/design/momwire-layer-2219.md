@@ -150,7 +150,7 @@ with two gap feeds:
 
 | family | against core's `compute_y_matrix_swept` | against single-point `compute_y_matrix()` |
 |---|---|---|
-| razor-2p | bit for bit | bit for bit |
+| razor2p | bit for bit | bit for bit |
 | B-spline | bit for bit | within 1.6e-14 relative |
 | sinusoidal Galerkin | bit for bit | within 6.0e-14 relative |
 

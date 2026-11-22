@@ -29,7 +29,7 @@ What it is NOT compared with is `MomwireEngine` of the same basis. That
 engine meshes with odd parity and feeds a delta gap mid-segment; the NEC-5
 route meshes with even parity, splits the fed wire at the feed and sources
 the knot, so the two differ by 1e-3 to 1e-2 on designs with no network at
-all (a plain inverted-V dipole: 2.4e-3 on bspline). That is the dialect,
+all (a plain inverted-V dipole: 2.4e-3 on bs2). That is the dialect,
 not the deck.
 """
 
@@ -54,7 +54,7 @@ from antennaknobs.engines.nec5 import NEC5Engine, _network_needs_reducer
 from antennaknobs.nec5_export import export_nec5
 from antennaknobs.nec5_station import _driven_z, station_deck
 
-LAUNCHERS = ("bspline", "razor-2p")
+LAUNCHERS = ("bs2", "razor2p")
 GROUNDS = ("free", "finite")
 
 # The sentence every one of these designs used to get. No design may get it
@@ -84,12 +84,10 @@ REFUSED = {
 # network: the jacketed radials lie 1.05 mm above the soil, and a NEC-5 deck
 # carries a jacket only as the equivalent bare radius (`JACKET_COMMENT_CARDS`),
 # so the launcher meets h/a = 1.23 under its bare-wire floor of 2
-# (momwire#865) on bspline; razor-2p serves it. AK's own NEC-5 route on the
-# bspline launcher refuses the same deck the same way.
+# (momwire#865) on bs2; razor2p serves it. AK's own NEC-5 route on the
+# bs2 launcher refuses the same deck the same way.
 UNSERVED = {
-    ("verticals.buried_radial_vertical:surface", "finite", "bspline"): (
-        "validity floor"
-    ),
+    ("verticals.buried_radial_vertical:surface", "finite", "bs2"): ("validity floor"),
 }
 
 

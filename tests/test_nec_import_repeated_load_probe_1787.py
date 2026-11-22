@@ -82,12 +82,12 @@ def test_two_probes_at_one_node_import_as_the_one_probe_deck():
     assert two.network() == one.network()
 
 
-@pytest.mark.parametrize("basis", ["razor-2p", "bspline"])
+@pytest.mark.parametrize("basis", ["razor2p", "bs2"])
 def test_two_probes_give_the_one_probe_feed_impedance(tmp_path, basis):
     z_two = _z(tmp_path, TWO_PROBES, basis)
     z_one = _z(tmp_path, ONE_PROBE, basis)
     assert z_two == pytest.approx(z_one, rel=1e-12)
-    if basis == "razor-2p":
+    if basis == "razor2p":
         # NEC-5's own basis: the licensed engine's printed digits.
         assert abs(z_two - NEC5) < 0.01, z_two
 
@@ -109,7 +109,7 @@ def test_two_probes_give_the_one_probe_feed_impedance(tmp_path, basis):
 def test_a_repeated_current_source_still_refuses(tmp_path, old, new):
     assert old in TWO_PROBES
     with pytest.raises(ValueError, match=REFUSAL):
-        _z(tmp_path, TWO_PROBES.replace(old, new), "razor-2p")
+        _z(tmp_path, TWO_PROBES.replace(old, new), "razor2p")
 
 
 # Licensed NEC-5's drive row (EX 4 at 1,6) on each repeated-voltage shape the
@@ -139,5 +139,5 @@ _SUMMED = [
 @pytest.mark.parametrize(("old", "new", "nec5"), _SUMMED)
 def test_repeated_voltage_sources_on_a_knot_read_as_nec5_does(tmp_path, old, new, nec5):
     assert old in TWO_PROBES
-    z = _z(tmp_path, TWO_PROBES.replace(old, new), "razor-2p")
+    z = _z(tmp_path, TWO_PROBES.replace(old, new), "razor2p")
     assert abs(z - nec5) < 0.01, z

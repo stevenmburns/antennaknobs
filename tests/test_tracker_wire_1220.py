@@ -58,7 +58,7 @@ def _req(value, **over):
     return {
         "geometry": "fake.trk",
         "measurement_freq_mhz": 28.47,
-        "momwire_model": "bspline",
+        "momwire_model": "bs2",
         "hold": 0.5,
         "drag": value,
         "_track": t,

@@ -128,7 +128,7 @@ def test_one_wire_through_the_plane_imports_and_solves_like_two():
 def test_the_tab_and_the_engine_agree_on_a_crossing_design():
     """The coverage derivation splits the same way the engine does, so a
     crossing design is reported as needing the crossing junction — served
-    on bspline — rather than refused as a mid-span crossing."""
+    on bs2 — rather than refused as a mid-span crossing."""
     from antennaknobs.web import server  # noqa: F401  (breaks the adapter import cycle)
     from antennaknobs.web.adapter import _CROSSING_NEED, _design_capability_needs
 

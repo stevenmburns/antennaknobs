@@ -68,7 +68,7 @@ function renderOverlays(overrides: OverlayOverrides = {}) {
       requiredBackends={null}
       solveError={null}
       {...rest}
-      backend={entry(backend ?? "bspline")}
+      backend={entry(backend ?? "bs2")}
       recommendedBackend={
         recommendedBackend ? entry(recommendedBackend) : null
       }
@@ -130,7 +130,7 @@ describe("SolveOverlays — disallowed banner", () => {
     [null, "a supported solver"],
     [[], "a supported solver"],
     [["nosuch"], "a supported solver"],
-    [["bspline", "sinusoidal-galerkin"], `${entry("bspline").label} / ${entry("sinusoidal-galerkin").label}`],
+    [["bs2", "sg"], `${entry("bs2").label} / ${entry("sg").label}`],
   ] as const)("lists requiredBackends %s as %s", (requiredBackends, expected) => {
     renderOverlays({
       solverWarning: true,
@@ -145,30 +145,30 @@ describe("SolveOverlays — disallowed banner", () => {
     const { user, onSwitchBackend } = renderOverlays({
       solverWarning: true,
       backendDisallowed: true,
-      requiredBackends: ["bspline", "pynec"],
+      requiredBackends: ["bs2", "pynec"],
     });
-    const btn = screen.getByRole("button", { name: `Switch to ${entry("bspline").label}` });
+    const btn = screen.getByRole("button", { name: `Switch to ${entry("bs2").label}` });
     await user.click(btn);
-    expect(onSwitchBackend).toHaveBeenCalledWith(entry("bspline"));
+    expect(onSwitchBackend).toHaveBeenCalledWith(entry("bs2"));
     expect(onSwitchBackend).toHaveBeenCalledTimes(1);
   });
 
-  // normalizeBackend maps the retired "triangular" name to "bspline" — the
+  // normalizeBackend maps the retired "triangular" name to "bs2" — the
   // load-bearing mapping a stale recommendation depends on.
   it("normalizes a retired backend name (triangular) before offering the switch", async () => {
     // The alias map is SERVED now (#1006 G2-6) — the retired name used to be
     // rewritten by an inline branch in lib/backends.ts.
     expect(normalizeBackend("triangular", SERVED_ROSTER, SERVED_ALIASES)).toBe(
-      entry("bspline"),
+      entry("bs2"),
     );
     const { user, onSwitchBackend } = renderOverlays({
       solverWarning: true,
       backendDisallowed: true,
       requiredBackends: ["triangular"],
     });
-    const btn = screen.getByRole("button", { name: `Switch to ${entry("bspline").label}` });
+    const btn = screen.getByRole("button", { name: `Switch to ${entry("bs2").label}` });
     await user.click(btn);
-    expect(onSwitchBackend).toHaveBeenCalledWith(entry("bspline"));
+    expect(onSwitchBackend).toHaveBeenCalledWith(entry("bs2"));
     expect(onSwitchBackend).toHaveBeenCalledTimes(1);
   });
 
@@ -209,7 +209,7 @@ describe("SolveOverlays — poor-match banner", () => {
       solverWarning: true,
       backendDisallowed: false,
       recommendedBackend: "sinusoidal",
-      backend: "bspline",
+      backend: "bs2",
     });
     const sub = mismatchBanner()?.querySelector(".solver-suggest-sub")?.textContent ?? "";
     expect(sub).toContain("This mesh is benchmark-sized");
@@ -342,7 +342,7 @@ describe("a hard option refusal suppresses the soft mismatch overlay", () => {
       solverWarning: true,
       backendDisallowed: false,
       optionRefusal: REFUSAL,
-      recommendedBackend: "bspline",
+      recommendedBackend: "bs2",
     });
     expect(screen.getAllByRole("alertdialog")).toHaveLength(1);
     expect(
@@ -361,7 +361,7 @@ describe("a hard option refusal suppresses the soft mismatch overlay", () => {
       solverWarning: true,
       backendDisallowed: false,
       optionRefusal: REFUSAL,
-      recommendedBackend: "bspline",
+      recommendedBackend: "bs2",
     });
     expect(screen.queryByRole("button", { name: /solve anyway/i })).toBeNull();
   });
@@ -373,7 +373,7 @@ describe("a hard option refusal suppresses the soft mismatch overlay", () => {
       solverWarning: true,
       backendDisallowed: false,
       optionRefusal: null,
-      recommendedBackend: "bspline",
+      recommendedBackend: "bs2",
     });
     expect(
       screen.getByRole("alertdialog", { name: "Solver mismatch" }),

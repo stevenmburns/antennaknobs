@@ -49,7 +49,7 @@ def _solve(req):
 def _screen(**options):
     return _req(
         SCREEN,
-        "bspline",
+        "bs2",
         {"degree": 2, "rotational_symmetry": True, **options},
         n_per_wire=9,
         ground=True,
@@ -67,7 +67,7 @@ def _fresh_caches():
 
 
 @needs_report
-@pytest.mark.parametrize("model", ["razor-2p", "sinusoidal", "bspline"])
+@pytest.mark.parametrize("model", ["razor2p", "sinusoidal", "bs2"])
 def test_reuse_off_reports_times_and_no_analysis(model):
     report = _solve(_req(YAGI, model, {"pair_reuse": False}))["fill_report"]
     assert report["reuse"] is None and report["map"] is None
@@ -89,7 +89,7 @@ def _served_engine(model):
 
 
 @needs_report
-@pytest.mark.parametrize("model", ["razor-2p", "sinusoidal", "bspline"])
+@pytest.mark.parametrize("model", ["razor2p", "sinusoidal", "bs2"])
 def test_the_payload_agrees_with_the_solver(model):
     """The served numbers are the solver's own, through each engine."""
     engine = _served_engine(model)
@@ -134,7 +134,7 @@ def test_reading_the_report_runs_no_census(monkeypatch):
 
 
 @needs_report
-@pytest.mark.parametrize("model", ["razor-2p", "sinusoidal", "bspline"])
+@pytest.mark.parametrize("model", ["razor2p", "sinusoidal", "bs2"])
 def test_reuse_off_never_reads_the_wire_map(model, monkeypatch):
     """With reuse off the tally asks momwire for no wire map at all."""
     req = _req(YAGI, model, {"pair_reuse": False})
@@ -169,7 +169,7 @@ def test_the_report_does_not_move_the_answer():
 
 @needs_report
 def test_a_cached_answer_says_so():
-    req = _req(YAGI, "bspline", {"pair_reuse": True})
+    req = _req(YAGI, "bs2", {"pair_reuse": True})
     with warnings.catch_warnings():
         warnings.simplefilter("ignore")
         first = server.solve(req)
@@ -182,7 +182,7 @@ def test_a_cached_answer_says_so():
 
 @needs_report
 def test_a_matrix_from_memory_reports_no_fill():
-    req = _req("wire.edz", "bspline", {})
+    req = _req("wire.edz", "bs2", {})
     assert _solve(req)["fill_report"]["no_fill"] is False
     again = _solve(req)["fill_report"]
     assert again["no_fill"] is True
@@ -203,7 +203,7 @@ def test_the_sector_route_reports_sectors_and_blocks():
 
 @needs_report
 def test_a_refused_deck_reports_the_workbench_sentence():
-    req = _req(YAGI, "bspline", {"rotational_symmetry": True})
+    req = _req(YAGI, "bs2", {"rotational_symmetry": True})
     with pytest.raises(NotImplementedError) as caught:
         _solve(req)
     report = adapter.fill_refusal_of(caught.value)["fill_report"]
@@ -217,15 +217,13 @@ def test_the_live_channel_carries_the_refusal_and_keeps_serving():
     """Through the real socket: the refusal arrives beside the error, and the
     next solve on the same socket still answers."""
     with TestClient(server.app) as client, client.websocket_connect("/ws") as ws:
-        ws.send_json(
-            {**_req(YAGI, "bspline", {"rotational_symmetry": True}), "_seq": 1}
-        )
+        ws.send_json({**_req(YAGI, "bs2", {"rotational_symmetry": True}), "_seq": 1})
         refused = ws.receive_json()
         assert "error" in refused
         report = refused["fill_report"]
         assert report["source"] == "refused"
         assert report["sector"]["declined"] in refused["error"]
-        ws.send_json({**_req(YAGI, "bspline", {}), "_seq": 2})
+        ws.send_json({**_req(YAGI, "bs2", {}), "_seq": 2})
         solved = ws.receive_json()
         assert "error" not in solved
         assert solved["fill_report"]["source"] == "fresh"
@@ -240,7 +238,7 @@ def _sweep_closing(client, req):
 @needs_report
 def test_a_sweep_closes_with_its_totals():
     freqs = [28.0, 28.2, 28.4, 28.6]
-    req = {**_req(YAGI, "bspline", {"pair_reuse": True}), "freqs_mhz": freqs}
+    req = {**_req(YAGI, "bs2", {"pair_reuse": True}), "freqs_mhz": freqs}
     with TestClient(server.app) as client:
         done = _sweep_closing(client, req)
     assert done["done"] is True
@@ -354,11 +352,11 @@ def test_wire_names_come_from_the_design_or_its_number():
 def test_at_the_recorded_pointer_nothing_is_sent():
     """momwire 0.94.0: no report on a solve, a sweep's closing record or a
     refusal, and the Fill view reads that the engine does not report."""
-    out = _solve(_req(YAGI, "bspline", {"pair_reuse": True}))
+    out = _solve(_req(YAGI, "bs2", {"pair_reuse": True}))
     assert "fill_report" not in out
     with TestClient(server.app) as client:
         done = _sweep_closing(
-            client, {**_req(YAGI, "bspline", {}), "freqs_mhz": [28.0, 28.4]}
+            client, {**_req(YAGI, "bs2", {}), "freqs_mhz": [28.0, 28.4]}
         )
     assert done["done"] is True and "fill_report" not in done
     assert (

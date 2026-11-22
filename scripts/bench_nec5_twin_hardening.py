@@ -81,7 +81,7 @@ def _deck(header, gws, ex_tag, ex_seg):
 
 
 # Geometry table: name -> (momwire wires+radius+feed kwargs, nec5 deck fn,
-# ladder, bspline lanes on/off). Feeds always at a plain knot the NEC-5 EX
+# ladder, bs2 lanes on/off). Feeds always at a plain knot the NEC-5 EX
 # card addresses identically (segment end 2 = the knot at that segment's
 # far end).
 def _nec5_dipole_deck(n, length, radius, tag_note):
@@ -121,7 +121,7 @@ GEOMS = {
         "deck": lambda n: _nec5_dipole_deck(n, 10.18946, 1.0262e-3, "dipole"),
         "ladder": DIP_NS,
         "total": lambda n: n,
-        "bspline": True,
+        "bs2": True,
         "feed": {},
     },
     "fat-dipole": {
@@ -129,7 +129,7 @@ GEOMS = {
         "deck": lambda n: _nec5_dipole_deck(n, 10.18946, 1.0e-2, "fat"),
         "ladder": DIP_NS,
         "total": lambda n: n,
-        "bspline": True,
+        "bs2": True,
         "feed": {},
     },
     "invvee": {
@@ -137,7 +137,7 @@ GEOMS = {
         "deck": _nec5_invvee_deck,
         "ladder": DIP_NS,
         "total": lambda n: n,
-        "bspline": True,
+        "bs2": True,
         "feed": {},
     },
     "loop": {
@@ -148,7 +148,7 @@ GEOMS = {
         # BSplineSolver needs an explicit junction spec for a closed loop;
         # the hardening claim doesn't need bs lanes here, so keep the loop
         # to the nec5/razor lanes rather than grow the instrument.
-        "bspline": False,
+        "bs2": False,
         "feed": {"feed_arclength": LOOP_SIDE / 2},
     },
 }
@@ -219,7 +219,7 @@ def main() -> None:
             lanes["nec5"].append([n, *_ri(zn)])
             lanes["n5q"].append([n, *_ri(_razor_z(name, g, n, nec5_quadrature=True))])
             lanes["razor"].append([n, *_ri(_razor_z(name, g, n))])
-            if g["bspline"]:
+            if g["bs2"]:
                 lanes["bs1"].append([n, *_ri(_bspline_z(name, g, n, 1))])
                 lanes["bs2"].append([n, *_ri(_bspline_z(name, g, n, 2))])
             print(f"{name} n={n} done", flush=True)

@@ -62,7 +62,7 @@ def _grid(eng):
 def _req(preset: str) -> dict:
     return {
         "geometry": "dipoles.invvee",
-        "momwire_model": "bspline",
+        "momwire_model": "bs2",
         "ground": True,
         "ground_model": "terrain",
         "terrain": {"preset": preset},

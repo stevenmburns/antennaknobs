@@ -76,7 +76,7 @@ const knobEntry = (name: string, over: Record<string, unknown>) => ({
 
 const E7 = {
   ...knobEntry(E7_NAME, {
-    engines: ["momwire:bspline", "momwire:razor-2p"],
+    engines: ["momwire:bs2", "momwire:razor2p"],
     axes: ["designs", "engines"],
     designs: [
       { name: INVVEE.name, refused: null, param: "n_per_wire", values: LADDER },

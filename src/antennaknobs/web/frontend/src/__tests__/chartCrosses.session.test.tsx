@@ -29,7 +29,7 @@
 //   - a refused engine cell dropped from the legend (the legend's
 //     engineRefusal branch removed): "NEC-2 declining…" fails, the row
 //     reads as a drawn curve with an error, not a refused cell. Re-run
-//     2026-10-01 with razor-2p listed and skipped beside it: still fails.
+//     2026-10-01 with razor2p listed and skipped beside it: still fails.
 import { describe, it, expect, afterEach, beforeEach, vi } from "vitest";
 import { cleanup, fireEvent, screen, within } from "@testing-library/react";
 import type { ExampleDescriptor, SchemaParamSpec } from "../lib/params";
@@ -141,9 +141,9 @@ const ANALYSES = [
     values: LADDER,
     log: true,
     // E7's engines, PyNEC standing in for NEC-2 (the harness has no NEC-2
-    // slot) and razor-2p in no slot: skipped, while PyNEC's refusal of the
+    // slot) and razor2p in no slot: skipped, while PyNEC's refusal of the
     // other design's feed stays a named refusal.
-    engines: ["momwire:bspline", "momwire:razor-2p", "pynec"],
+    engines: ["momwire:bs2", "momwire:razor2p", "pynec"],
     axes: ["designs", "engines"],
     designs: [
       { name: DECK.name, refused: null, param: "n_per_wire", values: LADDER },
@@ -419,9 +419,9 @@ describe("the design cross", () => {
     await untilDom(() => r.params.some((b) => b.solver === "pynec" && b.geometry === OTHER.name) || null);
     await untilDom(() => (legendRows().some(([t]) => t?.startsWith("dipoles.other, pynec:")) ? true : null));
     expect(legendRows()).toEqual([
-      ["dipoles.probe, momwire:bspline", "0"],
+      ["dipoles.probe, momwire:bs2", "0"],
       ["dipoles.probe, pynec", "0"],
-      ["dipoles.other, momwire:bspline", "0"],
+      ["dipoles.other, momwire:bs2", "0"],
       [`dipoles.other, pynec: ${APEX_REFUSAL}`, "1"],
     ]);
     const legend = document.querySelector<HTMLElement>(".chart-legend");
@@ -429,7 +429,7 @@ describe("the design cross", () => {
     // The engine no slot holds is skipped, not refused: a note, no row. And
     // the pick says which slots it ticked (AC6LA, QRZ).
     expect(legend?.querySelector('[role="note"]')?.textContent).toBe(
-      "skipped: razor-2p, which no slot holds. Put it in a slot to include it. " +
+      "skipped: razor2p, which no slot holds. Put it in a slot to include it. " +
         "This analysis compares 3 engines, so picking it ticked the solver slots that hold them " +
         "(A: B-spline d=2; C: PyNEC). The session still solves on A.",
     );

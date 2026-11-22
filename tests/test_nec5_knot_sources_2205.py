@@ -46,7 +46,7 @@ def _z(text: str) -> complex:
         def build_network(self):
             return deck.network()
 
-    return complex(make_engine_factory("momwire:razor-2p", None)(Deck()).impedance()[0])
+    return complex(make_engine_factory("momwire:razor2p", None)(Deck()).impedance()[0])
 
 
 def test_two_sources_on_one_knot_are_one_source_of_their_sum():

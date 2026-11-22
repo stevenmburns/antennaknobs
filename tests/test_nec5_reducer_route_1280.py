@@ -393,7 +393,7 @@ def test_nec5_refuses_a_source_at_a_free_end(ex):
     ],
 )
 def test_a_reduced_design_solves_and_agrees_with_bspline(design):
-    """Bought on a licensed box. The tolerance is the spread bspline d=2 and
+    """Bought on a licensed box. The tolerance is the spread bs2 d=2 and
     PyNEC already show on the design, per #1280's gate; it is written as a
     generous absolute here and the PR carries the per-design table."""
     import importlib

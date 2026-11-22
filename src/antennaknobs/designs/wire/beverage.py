@@ -43,14 +43,14 @@ Geometry, (x, y, z), planar in y = 0:
 TERMINATION. The run's characteristic impedance over ground is the textbook
 Z0 = 138 log10(4h/d) = 523 ohm for #14 at 2.5 m; `term_r` defaults to
 500 ohm. The `contact` variant confirms it: with a perfect connection at
-each end the feed reads 532.2 - 0.3j ohm (momwire razor-2p over average
+each end the feed reads 532.2 - 0.3j ohm (momwire razor2p over average
 soil), a matched line.
 
 THE RODS ARE NOT A PERFECT GROUND, and that is the point of modelling them.
 They put the soil's resistance in series with both the feed and the
 termination: the feed moves from 532.2 - 0.3j (contact) to 677.0 - 97.6j
 ohm (rods), the terminator's share of the input power falls from 51.7 % to
-32.9 %, and F/B from 20.4 to 19.1 dB (all razor-2p, average soil).
+32.9 %, and F/B from 20.4 to 19.1 dB (all razor2p, average soil).
 
 MODELLED NUMBERS, at the defaults (1.5 wl, 2.5 m, 500 ohm, 9:1, 1.8 m rods
 at the wire's own radius), 1.83 MHz. Soils are the app's presets (ARRL
@@ -60,20 +60,20 @@ Table 3.1): average eps_r 13 / sigma 0.005, poor eps_r 13 / sigma 0.002.
 the input power (momwire's power budget; NEC-5 has no such row here):
 
                      feed Z (ohm)    peak dBi takeoff F/B dB RDF dB  term
-  razor-2p, average  677.0 -  97.6j   -9.10    29.1   19.1   11.95  32.9 %
+  razor2p,  average  677.0 -  97.6j   -9.10    29.1   19.1   11.95  32.9 %
   NEC-5,    average  677.0 -  97.6j   -9.10    29     19.2   11.95
-  razor-2p, poor     750.9 - 269.8j   -8.14    29.7   19.5   12.22  18.4 %
+  razor2p,  poor     750.9 - 269.8j   -8.14    29.7   19.5   12.22  18.4 %
   NEC-5,    poor     751.0 - 270.0j   -8.14    30     19.3   12.22
-  bspline,  average  675.2 -  98.5j
+  bs2,      average  675.2 -  98.5j
   SG,       average  675.2 -  98.5j
-  bspline,  poor     748.9 - 269.4j
+  bs2,      poor     748.9 - 269.4j
   SG,       poor     748.9 - 269.5j
-  razor-2p, average, contact variant
+  razor2p, average, contact variant
                      532.2 -   0.3j   -8.26    28.4   20.4   12.09  51.7 %
-  razor-2p, average, termination removed
+  razor2p, average, termination removed
                      540.2 - 619.8j   -7.15    34.6    3.1    9.92
 
-ROD DEPTH is worth its knob (razor-2p, average): 1.2 m reads 732.4 - 143.3j
+ROD DEPTH is worth its knob (razor2p, average): 1.2 m reads 732.4 - 143.3j
 ohm, F/B 17.9 dB and 27.7 % in the terminator; 2.4 m reads 649.1 - 70.5j,
 19.5 dB and 36.2 %. Deeper rods are a better ground, and the antenna moves
 toward the contact variant.
@@ -82,7 +82,7 @@ NEC-5 is the licensed binary (`--engine nec5`) at the same mesh; its F/B
 and takeoff come off the 1-degree grid, momwire's off the refined peak
 (#1669), so those two can differ by a few tenths. On the impedance the two
 engines agree to 0.02 ohm on the rig side (NEC-5 reads 75.222 - 10.849j
-against razor-2p's 75.221 - 10.841j over average soil). Doubling the mesh
+against razor2p's 75.221 - 10.841j over average soil). Doubling the mesh
 (`nominal_nsegs` 42) moves the rig-side impedance 0.22 ohm (0.3 %) on both.
 
 The absolute gain is -8 to -9 dBi and that is not a defect: a Beverage
@@ -92,23 +92,23 @@ the same loss.
 
 ENGINES:
 
-  * momwire razor-2p, B-spline (the app's default) and sinusoidal-Galerkin
+  * momwire razor2p, B-spline (the app's default) and sinusoidal-Galerkin
     all SERVE the rod design over both soils.
-  * razor-2p and NEC-5 agree to 0.1 ohm at the feed. B-spline and
+  * razor2p and NEC-5 agree to 0.1 ohm at the feed. B-spline and
     sinusoidal-Galerkin agree with each other to 0.1 ohm, and both read
     about 0.3 % from NEC-5: 2.0-2.2 ohm at the feed, 0.22-0.24 ohm on the
     rig side (feed Z to 0.001 ohm at the same mesh: NEC-5 677.002 - 97.638j
-    average, 750.987 - 269.961j poor; razor-2p 676.993 - 97.566j,
+    average, 750.987 - 269.961j poor; razor2p 676.993 - 97.566j,
     750.919 - 269.838j; B-spline 675.196 - 98.488j, 748.945 - 269.428j;
     SG 675.172 - 98.538j, 748.853 - 269.494j). That gap is the known
     difference between momwire's B-spline buried formulation and NEC-5's,
-    not a defect of this deck; razor-2p is NEC-5's formulation.
+    not a defect of this deck; razor2p is NEC-5's formulation.
   * NEC-5 (licensed, local) serves it, above.
   * PyNEC and NEC-2 are REFUSED by name in the app: neither has a medium
     below the ground, and both solve a buried wire as if it were in air.
 
 The `contact` variant is the comparison case for the NEC-2 family (AK#1707's
-decision). momwire (B-spline and razor-2p) and NEC-5 agree on it to 0.4 ohm
+decision). momwire (B-spline and razor2p) and NEC-5 agree on it to 0.4 ohm
 on the rig side (3.4 ohm at the feed, over average soil). PyNEC solves it
 too, but it is a poor reference: NEC-2 joins a wire ending on a Sommerfeld
 ground to a perfectly conducting point, which is outside its formulation,
@@ -128,7 +128,7 @@ MODELLING CONVENTIONS, and why:
   * THE RODS ARE MESHED AT THE DESIGN DENSITY, not graded into the node the
     way `buried_radial_vertical` grades its rise: every number above was
     measured on this mesh. A rod graded to a 12.5 mm node segment passes the
-    buried pre-flight on B-spline and razor-2p as well, but it has not been
+    buried pre-flight on B-spline and razor2p as well, but it has not been
     measured. The in-medium density comes from `design_eps_r` /
     `design_sigma` (average soil) and never tracks the solve's ground, so a
     soil sweep never remeshes.
@@ -137,7 +137,7 @@ MODELLING CONVENTIONS, and why:
     measured shape.
 
 REQUIRES A FINITE (Sommerfeld) GROUND: `--ground finite:13,0.005`. The web
-app selects it on load. A razor-2p solve at the defaults peaks at ~350 MB;
+app selects it on load. A razor2p solve at the defaults peaks at ~350 MB;
 the first one in a process takes 1-2.5 minutes, most of it building the
 below-ground tables, and re-solves in the same process take 5-10 s.
 """

@@ -288,9 +288,9 @@ def test_only_rejects_an_unknown_quantity(capsys):
         ("", None),
         ("--only x --x-range -5 5", "x"),
         ("--only r --r-range 60 80 --callouts", "r"),
-        ("--engine momwire,momwire:razor-2p --only x", "x"),
-        ("--engine momwire,momwire:razor-2p --overlay --only r", "r"),
-        ("--engine momwire,momwire:razor-2p --panels --only x --callouts", "x"),
+        ("--engine momwire,momwire:razor2p --only x", "x"),
+        ("--engine momwire,momwire:razor2p --overlay --only r", "r"),
+        ("--engine momwire,momwire:razor2p --panels --only x --callouts", "x"),
     ],
 )
 def test_cli_passes_only_through(monkeypatch, extra, expected):

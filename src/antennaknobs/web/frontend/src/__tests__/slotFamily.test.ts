@@ -61,7 +61,7 @@ describe("solver slot seeds (AK#1801)", () => {
     ]);
     const slots = defaultSlots(SERVED_ROSTER, SERVED_OPTION_SPECS, [
       ...SERVED_SLOT_SEEDS,
-      { slot: "D", backend: "bspline", n_per_wire: 31, model: {} },
+      { slot: "D", backend: "bs2", n_per_wire: 31, model: {} },
     ]);
     expect(slotOrder(slots)).toEqual(["A", "B", "C", "D"]);
     expect(slots.D!.opts.nPerWire).toBe(31);

@@ -93,15 +93,15 @@ def test_every_design_previews_on_every_model(client, model):
 def test_the_request_s_own_model_is_still_used_when_it_CAN_build(client):
     """The fallback must be a fallback, not a replacement.
 
-    `geometry_distribution()` IS model-dependent: on this deck `razor-2p`
+    `geometry_distribution()` IS model-dependent: on this deck `razor2p`
     puts the feed at knot 1 where every other model puts it at knot 0,
     because the two-point lane snaps the feed to a different grid. Always
     previewing with the default model would draw the feed marker in the wrong
     place on every razor preview — trading a rare blank canvas for a
     permanent quiet lie, which is the worse of the two.
     """
-    razor = _preview(client, "arrays.bowtiearray1x2", "razor-2p")
-    other = _preview(client, "arrays.bowtiearray1x2", "bspline")
+    razor = _preview(client, "arrays.bowtiearray1x2", "razor2p")
+    other = _preview(client, "arrays.bowtiearray1x2", "bs2")
     assert razor["feed_knot_index"] == 1
     assert other["feed_knot_index"] == 0
 

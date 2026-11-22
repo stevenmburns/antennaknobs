@@ -171,7 +171,7 @@ from antennaknobs.terrain import (
 import momwire
 from momwire import BSplineSolver
 
-from .. import momwire_bases
+from .. import engine_names, momwire_bases
 from ..auto_match import tuner_advisories, tuner_holding_match, tuner_rows
 from ..fill_report import refused_payload
 from ..geometry import flat_wires_to_polylines
@@ -218,7 +218,7 @@ DESIGNS_PKG = "antennaknobs.designs"
 DESIGNS_DIR = pathlib.Path(importlib.import_module(DESIGNS_PKG).__path__[0])
 
 # Memory budget (MB) for momwire's batched frequency sweeps, injected into
-# the bspline-family solvers' `swept_mem_mb` kwarg (momwire >= 0.9). None
+# the B-spline family solvers' `swept_mem_mb` kwarg (momwire >= 0.9). None
 # (unset) leaves momwire's default (256 MB) — appropriate for local use;
 # the hosted fly.toml sets ANTENNAKNOBS_SWEPT_MEM_MB=64 so two concurrent
 # worst-case sweeps stay well inside the 2 GB VM. Read at import, like the
@@ -237,7 +237,7 @@ _SWEPT_MEM_MB = (
 # metadata the frontend renders its picker from. Before #628 the two halves
 # lived in different languages (this dict here, a hand-kept `BACKEND_ORDER` /
 # `BACKEND_LABEL` / `BackendOptsMap` in lib/backends.ts) and the failure mode of
-# drift was silent absence — sinusoidal-galerkin landed server-side with both
+# drift was silent absence — sg landed server-side with both
 # repos' CI green and no tab in the UI (#626/#627). Now GET /capabilities serves
 # this list and the frontend has no roster of its own, so registering a solver
 # here is the whole change.
@@ -354,7 +354,7 @@ _N_QP_CONST = _BackendOption(
 
 # The constructor kwargs each family takes, MEASURED by construction (see
 # `_BackendSpec.model_kwargs`). Shared tuples because the families genuinely
-# share a constructor surface — bspline/hmatrix/arrayblock are one class and
+# share a constructor surface — bs2/hmatrix/arrayblock are one class and
 # two accelerated subclasses — so a per-entry literal would be three copies
 # that drift apart.
 #
@@ -431,19 +431,19 @@ _BACKENDS: tuple[_BackendSpec, ...] = (
     # solver carrying the feed-model choice ("NEC-compatible vs converged",
     # issue #640), which is what its bespoke panel renders.
     _BackendSpec(
-        name="sinusoidal-galerkin",
+        name="sg",
         model_kwargs=_SIN_GALERKIN_KWARGS,
         label="Sin-Galerkin",
-        solver=_ROSTER["sinusoidal-galerkin"].solver,
+        solver=_ROSTER["sg"].solver,
         options=(_N_QP_CONST,),
         panel="sin-galerkin",
         dense_family=True,
     ),
     _BackendSpec(
-        name="bspline",
+        name="bs2",
         model_kwargs=_BSPLINE_FAMILY_KWARGS,
         label="B-spline",
-        solver=_ROSTER["bspline"].solver,
+        solver=_ROSTER["bs2"].solver,
         panel="bspline",
         dense_family=True,
     ),
@@ -469,9 +469,9 @@ _BACKENDS: tuple[_BackendSpec, ...] = (
         label="Harrington (pulse)",
         solver=_ROSTER["pulse"].solver,
     ),
-    # bspline; model_options forward verbatim (degree, aca_eta,
+    # bs2; model_options forward verbatim (degree, aca_eta,
     # aca_leaf_size, aca_tol, solve_tol, …). Only singular enrichment falls
-    # back to the dense bspline solve inside HMatrixSolver
+    # back to the dense bs2 solve inside HMatrixSolver
     # (`_hmatrix_unsupported`); every ground model — PEC image, reflection
     # coefficient, Sommerfeld — rides the accelerated path (measured, #830).
     _BackendSpec(
@@ -486,8 +486,8 @@ _BACKENDS: tuple[_BackendSpec, ...] = (
     # Element-aware array-block accelerator (sibling of hmatrix) for arrays of
     # identical/few-shape elements: dense per-shape self-blocks + low-rank
     # coupling, block-Jacobi GMRES. Same B-spline basis and model_options as
-    # bspline/hmatrix (degree, aca_tol, solve_tol, …); on a single connected
-    # structure it degrades to one element and matches the dense bspline solve.
+    # bs2/hmatrix (degree, aca_tol, solve_tol, …); on a single connected
+    # structure it degrades to one element and matches the dense bs2 solve.
     # Its density is `antennaknobs.density`'s, like every entry here (#1543).
     _BackendSpec(
         name="arrayblock",
@@ -504,7 +504,7 @@ _BACKENDS: tuple[_BackendSpec, ...] = (
     #
     # ONLY THE TWO-POINT LANE IS OFFERED HERE. `RazorSolver`'s other lane takes
     # `n_qp_path` Gauss-Legendre nodes per wing instead, and momwire renamed
-    # these `razor` (GL) and `razor-2p` so the names describe the rule. Measured
+    # these `razor` (GL) and `razor2p` so the names describe the rule. Measured
     # on the ByDipole1 ladder, the GL rule's advantage over this one evaporates
     # by N~192 -- the two agree within 3% of each other's self-convergence at
     # N=384, having been 2x apart at N=12 -- while costing ~10x the wall time
@@ -517,17 +517,17 @@ _BACKENDS: tuple[_BackendSpec, ...] = (
     # IGNORED under this rule (momwire's own docstring says so), so exposing it
     # would render an inert control.
     #
-    # Slower-converging than bspline, and honestly so: ~16x the mesh for the
+    # Slower-converging than bs2, and honestly so: ~16x the mesh for the
     # same self-convergence on that ladder, which is why the default segment
-    # count is higher than bspline's. Even, because a centre-fed deck wants a
+    # count is higher than bs2's. Even, because a centre-fed deck wants a
     # knot at the feed for this basis.
     _BackendSpec(
-        name="razor-2p",
+        name="razor2p",
         model_kwargs=_RAZOR_KWARGS,
         label="Razor (2-point)",
-        solver=_ROSTER["razor-2p"].solver,
+        solver=_ROSTER["razor2p"].solver,
         dense_family=True,
-        bound=dict(_ROSTER["razor-2p"].bound),
+        bound=dict(_ROSTER["razor2p"].bound),
     ),
     # Optional (needs pynec-accel): served only when HAVE_PYNEC, so the
     # frontend derives availability from roster membership instead of a
@@ -693,9 +693,9 @@ def backend_roster(
             # than living in `b.model_kwargs` itself, because it is the one
             # kwarg whose exposure is a live momwire-capability probe rather
             # than a fact fixed at roster-definition time — the same tuple
-            # object must keep meaning "what bspline/hmatrix/arrayblock
+            # object must keep meaning "what bs2/hmatrix/arrayblock
             # share" (test_the_families_share_a_list_exactly_where_they_share
-            # _a_surface, #1006) even though only bspline's own
+            # _a_surface, #1006) even though only bs2's own
             # `solve_strategy` axis ever contains "sector".
             "model_kwargs": list(b.model_kwargs)
             + (["rotational_symmetry"] if _offers_rotational_symmetry(b) else [])
@@ -752,7 +752,7 @@ def backend_roster(
             # The rule the panel derives from them: an axis is a CONTROL iff
             # it is multi-valued in `axes` AND not pinned by `bound` AND (on
             # the hosted instance) its kwarg is on the model-options
-            # allowlist. `razor-2p` binds `nec5_quadrature`, so its quadrature
+            # allowlist. `razor2p` binds `nec5_quadrature`, so its quadrature
             # axis is fixed on a LOCAL install too — the preset is the reason,
             # not host policy.
             "bound": dict(b.bound),
@@ -774,7 +774,7 @@ def _backend_constraints(spec):
     FILTERED ON `applies_to`, NEVER ON VALUE REACHABILITY. A coupling belongs
     to the class that raises it. Filtering by "can this backend be configured
     to `value_a`" mis-attributes three of the six rows — it would tell a
-    `bspline` user that the extended kernel forbids `near_correction=False`,
+    `bs2` user that the extended kernel forbids `near_correction=False`,
     a keyword `BSplineSolver` does not have (measured: TypeError, not a
     refusal). That mis-attribution is exactly why `applies_to` exists.
 
@@ -826,8 +826,8 @@ def _backend_axes(spec):
     that cannot be asked (antennaknobs#1006 G2-3).
 
     momwire's rows say what a solver SERVES; `axes_for` adds what it IS, which
-    is what lets a panel show that `bspline` and `hmatrix` differ in assembly
-    alone and `sinusoidal-galerkin` differs from `sinusoidal` in the testing.
+    is what lets a panel show that `bs2` and `hmatrix` differ in assembly
+    alone and `sg` differs from `sinusoidal` in the testing.
     Read THROUGH `axes_for` and never re-derived here: `ground_model` and
     `wire_position` are computed from `grounds` / `buried` / `contact` inside
     momwire, and a second implementation on this side is exactly the drift
@@ -871,7 +871,7 @@ def _backend_axes(spec):
 
 def _offers_rotational_symmetry(spec) -> bool:
     """Whether `spec`'s momwire class exposes the sector (block-circulant)
-    route (momwire#1029) — the checkbox, unadvertised, on the bspline panel.
+    route (momwire#1029) — the checkbox, unadvertised, on the bs2 panel.
 
     Probed exactly the way `_backend_axes` probes every other composition
     fact: through `axes_for`, never a hand-kept backend-name list. A momwire
@@ -898,7 +898,7 @@ def _offers_rotational_symmetry(spec) -> bool:
 
 def _offers_exact_kernel(spec) -> bool:
     """Whether `spec`'s momwire class serves the exact ring kernel
-    (momwire#1408) — the choice on the bspline tab, absent elsewhere.
+    (momwire#1408) — the choice on the bs2 tab, absent elsewhere.
 
     A live probe of the installed momwire (`exact_kernel_served`), on
     `_offers_rotational_symmetry`'s precedent: a momwire predating the
@@ -924,10 +924,10 @@ def _offers_pair_reuse(spec) -> bool:
     do not.
 
     Since momwire 0.94.0 the switch is one umbrella whose parts each solver
-    turns on as it supports them (momwire#1982), razor-2p's
+    turns on as it supports them (momwire#1982), razor2p's
     ``razor_pair_reuse`` among them. It is offered only where momwire
     certifies every part the solver carries (`pair_reuse_certified`; Steve,
-    11-17): razor-2p wherever ``razor_pair_reuse`` reaches, bspline wherever
+    11-17): razor2p wherever ``razor_pair_reuse`` reaches, bs2 wherever
     ``offset_reuse`` does, and the sinusoidal tab, which has no part, wherever
     ``pair_reuse`` itself does; the hosted app is all three, and below a
     reach the box is not offered."""
@@ -1311,7 +1311,7 @@ def _backend_buried_refusal(spec):
     The BOOLEAN alone was not enough, which a review found the hard way: with
     the buried capability served but no prose, nothing downstream could gate
     on it without inventing a reason — so nothing gated on it at all, and
-    `razor-2p` on a buried design solved, raised, and showed the user a
+    `razor2p` on a buried design solved, raised, and showed the user a
     traceback banner instead of a refusal.
 
     This is a SINGLE-CELL refusal, not a pairwise coupling: the solver has no
@@ -1593,7 +1593,7 @@ _FALLBACK_FEATURE_SPECS: dict[str, _OptionSpec] = {
             "large radial screen. Results change only in the last digits."
         ),
     ),
-    # momwire#1860 L1: the B-spline and razor-2p tabs.
+    # momwire#1860 L1: the B-spline and razor2p tabs.
     "factored_columns": _OptionSpec(
         "bool",
         label="factored rod columns (faster)",
@@ -1605,7 +1605,7 @@ _FALLBACK_FEATURE_SPECS: dict[str, _OptionSpec] = {
             "the last digits."
         ),
     ),
-    # momwire#1860 L2: the B-spline and razor-2p tabs.
+    # momwire#1860 L2: the B-spline and razor2p tabs.
     "height_sheet_recal": _OptionSpec(
         "bool",
         label="shared near-ground tables (faster)",
@@ -1811,7 +1811,7 @@ _OPTION_SPECS: dict[str, _OptionSpec] = {
     # explicit and is what unit 1 documented at this call site.
     "extended_kernel": _OptionSpec("bool", label="extended kernel (EK)", default=False),
     # The exact ring kernel on coaxial pairs (momwire#1408), offered on the
-    # bspline tab only and only where the installed momwire serves it
+    # bs2 tab only and only where the installed momwire serves it
     # (`_offers_exact_kernel`). "auto" is the server's default: on where some
     # segment is shorter than 3 radii. A physics selection like the EK card,
     # so it is on the hosted allowlist.
@@ -1828,8 +1828,8 @@ _OPTION_SPECS: dict[str, _OptionSpec] = {
             "than 3 radii, where the thin-wire kernels stop converging."
         ),
     ),
-    # Fill reuse (momwire#1809, AK#2165): offered on the bspline, sinusoidal
-    # and (momwire 0.94.0, momwire#1982) razor-2p tabs only where the
+    # Fill reuse (momwire#1809, AK#2165): offered on the bs2, sinusoidal
+    # and (momwire 0.94.0, momwire#1982) razor2p tabs only where the
     # installed momwire takes it and certifies the part it turns on there
     # (`_offers_pair_reuse`). It only
     # ever removes work, never adds any, so it is on the hosted allowlist.
@@ -1871,7 +1871,7 @@ _OPTION_SPECS: dict[str, _OptionSpec] = {
     **_feature_specs(),
     # The sector (block-circulant) solve route for a rotationally symmetric
     # radial screen (momwire#1029). Unadvertised on purpose (Steve, #1567
-    # thread): a checkbox on the bspline panel, offered only where momwire's
+    # thread): a checkbox on the bs2 panel, offered only where momwire's
     # roster declares the route (`_offers_rotational_symmetry`, never a
     # hand-kept backend list) and silently absent otherwise — no site page,
     # no release note, nothing beyond this label and tooltip.
@@ -2935,7 +2935,7 @@ def _ground_for_engine(req: dict):
     describing the GROUND; each engine approximates it as best it can.
     "pec" → the PEC image; "sommerfeld" → ("finite", ...), which momwire
     solves as the TRUE Sommerfeld ground on every solver (momwire >=
-    0.8.0: bspline dense, sinusoidal field-based, hmatrix/arrayblock fast
+    0.8.0: bs2 dense, sinusoidal field-based, hmatrix/arrayblock fast
     paths); "fast" → ("finite-fast", ...), the reflection-coefficient
     model everywhere; "mininec" → ("mininec", ...), EZNEC's MININEC-type
     ground, the PEC image for the solve and the soil for the far field alone
@@ -3332,15 +3332,17 @@ def _metrics_from_gain(gain, meas_freq: float) -> dict:
 
 
 def _make_momwire_engine(req: dict, builder, cancel=None):
-    # "bspline" is the default and the fallback for unknown/retired model
-    # names (a stale client may still send "triangular").
-    model = req.get("momwire_model", "bspline")
+    # "bs2" is the default and the fallback for unknown/retired model
+    # names (a stale client may still send "triangular"). A deprecated
+    # spelling (`razor-2p`, momwire#2091) is read as the name it now is, so
+    # it solves the same basis with the same binding.
+    model = request_model(req)
     solver_cls = _MOMWIRE_MODELS.get(model, BSplineSolver)
     wire_radius = _slot_wire_radius(req)
     ground = _ground_for_engine(req)
     solver_kwargs = sanitize_model_options(req)
     # A roster entry's bound kwargs are applied AFTER the request's options and
-    # win over them: `razor-2p` must stay the two-point lane whatever a client
+    # win over them: `razor2p` must stay the two-point lane whatever a client
     # sends, or the name on the tab stops describing what ran.
     if model in _MOMWIRE_BOUND:
         solver_kwargs = dict(solver_kwargs or {})
@@ -4562,10 +4564,10 @@ def _auto_default_view(cls) -> str:
 _SINUSOIDAL_RECOMMEND_MIN_BASIS = 3000
 
 # Backends that implement junction-node ports, in preference order — the
-# allowlist a `PortAtEnd` design is restricted to. `bspline` stays FIRST
+# allowlist a `PortAtEnd` design is restricted to. `bs2` stays FIRST
 # because `_required_backends()[0]` becomes the design's default backend and
 # the dense mixed-potential solver is the reference implementation for these
-# ports. `sinusoidal-galerkin` joined in momwire#182 M5b: it holds the node's
+# ports. `sg` joined in momwire#182 M5b: it holds the node's
 # lumped charge outside the reaction integral and reproduces the B-spline port
 # network entrywise to 3.4e-5 / 3.9e-6, which is what "widening this tuple"
 # was waiting for. Caveat carried by the solver's own hard error, not by this
@@ -4580,12 +4582,12 @@ _SINUSOIDAL_RECOMMEND_MIN_BASIS = 3000
 # on `wire.sterba_bl` (16 `PortAtEnd` ports) both solve and land beside the
 # dense parent:
 #
-#     bspline              672.969912318 + 386.605011472j   (reference)
-#     sinusoidal-galerkin  672.892988555 + 386.842431879j   rel 3.2e-4
+#     bs2              672.969912318 + 386.605011472j   (reference)
+#     sg  672.892988555 + 386.842431879j   rel 3.2e-4
 #     hmatrix              672.965974382 + 386.610573299j   rel 8.8e-6
 #     arrayblock           673.035994564 + 386.591938736j   rel 8.7e-5
 #
-# THE ALREADY-ALLOWED MEMBER IS THE LOOSEST. `sinusoidal-galerkin` sits at
+# THE ALREADY-ALLOWED MEMBER IS THE LOOSEST. `sg` sits at
 # 3.2e-4, an order beyond either accelerator, so the bar this list actually
 # applies today admits both — refusing them while allowing it was the
 # inconsistency, not a standard they failed.
@@ -4597,7 +4599,7 @@ _SINUSOIDAL_RECOMMEND_MIN_BASIS = 3000
 # assembled right and only the iterative closure differs. On an easy deck the
 # same three agree to 3.1e-14 — the deviation here is the deck's size and
 # conditioning showing through the approximation, not the ports.
-_JUNCTION_PORT_BACKENDS = ("bspline", "sinusoidal-galerkin", "hmatrix", "arrayblock")
+_JUNCTION_PORT_BACKENDS = ("bs2", "sg", "hmatrix", "arrayblock")
 
 # Backends that implement the SERIES vertex port (`PortAtVertex`, issue
 # #898 / momwire#305's node gaps) — a wider list than the junction-port
@@ -4606,14 +4608,14 @@ _JUNCTION_PORT_BACKENDS = ("bspline", "sinusoidal-galerkin", "hmatrix", "arraybl
 # on the accelerated impedance route too; node gaps also run over EVERY
 # ground model on both dense families (they ride the ordinary span — no
 # node-charge machinery, so none of the junction-port ground caveats).
-# `bspline` stays first for the same default-backend reason as above.
+# `bs2` stays first for the same default-backend reason as above.
 # `nec5` serves the port NATIVELY (EX at the shared knot, #898 piece 3);
 # its tab exists only when the serving box resolves $NEC5_EXE, and an
 # allowlist entry for an absent backend is simply not a tab — so listing
 # it here enables the tab exactly where the engine exists.
 _VERTEX_PORT_BACKENDS = (
-    "bspline",
-    "sinusoidal-galerkin",
+    "bs2",
+    "sg",
     "hmatrix",
     "arrayblock",
     "nec5",
@@ -4627,14 +4629,14 @@ _VERTEX_PORT_BACKENDS = (
 # a backend cannot fall out of the tab list unremarked and cannot sit here
 # after its row changes.
 #
-# `razor-2p`: `RazorSolver` has served `node_gaps` since momwire#603 and
+# `razor2p`: `RazorSolver` has served `node_gaps` since momwire#603 and
 # solves `dipoles.invvee_apex` through this engine today (54.07 - 15.18j
 # against sinusoidal-Galerkin's 54.52 - 12.18j — R within 0.8 %, X within its
 # own first-order-in-the-mesh advisory). It is withheld only because nobody
 # has driven the razor node-gap path across the catalog, and turning on a tab
 # is a product call rather than a lint fix. Widening this is one line plus
 # that verification.
-_VERTEX_PORT_WITHHELD = ("razor-2p",)
+_VERTEX_PORT_WITHHELD = ("razor2p",)
 
 
 # Backend restriction copy, server-side (antennaknobs#1006 G2-5). It lived in
@@ -4814,7 +4816,7 @@ _COVERAGE_FIELDS = ("junction_ports", "node_gaps", "per_wire_radius", "buried")
 # The one need that is a COMBINATION rather than a field (momwire#1000): a
 # junction in the ground plane joining an above-ground wire to a buried one —
 # the connected radial screen, the bonded-base vertical. A solver can serve
-# `buried` and still refuse that node: `sinusoidal-galerkin` did between
+# `buried` and still refuse that node: `sg` did between
 # momwire#980 D2 and D3, which is the gap this need was built for; with D3
 # landed every momwire buried lane serves it and the row reads empty, and
 # the need stays live for the next such gap. Asked as the solver's own combo
@@ -5441,7 +5443,7 @@ def _make_example(name: str, cls, *, defer_hints: bool = False) -> AntennaExampl
         #
         # NOT "always use the default model", which was the obvious fix and is
         # wrong: measured across the roster, `geometry_distribution()` IS
-        # model-dependent for `razor-2p` — on arrays.bowtiearray1x2 its feed
+        # model-dependent for `razor2p` — on arrays.bowtiearray1x2 its feed
         # KNOT INDEX is 1 where every other model gives 0, because the
         # two-point lane snaps the feed to a different grid. Drawing the feed
         # marker in the wrong place on every razor preview would trade a rare
@@ -6311,19 +6313,40 @@ _AUTO_WHEN_NULL = frozenset(
 
 # Retired backend names a saved session or an old client may still carry,
 # mapped to what they mean now (#1006 G2-6). Served rather than hand-held in
-# the frontend, which had `name === "triangular" ? "bspline" : name` inline —
+# the frontend, which had `name === "triangular" ? "bs2" : name` inline —
 # the last engine-name branch in that file.
 #
 # `_make_momwire_engine` already tolerates a retired name on the SOLVE path by
-# falling back to bspline; this is the same fact said once, on the way out, so
+# falling back to bs2; this is the same fact said once, on the way out, so
 # the picker resolves the old name to the right TAB rather than silently
 # solving something the UI is not showing.
-_BACKEND_ALIASES = {"triangular": "bspline"}
+#
+# The spellings momwire#2091 renamed (`bspline` -> `bs2`, `razor-2p` ->
+# `razor2p`, `sinusoidal-galerkin` -> `sg`) ride the same table, derived from
+# the one alias table (`engine_names`), so a slot saved under an old name
+# opens on the same tab and a stale client's request solves the same basis.
+_BACKEND_ALIASES = {
+    "triangular": "bs2",
+    **{
+        old: new
+        for old, new in engine_names.DEPRECATED_NAMES.items()
+        if new in _MOMWIRE_MODELS
+    },
+}
 
 
 def backend_aliases() -> dict[str, str]:
     """Retired backend names -> the name that supersedes each."""
     return dict(_BACKEND_ALIASES)
+
+
+def request_model(req: Mapping, default: str = "bs2") -> object:
+    """The request's ``momwire_model`` (``default`` when it names none),
+    with a deprecated or retired backend name read as the name it now is."""
+    model = req.get("momwire_model", default)
+    if isinstance(model, str):
+        return _BACKEND_ALIASES.get(model, model)
+    return model
 
 
 # The stock A/B/C solver slots, served so the frontend names no engine.
@@ -6338,11 +6361,11 @@ _DEFAULT_SLOTS = (
     # census (docs/status/2026-07-20): within 2% of the basis-agreed limit on
     # 50/66 scorable designs, patterns within 0.05 dB of the fine-mesh
     # reference, ~35% faster ticks. Odd parity keeps the feed's interior knot.
-    {"slot": "A", "backend": "bspline", "n_per_wire": 15, "model": {}},
+    {"slot": "A", "backend": "bs2", "n_per_wire": 15, "model": {}},
     # B is the cross-check basis: d=1 needs a larger N to reach the same
     # answer, which is what makes agreement with A a second opinion rather
     # than the same solve twice. N=20 trades tightness for speed.
-    {"slot": "B", "backend": "bspline", "n_per_wire": 20, "model": {"degree": 1}},
+    {"slot": "B", "backend": "bs2", "n_per_wire": 20, "model": {"degree": 1}},
     {"slot": "C", "backend": "pynec", "n_per_wire": None, "model": {}},
 )
 

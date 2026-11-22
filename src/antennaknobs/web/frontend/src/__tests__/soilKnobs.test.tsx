@@ -43,7 +43,7 @@ function panelProps(
   over: Partial<ComponentProps<typeof GroundPanel>> = {},
 ): ComponentProps<typeof GroundPanel> {
   return {
-    backend: entry("bspline"),
+    backend: entry("bs2"),
     groundEnabled: true,
     setGroundEnabled: vi.fn(),
     groundType: "finite",

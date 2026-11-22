@@ -12,7 +12,7 @@ have. momwire models the jacket as the Popović–Nešić PAIR (momwire#865):
 The NEC writers used to write L′ alone, on the bare radius. That gets the
 phase velocity right only to first order and overstates the V/I line impedance
 by 2–9 %. On a jacketed dipole the two spellings differ by 1.6–5 % of |Z|, by
-the same amount on bs2, razor-2p and NEC-5 (#1523's verdict). This module is
+the same amount on bs2, razor2p and NEC-5 (#1523's verdict). This module is
 the one place the pair is spelled, so the NEC-5 deck, PyNEC's card calls and the
 exported NEC-2 deck cannot disagree about what a jacket is.
 

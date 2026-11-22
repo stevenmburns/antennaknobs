@@ -119,8 +119,8 @@ describe("the readout", () => {
     expect(screen.getByText(/Not counted by this fill: remainder\./)).toBeTruthy();
   });
   it("over a ground, keeps the free-space term apart from the ground terms", () => {
-    const bspline = { ...REUSE, families: { direct: REUSE.families.direct }, uncounted: ["image", "remainder"] };
-    show(report({ reuse: bspline }));
+    const bs2 = { ...REUSE, families: { direct: REUSE.families.direct }, uncounted: ["image", "remainder"] };
+    show(report({ reuse: bs2 }));
     expect(screen.getByText("Without ground terms: the free-space (direct) term")).toBeTruthy();
     expect(screen.getByText("Ground terms")).toBeTruthy();
     expect(screen.getByText(/Not counted by this fill: image, remainder\./)).toBeTruthy();

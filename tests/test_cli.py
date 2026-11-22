@@ -183,27 +183,27 @@ def _meshed_at(monkeypatch, argv):
 
 
 def test_cli_engine_default_density_reaches_the_builder(monkeypatch, capsys):
-    """`--engine momwire:razor-2p` runs at the razor density without a flag,
+    """`--engine momwire:razor2p` runs at the razor density without a flag,
     and says so beside the engine name."""
     seen = _meshed_at(
         monkeypatch,
-        f"pattern --builder dipoles.invvee --engine momwire:razor-2p{o}",
+        f"pattern --builder dipoles.invvee --engine momwire:razor2p{o}",
     )
     assert seen and set(seen) == {40}
-    assert "engine momwire:razor-2p: N=40 segments/wire" in capsys.readouterr().err
+    assert "engine momwire:razor2p: N=40 segments/wire" in capsys.readouterr().err
 
 
 def test_cli_bspline_density_follows_the_degree(monkeypatch):
     """The degree IS the basis, so the density follows the degree spelling."""
     assert set(
         _meshed_at(
-            monkeypatch, f"pattern --builder dipoles.invvee --engine momwire:bspline{o}"
+            monkeypatch, f"pattern --builder dipoles.invvee --engine momwire:bs2{o}"
         )
     ) == {15}
     assert set(
         _meshed_at(
             monkeypatch,
-            f"pattern --builder dipoles.invvee --engine momwire:bspline-d1{o}",
+            f"pattern --builder dipoles.invvee --engine momwire:bs1{o}",
         )
     ) == {20}
 
@@ -211,7 +211,7 @@ def test_cli_bspline_density_follows_the_degree(monkeypatch):
 def test_cli_nominal_nsegs_overrides_the_engine_default(monkeypatch, capsys):
     seen = _meshed_at(
         monkeypatch,
-        f"pattern --builder dipoles.invvee --engine momwire:razor-2p "
+        f"pattern --builder dipoles.invvee --engine momwire:razor2p "
         f"--nominal-nsegs 25{o}",
     )
     assert set(seen) == {25}
@@ -254,7 +254,7 @@ def test_cli_a_design_pinning_its_own_density_wins(monkeypatch):
     assert set(
         _meshed_at(
             monkeypatch,
-            f"pattern --builder dipoles.invvee --engine momwire:razor-2p{o}",
+            f"pattern --builder dipoles.invvee --engine momwire:razor2p{o}",
         )
     ) == {9}
     assert AntennaBuilder.FRAMEWORK_PARAMS["nominal_nsegs"] == 21

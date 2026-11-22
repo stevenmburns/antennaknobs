@@ -29,7 +29,7 @@ def _sweep(client, session: str, *, reuse: bool = True) -> int:
     before = dict(_server._SWEEP_Z_STATS)
     body = {
         "geometry": "dipoles.invvee",
-        "momwire_model": "bspline",
+        "momwire_model": "bs2",
         "freqs_mhz": FREQS,
         "_session": session,
         "reuse_cached_z": reuse,

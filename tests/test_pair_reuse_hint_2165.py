@@ -37,7 +37,7 @@ def fed_yagi(D, h=15.0):
 
 
 def engine(builder, ground="free", **kw):
-    return make_engine_factory("momwire:bspline", ground)(builder, **kw)
+    return make_engine_factory("momwire:bs2", ground)(builder, **kw)
 
 
 def spy(monkeypatch, e, solvers=None):

@@ -104,7 +104,7 @@ soil = "{soil_name}"
 terrain_preset = "{terrain}"
 
 [slots.A]
-backend = "razor-2p"
+backend = "razor2p"
 n_per_wire = 21
 
 [slots.B]
@@ -134,12 +134,12 @@ model = {{ degree = 2 }}
     # A new backend starts from its own defaults.
     assert seeds["A"] == {
         "slot": "A",
-        "backend": "razor-2p",
+        "backend": "razor2p",
         "n_per_wire": 21,
         "model": {},
     }
     # The same backend keeps the stock seed and takes the file's knobs on top.
-    assert seeds["B"]["backend"] == "bspline"
+    assert seeds["B"]["backend"] == "bs2"
     assert seeds["B"]["n_per_wire"] == 20
     assert seeds["B"]["model"] == {"degree": 2}
     assert seeds["C"] == {
@@ -170,7 +170,7 @@ n_per_wire = 0
 backend = "nec9"
 
 [slots.F]
-backend = "bspline"
+backend = "bs2"
 
 [display]
 theme = "dark"
@@ -184,7 +184,7 @@ theme = "dark"
         "[switches] live = 1: must be true or false",
         "[ground] type = 'concrete': must be one of finite, pec, terrain",
         "[ground] eps_r and sigma go together",
-        "[slots.A] model.no_such_knob: not a knob the bspline solver takes",
+        "[slots.A] model.no_such_knob: not a knob the bs2 solver takes",
         "[slots.B] n_per_wire = 0: must be a whole number of at least 1",
         "[slots.C] backend = 'nec9': not a solver this server offers",
         "[slots.F]: not a solver slot",
@@ -240,11 +240,11 @@ SAVE_BODY = {
     },
     "slots": {
         "A": {
-            "backend": "bspline",
+            "backend": "bs2",
             "n_per_wire": 17,
             "model": {"degree": 2, "feed_smoothing_factor": None},
         },
-        "B": {"backend": "bspline", "n_per_wire": 20, "model": {"degree": 1}},
+        "B": {"backend": "bs2", "n_per_wire": 20, "model": {"degree": 1}},
         "C": {"backend": "sinusoidal", "n_per_wire": 15, "model": {}},
     },
 }

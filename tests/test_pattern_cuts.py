@@ -138,7 +138,7 @@ def test_directivity_norm_unchanged_by_refactor(client: TestClient):
                 {
                     "geometry": "dipoles.invvee",
                     "measurement_freq_mhz": 28.47,
-                    "momwire_model": "bspline",
+                    "momwire_model": "bs2",
                     "az_elev_deg": 30.0,
                     "elev_az_deg": 0.0,
                 }
@@ -161,7 +161,7 @@ def test_cuts_endpoint_matches_solve_attached_cuts(client: TestClient):
                 {
                     "geometry": "dipoles.invvee",
                     "measurement_freq_mhz": 28.47,
-                    "momwire_model": "bspline",
+                    "momwire_model": "bs2",
                     "az_elev_deg": 15.0,
                     "elev_az_deg": 45.0,
                 }
@@ -194,7 +194,7 @@ def test_solve_cache_stays_angle_independent(client: TestClient):
     base = {
         "geometry": "dipoles.invvee",
         "measurement_freq_mhz": 28.47,
-        "momwire_model": "bspline",
+        "momwire_model": "bs2",
     }
     with client.websocket_connect("/ws") as ws:
         ws.send_text(json.dumps({**base, "az_elev_deg": 10.0}))
@@ -230,7 +230,7 @@ def test_mag2_directions_shape_generic():
 _SOLVE_REQ = {
     "geometry": "dipoles.invvee",
     "measurement_freq_mhz": 28.47,
-    "momwire_model": "bspline",
+    "momwire_model": "bs2",
     "az_elev_deg": 15.0,
     "elev_az_deg": 45.0,
 }

@@ -569,7 +569,7 @@ def test_the_workbench_keeps_a_band_run_and_lists_it(folder, client):
     o = studies.find("fan/kept:kept pair").analysis
     assert an.is_optimize(o)
     assert o.design == "multiband.fandipole:pair_12_10"
-    assert o.mean_weight == 0.4 and o.engine == "momwire:bspline"
+    assert o.mean_weight == 0.4 and o.engine == "momwire:bs2"
     # The run's start: the moved knobs back where the run began.
     from antennaknobs import optimize_study as ost
     from antennaknobs.cli import get_builder

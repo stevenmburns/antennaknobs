@@ -46,7 +46,7 @@ const ANALYSES = {
     {
       name: "convergence",
       summary: "density (nominal_nsegs); 3 curves (3 engines); views Rx, Table, Smith",
-      code: 'an.convergence(\n    cross=an.Cross(engines=("momwire:bspline", "momwire:razor-2p", "nec5")),\n)',
+      code: 'an.convergence(\n    cross=an.Cross(engines=("momwire:bs2", "momwire:razor2p", "nec5")),\n)',
       problems: [],
       workbench: {
         runs: true,

@@ -661,18 +661,18 @@ def test_buried_decks_stay_inside_the_one_radius_rule():
 
 
 # ---------------------------------------------------------------------------
-# razor-2p on the buried decks — the unit-3 gate, keyed on the capability cell
+# razor2p on the buried decks — the unit-3 gate, keyed on the capability cell
 # ---------------------------------------------------------------------------
 #
-# momwire#814 (the razor buried arc, unit 3) ends with `razor-2p` serving
+# momwire#814 (the razor buried arc, unit 3) ends with `razor2p` serving
 # these three decks. Until it does, `RazorSolver.capabilities.buried` is
 # False and the constructor refuses each deck by name with the sentence its
 # row declares — which is what these pin TODAY. The tests are written
 # against the cell rather than against today's answer, so the arc's last
 # unit flips them rather than rewriting them: when the cell becomes True
-# the same tests demand razor's medium labels agree with bspline's on the
+# the same tests demand razor's medium labels agree with bs2's on the
 # same deck (which needs razor to expose `_wire_media` /
-# `_crossing_junctions` as bspline does — a momwire#813 step-3 item).
+# `_crossing_junctions` as bs2 does — a momwire#813 step-3 item).
 # Nothing here solves; construction only, as above.
 #
 # The cell itself is newer than the last momwire RELEASE (the arc's #651/#812
@@ -727,7 +727,7 @@ def test_razor_2p_on_the_buried_decks_follows_its_capability_cell(cls, cells):
     #1109 the node IS declared, so razor reaches its declared-junction cell
     (momwire#850). Both are the declared refusal-by-name this gate is for; an
     undeclared sentence, or none, is the failure. Once the cell is True,
-    razor must label the same deck the way bspline does — the crossing
+    razor must label the same deck the way bs2 does — the crossing
     serve's fan, the detached screens' wholly-below wires — so the flip is
     one line in momwire and this test is the antennaknobs half of
     momwire#814's DoD."""
@@ -744,8 +744,8 @@ def test_razor_2p_on_the_buried_decks_follows_its_capability_cell(cls, cells):
         assert hit, f"{cls.__name__}: refusal is not a declared sentence: {msg}"
         return
 
-    # The flipped side: razor serves what bspline serves, and says so with
-    # the same labels. `_wire_media` / `_crossing_junctions` are bspline's
+    # The flipped side: razor serves what bs2 serves, and says so with
+    # the same labels. `_wire_media` / `_crossing_junctions` are bs2's
     # names; the razor twin (momwire#812's medium labels) must spell them
     # the same way for the catalog to read one answer off both.
     _engine, bs = _solver(b)
@@ -782,7 +782,7 @@ def test_the_razor_buried_gate_does_not_pass_by_accident():
 # bundle refuses at CONSTRUCTION with the crossing sentence and never reaches
 # the coincidence check at all — the bundle sentence is masked. Free space
 # reaches it in 0.07 s and pays no buried fill (razor's buried crossing fill
-# runs 20-45x bspline's, up to ~405 s on a hub deck, momwire#814).
+# runs 20-45x bs2's, up to ~405 s on a hub deck, momwire#814).
 
 
 def _razor_free_space(builder):
@@ -857,11 +857,11 @@ def test_brv_bundle_buried_refuses_before_it_can_reach_the_coincidence():
     sentences are real and neither is wrong — they are two refusals of one
     deck, and which one you see is an ordering fact.
 
-    That ordering is now expected to hold indefinitely: razor-2p's buried
-    serve is SHELVED, not pending (momwire#813's parking comment). razor-2p
-    stays the above-ground twin of licensed NEC-5, and bspline is the buried
+    That ordering is now expected to hold indefinitely: razor2p's buried
+    serve is SHELVED, not pending (momwire#813's parking comment). razor2p
+    stays the above-ground twin of licensed NEC-5, and bs2 is the buried
     engine, because NEC-5's interface node is a known limitation underground
-    (measured against Brown-Lewis-Epstein 1937) and razor-2p is first order in
+    (measured against Brown-Lewis-Epstein 1937) and razor2p is first order in
     the far mesh besides (momwire#845). So this test's second arm is not a
     countdown — it is kept because the capability cell stays the single source
     of truth and a decision is not a guarantee.

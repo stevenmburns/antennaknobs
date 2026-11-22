@@ -128,7 +128,7 @@ def test_the_ladder_reads_all_four_each_with_its_own_reason(client):
         {
             "geometry": INVVEE,
             "solver": "momwire",
-            "momwire_model": "bspline",
+            "momwire_model": "bs2",
             "model_options": {"pair_reuse": False},
             "param": "n_per_wire",
             "values": [12, 17],

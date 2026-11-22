@@ -153,7 +153,7 @@ describe("solver slots: + and remove (AK#1801)", () => {
     await mountReady({
       slotSeeds: [
         ...SERVED_SLOT_SEEDS,
-        { slot: "D", backend: "bspline", n_per_wire: 31, model: {} },
+        { slot: "D", backend: "bs2", n_per_wire: 31, model: {} },
       ],
     });
     expect(solverIds()).toEqual(["A", "B", "C", "D"]);

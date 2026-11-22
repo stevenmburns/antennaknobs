@@ -1736,13 +1736,13 @@ class NecDeck:
         which momwire serves since 0.71.0 (momwire#1300); each address keeps
         its own `PortAtVertex` (AK#1886). ``TL``/``NT`` ends there take the
         vertex spelling too (`_vertex_wires`), since a positioned gap cannot
-        name the branch: razor-2p refuses one ("an ARCLENGTH cannot name which
+        name the branch: razor2p refuses one ("an ARCLENGTH cannot name which
         of that node's branches").
 
         ``TL``/``NT`` ends take part in nothing else here (AK#1880).
         At a TWO-wire node they are NOT folded: AK#1617's two positioned ports
         at one junction already are the series circuit NEC-5 solves (0017,
-        195.34 - 57.458j, to the printed digit on razor-2p), whereas one port
+        195.34 - 57.458j, to the printed digit on razor2p), whereas one port
         would put the two ``NT`` shunts in parallel, which is 0016's answer.
         """
         if not self.network_mode:
@@ -4781,7 +4781,7 @@ def _unheld_virtual_nodes(ports, branches, sources) -> frozenset[str]:
     ``ezLoadPositionsB.nec`` (QRZ 1003328 #190) with those two pins added, the
     two ``NT`` cards' loads swapped and ``GE 0,-1`` for ``GE 0`` (both free
     space under ``GN -1``), and it always solved, because each pin is a 1e-10
-    S branch holding a node nothing reads. Measured on razor-2p and bspline:
+    S branch holding a node nothing reads. Measured on razor2p and bs2:
     Dan's deck with its loads swapped answers 0017 bit for bit, pins or none.
 
     Only a ``PortVirtual`` is eligible. A port on real geometry is the

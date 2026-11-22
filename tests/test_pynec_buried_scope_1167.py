@@ -194,12 +194,12 @@ def test_g1167_4_an_unmeasured_wrapper_kind_answers_none():
 @pytest.mark.parametrize(
     "name,buried,issue",
     [
-        ("bspline", True, None),
+        ("bs2", True, None),
         ("hmatrix", False, "momwire#553"),
     ],
 )
 def test_g1167_5_no_momwire_row_moved(name, buried, issue):
-    """The wrapper table must not have reached the momwire path. `bspline`
+    """The wrapper table must not have reached the momwire path. `bs2`
     carries the True that proves the None-vs-False distinction still works."""
     spec = _spec(name)
     assert _backend_serves_buried(spec) is buried
@@ -209,17 +209,17 @@ def test_g1167_5_no_momwire_row_moved(name, buried, issue):
 
 
 def test_g1167_5_razor_reads_its_own_momwire_row():
-    """razor-2p's buried cell moves with momwire (served since momwire#1149),
+    """razor2p's buried cell moves with momwire (served since momwire#1149),
     so the momwire path is checked against momwire's row rather than a
     pinned value: whatever the row says is what the adapter reports."""
-    spec = _spec("razor-2p")
+    spec = _spec("razor2p")
     served = bool(spec.solver.capabilities.buried)
     assert _backend_serves_buried(spec) is served
     if served:
         assert _backend_buried_issue(spec) is None
     else:
         assert _backend_buried_issue(spec) == "momwire#553"
-        assert _backend_buried_refusal(spec), "razor-2p lost its momwire prose"
+        assert _backend_buried_refusal(spec), "razor2p lost its momwire prose"
 
 
 # --- G-1167-6: the one real PyNEC refusal is not about depth --------------

@@ -25,7 +25,7 @@ from antennaknobs.engines import momwire as mw_engine
 from antennaknobs.engines.momwire import clear_z_cache
 from antennaknobs.file_designs import builder_from_text
 
-_ENGINE = make_engine_factory("momwire:bspline", None)
+_ENGINE = make_engine_factory("momwire:bs2", None)
 _FREQS = np.linspace(6.9, 7.3, 9)
 
 
@@ -92,7 +92,7 @@ def test_a_swept_y_does_not_depend_on_the_wavelength_its_solver_was_built_at(gro
     # solver at that chunk's first frequency, and the swept Y must not care.
     # If this ever fails, the Y cache would hand one chunking's Y to another.
     cls = builder_from_text("station.ssn", _text())
-    eng = make_engine_factory("momwire:bspline", ground)(cls(dict(cls.default_params)))
+    eng = make_engine_factory("momwire:bs2", ground)(cls(dict(cls.default_params)))
     k = 2 * np.pi * _FREQS / eng.builder.c_light_mhz_m
     ys = [
         np.asarray(

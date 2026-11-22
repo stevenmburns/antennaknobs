@@ -89,8 +89,8 @@ const listing = (name: string, engines: string[]) => ({
 const ANALYSES = {
   geometry: DECK.name,
   analyses: [
-    listing("engines SWR", ["momwire:bspline", "momwire:razor-2p", "nec5"]),
-    listing("unslotted SWR", ["momwire:razor-2p", "nec5"]),
+    listing("engines SWR", ["momwire:bs2", "momwire:razor2p", "nec5"]),
+    listing("unslotted SWR", ["momwire:razor2p", "nec5"]),
   ],
 };
 
@@ -346,9 +346,9 @@ describe("the legend", () => {
     expect(legend.querySelector(".chart-legend-why")).toBeNull();
     expect(legend.querySelector(".is-refused")).toBeNull();
     const rows = [...legend.querySelectorAll<HTMLElement>(".chart-legend-row")];
-    expect(rows.map((row) => [row.textContent, row.dataset.refused])).toEqual([["momwire:bspline", "0"]]);
+    expect(rows.map((row) => [row.textContent, row.dataset.refused])).toEqual([["momwire:bs2", "0"]]);
     expect(legend.querySelector('[role="note"]')?.textContent).toBe(
-      "skipped: razor-2p, NEC-5, which no slot holds. Put one in a slot to include it.",
+      "skipped: razor2p, NEC-5, which no slot holds. Put one in a slot to include it.",
     );
     expect(legend.dataset.curves).toBe("1");
     // One curve, on slot A (B-spline d=2's density), and no other stream.
@@ -374,7 +374,7 @@ describe("the legend", () => {
       ["C: PyNEC", "0"],
     ]);
     expect(legend.querySelector('[role="note"]')?.textContent).toBe(
-      "skipped: razor-2p, NEC-5, which no slot holds, so the chart draws your slots instead. Put one in a slot to include it.",
+      "skipped: razor2p, NEC-5, which no slot holds, so the chart draws your slots instead. Put one in a slot to include it.",
     );
     // The three curves are the three slots.
     const last = (stream: string | undefined) => [...r.bodies].reverse().find((b) => b._stream === stream);

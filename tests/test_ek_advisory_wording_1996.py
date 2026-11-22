@@ -214,7 +214,7 @@ STEPPED = (
 
 
 GALERKIN = {"solver": SinusoidalGalerkinSolver}
-# B-spline (momwire 0.78, momwire#1170), razor-2p (momwire 0.82,
+# B-spline (momwire 0.78, momwire#1170), razor2p (momwire 0.82,
 # momwire#1614) and the sinusoidal Galerkin basis (momwire 0.83,
 # momwire#1626) serve a buried deck in part, so the buried fallback is the
 # point-matched sinusoidal one (momwire#1636).
@@ -334,7 +334,7 @@ def _solvers():
 
 
 def test_only_the_named_solvers_serve_the_extended_kernel_beside_a_buried_wire():
-    # The buried details send the user to B-spline, razor-2p or Sin-Galerkin,
+    # The buried details send the user to B-spline, razor2p or Sin-Galerkin,
     # and only there. When another solver serves the extended kernel beside a buried
     # wire, or any of those stops, this fails and the words must be
     # revisited rather than left false.

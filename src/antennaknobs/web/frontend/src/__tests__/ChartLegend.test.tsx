@@ -80,8 +80,8 @@ describe("the chart legend", () => {
   });
 
   it("a skipped engine's note shows the legend over one curve, muted, and is no refusal", () => {
-    const note = "skipped: razor-2p, NEC-5, which no slot holds. Put one in a slot to include it.";
-    const one: ChartLegendData = { entries: [entry("momwire:bspline")], capRefusal: null };
+    const note = "skipped: razor2p, NEC-5, which no slot holds. Put one in a slot to include it.";
+    const one: ChartLegendData = { entries: [entry("momwire:bs2")], capRefusal: null };
     expect(legendShown(one)).toBe(false);
     expect(legendShown({ ...one, note })).toBe(true);
     render(<ChartLegend legend={{ ...one, note, open: true, onOpen: () => {} }} />);

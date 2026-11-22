@@ -219,8 +219,8 @@ def test_pynec_answers_the_measured_false():
 @needs_the_cell
 def test_the_roster_reports_what_the_rows_declare():
     r = _roster()
-    assert r["bspline"]["buried"] is True
-    assert r["razor-2p"]["buried"] is RazorSolver.capabilities.buried
+    assert r["bs2"]["buried"] is True
+    assert r["razor2p"]["buried"] is RazorSolver.capabilities.buried
 
 
 def test_an_unaskable_row_reports_none_and_not_false():

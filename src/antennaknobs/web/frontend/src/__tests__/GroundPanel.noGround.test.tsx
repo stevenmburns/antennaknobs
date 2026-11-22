@@ -64,7 +64,7 @@ describe("GroundPanel — backend without ground support (served supports_ground
   });
 
   it("shows no note for a backend that supports ground", () => {
-    renderGroundPanel({ backend: entry("bspline"), groundEnabled: true });
+    renderGroundPanel({ backend: entry("bs2"), groundEnabled: true });
     expect(screen.queryByText(/ground plane ignored/)).toBeNull();
   });
 
@@ -77,7 +77,7 @@ describe("GroundPanel — backend without ground support (served supports_ground
   });
 
   it("keeps the checkbox enabled for a supporting backend", () => {
-    renderGroundPanel({ backend: entry("bspline"), groundEnabled: true });
+    renderGroundPanel({ backend: entry("bs2"), groundEnabled: true });
     expect(screen.getByRole("checkbox", { name: /ground plane/ })).toHaveProperty(
       "disabled",
       false,

@@ -5,12 +5,12 @@ Finite ground specs reach the impedance solve for solvers that support
 them, and since momwire 0.6.0 the two specs mean different physics:
 ("finite", eps_r, sigma) drives momwire's Sommerfeld ground
 (ground_model="sommerfeld", NEC gn 2 style) — since momwire 0.8.0 on
-EVERY momwire solver (bspline dense, sinusoidal field-based, the
+EVERY momwire solver (bs2 dense, sinusoidal field-based, the
 hmatrix/arrayblock fast paths) — while ("finite-fast", eps_r, sigma)
 maps to the reflection-coefficient ground_eps solve (NEC gn 0 style).
 
 The refl-coef numeric tests cross-check against PyNEC gn 0 (dipole
-0.1–0.5λ window: bspline max |ΔZ| ≈ 2.45 Ω, sinusoidal ≈ 0.11 Ω). The
+0.1–0.5λ window: bs2 max |ΔZ| ≈ 2.45 Ω, sinusoidal ≈ 0.11 Ω). The
 Sommerfeld numeric tests gate against nec2c-captured gn 2 literals —
 PyNEC's own gn 2 solve is order-dependent in-process and numerically
 broken below 0.1λ (see momwire scripts/capture_refl_coef_ground_golden.py

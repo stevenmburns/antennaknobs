@@ -95,8 +95,8 @@ bundle is the hub with its rise written N times:
     crossing junction. **Every engine here takes the geometry.** momwire's
     B-spline serves it (the #524 phase-2 crossing serve), NEC-5 builds the
     same conductor (issue #1108; the graded wires reach it as consecutive GW
-    cards, issue #1110), and razor-2p constructs it and REFUSES it by name:
-    by decision (2026-09-03, momwire#813/#814) razor-2p is the above-ground
+    cards, issue #1110), and razor2p constructs it and REFUSES it by name:
+    by decision (2026-09-03, momwire#813/#814) razor2p is the above-ground
     twin of licensed NEC-5 and B-spline is the buried and contact engine —
     the underground reference is measurement (Brown-Lewis-Epstein 1937,
     momwire#838), not the binary. On that shared geometry momwire and NEC-5
@@ -538,7 +538,7 @@ class Builder(AntennaBuilder):
         # and the radiator's 6.25 mm node segments, an 8:1 step the
         # NEC-2/NEC-4.2 basis handles badly: NEC-4.2 read 3.8 % from NEC-5
         # on the refined deck, and 0.7 % with three 16.7 mm segments (2.7:1).
-        # The momwire bases barely notice (bs2 +0.012 ohm, razor-2p and
+        # The momwire bases barely notice (bs2 +0.012 ohm, razor2p and
         # NEC-5 +0.03 ohm, scratch/1816-brv-gap). Fixed rather than auto, so
         # the feed model does not step as the density moves (AK#1767); the
         # tent bases still coerce it to their even parity (4 x 12.5 mm). The

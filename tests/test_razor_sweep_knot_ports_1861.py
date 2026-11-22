@@ -1,4 +1,4 @@
-"""A razor-2p frequency sweep of a design with junction-knot ports (momwire#1861).
+"""A razor2p frequency sweep of a design with junction-knot ports (momwire#1861).
 
 momwire's `RazorSolver._port_count` left out node gaps, so the swept Y the
 frequency-sweep path builds came back empty (one knot port: the network read
@@ -56,7 +56,7 @@ class _KnottedLoad(_Knotted):
 @pytest.mark.parametrize("cls", [_Knotted, _KnottedLoad], ids=["one-port", "two-ports"])
 def test_a_razor_sweep_equals_its_single_point_solves(cls):
     eng = make_engine_factory(
-        "momwire:razor-2p", None
+        "momwire:razor2p", None
     )  # free space: the bug is ports, not ground
     swept = np.asarray(eng(cls()).impedance_sweep(FREQS)).reshape(len(FREQS), -1)[:, 0]
     for f, z in zip(FREQS, swept, strict=True):

@@ -8,7 +8,7 @@ flag reaches the browser — so the invariant lives here, on the side that knows
 THE INVARIANT: every axis that becomes a control must map to a kwarg the hosted
 sanitiser will actually accept. Today it holds for a reason that is easy to
 lose: the one axis kwarg that is NOT allowlisted (`nec5_quadrature`) is dropped
-anyway, because `razor-2p` is the only tab whose class offers two quadratures
+anyway, because `razor2p` is the only tab whose class offers two quadratures
 and its preset pins the axis. Remove that pin — or add an axis whose kwarg
 nobody allowlisted — and the hosted deployment renders a control whose value
 the sanitiser silently discards, which looks to a user like a knob that does
@@ -128,12 +128,12 @@ def test_every_axis_control_kwarg_is_hosted_allowed():
 def test_the_gate_can_actually_fail():
     """Mutate the DATA the gate reads, not the code that reads it.
 
-    `razor-2p`'s quadrature axis is the live example: unpin it and the gate
+    `razor2p`'s quadrature axis is the live example: unpin it and the gate
     must go red, because `nec5_quadrature` is not allowlisted. Without this,
     the test above would be green on a roster where every axis happened to be
     single-valued, and nobody would know.
     """
-    razor = next(r for r in _rows() if r["name"] == "razor-2p")
+    razor = next(r for r in _rows() if r["name"] == "razor2p")
     assert razor["bound"] == {"nec5_quadrature": True}, razor["bound"]
     assert "quadrature" not in _controls(razor)
 
@@ -158,7 +158,7 @@ def test_the_derived_axes_would_fail_the_gate_if_they_became_controls(axis):
     """
     kw = _axis_kwarg_from_typescript()
     assert axis not in kw
-    row = next(r for r in _rows() if r["name"] == "bspline")
+    row = next(r for r in _rows() if r["name"] == "bs2")
     assert len(row["axes"][axis]) > 1, "not multi-valued — the clause is untested"
     assert axis not in _controls(row)
 

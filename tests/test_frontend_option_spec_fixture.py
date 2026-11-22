@@ -84,7 +84,7 @@ def test_the_kwarg_tuples_match_what_the_server_measured():
     well as the contents — three separate literals would be the drift."""
     src = ROSTER_FIXTURE.read_text()
     # `exact_kernel` (momwire#1408) is offered by a live capability probe of
-    # the installed momwire: on bspline since 0.76.0 and on razor-2p since
+    # the installed momwire: on bs2 since 0.76.0 and on razor2p since
     # 0.77.0. `backendFixtures.ts` still models the roster WITHOUT it, so it
     # is set aside here and `test_exact_kernel_option_1408.py` gates where it
     # is offered. Carrying it in the fixture means updating the hand-kept
@@ -100,14 +100,14 @@ def test_the_kwarg_tuples_match_what_the_server_measured():
     # REFUSES the point gap (momwire#212). They did share one, and that is
     # exactly what would have sent a point gap to the solver that raises.
     assert _ts_tuple(src, "SIN_KWARGS") == live["sinusoidal"]
-    assert _ts_tuple(src, "SIN_GALERKIN_KWARGS") == live["sinusoidal-galerkin"]
+    assert _ts_tuple(src, "SIN_GALERKIN_KWARGS") == live["sg"]
     # The B-spline family split the same way over `rotational_symmetry`
     # (#1029): the sector route is offered by capability, on the one backend
-    # whose `solve_strategy` axis lists "sector", so `bspline` carries the
+    # whose `solve_strategy` axis lists "sector", so `bs2` carries the
     # kwarg and the accelerators, excluded by their own capability rows, do
     # not. The family tuple is pinned to BOTH accelerators so they cannot
     # drift apart either.
-    assert _ts_tuple(src, "BSPLINE_KWARGS") == live["bspline"]
+    assert _ts_tuple(src, "BSPLINE_KWARGS") == live["bs2"]
     assert (
         _ts_tuple(src, "BSPLINE_FAMILY_KWARGS") == live["hmatrix"] == live["arrayblock"]
     )
@@ -130,7 +130,7 @@ def test_the_kwarg_tuples_match_what_the_server_measured():
         # registry pass-through feature (AK#2233).
         "kcl_nullspace",
     ]
-    assert _ts_tuple(src, "RAZOR_KWARGS") == live["razor-2p"]
+    assert _ts_tuple(src, "RAZOR_KWARGS") == live["razor2p"]
     # The NEC-4.2 row exists only where $NEC42_EXE resolves, so it is asked for.
     nec42 = next(
         r
@@ -142,28 +142,28 @@ def test_the_kwarg_tuples_match_what_the_server_measured():
 
 def test_the_accepted_but_unexposed_knobs_stay_unexposed():
     """The frontend's rule-2 tests assert `feed_model` never renders on
-    bspline and `degree` never on razor-2p. Both now rest on EXPOSURE, so if
+    bs2 and `degree` never on razor2p. Both now rest on EXPOSURE, so if
     either were exposed those tests would be asserting an absence for a reason
     that had evaporated — passing, and meaningless."""
     live = {r["name"]: r for r in backend_roster(have_pynec=True, have_nec5=True)}
-    # `bspline` USED to be here: it accepted `feed_model` and did not expose
+    # `bs2` USED to be here: it accepted `feed_model` and did not expose
     # it. That was never a decision — the row mis-declared the axis as
     # single-valued while the constructor defaulted to the other value
     # (momwire#891). It is exposed now, so the surviving cases are razor's.
-    assert "feed_model" in live["bspline"]["model_kwargs"]
-    assert live["bspline"]["axes"]["feed_model"] == ["point-gap", "segment-gap"]
-    assert "degree" not in live["razor-2p"]["model_kwargs"]
-    assert live["razor-2p"]["axes"]["basis"] == ["tent"]
+    assert "feed_model" in live["bs2"]["model_kwargs"]
+    assert live["bs2"]["axes"]["feed_model"] == ["point-gap", "segment-gap"]
+    assert "degree" not in live["razor2p"]["model_kwargs"]
+    assert live["razor2p"]["axes"]["basis"] == ["tent"]
     # ...and the sinusoidal case, which is the one that was actually a bug.
     assert "feed_model" not in live["sinusoidal"]["model_kwargs"]
-    assert "feed_model" in live["sinusoidal-galerkin"]["model_kwargs"]
+    assert "feed_model" in live["sg"]["model_kwargs"]
 
 
 def test_the_served_slot_seeds_and_aliases_reach_the_frontend_fixture():
     """The last two engine-name facts to leave the client (#1006 G2-6).
 
     `DEFAULT_SLOT_SEEDS` was three product decisions written as three engine
-    names, and `normalizeBackend` carried an inline `"triangular" -> "bspline"`
+    names, and `normalizeBackend` carried an inline `"triangular" -> "bs2"`
     rewrite. Both are served now, so both need the same regeneration gate as
     the catalogue beside them — a generated copy nothing compares to its
     source is a hand-written copy with a misleading header.
@@ -261,7 +261,7 @@ def test_the_single_valued_axes_are_the_ones_that_can_silently_widen():
     """
     fx = _json_after(AXES_FIXTURE.read_text(), "export const SERVED_AXES")
     assert fx["sinusoidal"]["feed_model"] == ["segment-gap"]
-    assert fx["razor-2p"]["basis"] == ["tent"]
+    assert fx["razor2p"]["basis"] == ["tent"]
     # ...and the family that legitimately has two, so this is not just
     # "everything is single-valued".
-    assert fx["bspline"]["feed_model"] == ["point-gap", "segment-gap"]
+    assert fx["bs2"]["feed_model"] == ["point-gap", "segment-gap"]

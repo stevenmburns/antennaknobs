@@ -21,7 +21,7 @@ def build_studies():
                         "dipoles.invvee_endport",
                     )
                 ),
-                an.Cross(engines=("momwire:bspline",)),
+                an.Cross(engines=("momwire:bs2",)),
             ),
             ground="free",
         ),

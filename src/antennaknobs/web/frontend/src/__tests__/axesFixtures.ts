@@ -53,7 +53,7 @@ export const SERVED_AXES: Record<string, Record<string, string[]> | null> =
       "contact"
     ]
   },
-  "sinusoidal-galerkin": {
+  "sg": {
     "basis": [
       "sinusoidal-3term"
     ],
@@ -89,7 +89,7 @@ export const SERVED_AXES: Record<string, Record<string, string[]> | null> =
       "contact"
     ]
   },
-  "bspline": {
+  "bs2": {
     "basis": [
       "bspline-1",
       "bspline-2",
@@ -234,7 +234,7 @@ export const SERVED_AXES: Record<string, Record<string, string[]> | null> =
       "contact"
     ]
   },
-  "razor-2p": {
+  "razor2p": {
     "basis": [
       "tent"
     ],

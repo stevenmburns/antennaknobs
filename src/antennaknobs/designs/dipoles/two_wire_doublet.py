@@ -20,14 +20,14 @@ the thread's M-vs-L plot, two branches meeting in a hook near L = 33 ft:
 
 The feed is a knot: the two sides are separate wires meeting at F, and the
 source is a series gap AT that junction (`PortAtVertex`), which is NEC-5's
-own knot source. It serves on bs2, razor-2p and sinusoidal-galerkin. On the
-high-R branch (a few kilohms) bs2 holds still under refinement and razor-2p
-walks toward it at its usual first-order rate; sinusoidal-galerkin's point gap
+own knot source. It serves on bs2, razor2p and sg. On the
+high-R branch (a few kilohms) bs2 holds still under refinement and razor2p
+walks toward it at its usual first-order rate; sg's point gap
 there drifts by a few hundred ohms in X as the mesh refines, so read that
-branch on bs2 or razor-2p. Measured 2026-10-23, free space, nominal_nsegs
+branch on bs2 or razor2p. Measured 2026-10-23, free space, nominal_nsegs
 15/30/60 at L = 33.6 ft, M = 6 ft:
 bs2 3106.6-j309 / 3105.0-j324 / 3103.5-j336;
-razor-2p 3085.4-j129 / 3099.4-j213 / 3103.7-j265;
+razor2p 3085.4-j129 / 3099.4-j213 / 3103.7-j265;
 SG 3121.1+j219 / 3138.4-j13 / 3132.6-j150.
 """
 

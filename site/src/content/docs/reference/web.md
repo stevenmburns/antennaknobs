@@ -312,7 +312,7 @@ enabled = true
 type = "pec"
 
 [slots.A]
-backend = "bspline"
+backend = "bs2"
 n_per_wire = 15
 model = { degree = 2 }
 
@@ -636,9 +636,9 @@ grounds = 9 curves, over the cap of 6"*), and nothing is dropped to fit.
 When an analysis you pick names its engines or grounds (a cross in its
 `build_analyses()`), their slots are ticked for you. An engine that no slot
 holds is **skipped**: it draws no curve, and a quiet note under the legend's
-curves names it, e.g. *"skipped: razor-2p, NEC-5, which no slot holds. Put one
+curves names it, e.g. *"skipped: razor2p, NEC-5, which no slot holds. Put one
 in a slot to include it."* With B-spline, B-spline d=1 and PyNEC in your
-slots, the inverted vee's **convergence** (which names B-spline, razor-2p and
+slots, the inverted vee's **convergence** (which names B-spline, razor2p and
 NEC-5) draws the one B-spline curve and that note. If *none* of the engines it
 names is in a slot, the chart draws every slot instead, and the note says so.
 Load an engine into a slot to draw it; the chart never rewrites a slot, and
@@ -700,7 +700,7 @@ from the session's slots, and the legend names every curve:
   the chart does not author them yet.
 
 These multiply with the engines and grounds you tick: two designs on three
-engines are six curves, labelled `dipoles.invvee, momwire:bspline` and so
+engines are six curves, labelled `dipoles.invvee, momwire:bs2` and so
 on, in the order the analysis writes its crosses. The six-curve cap covers
 the whole product, in the command line's words (*"REFUSED: 4 values x 2
 engines = 8 curves, over the cap of 6"*). A family over the segment density
@@ -1252,8 +1252,8 @@ Three come from momwire and carry that deck's own measured figures:
   h/a. On a sparse surface screen a millimetre of grass is worth tens of ohms;
 - **an unresolved crossing node** — the mesh where a wire crosses the interface
   is coarser than its convergence class wants, with the measured bar;
-- **razor-2p's far mesh** — that basis is first order in the far mesh, so its
-  default-mesh answer is not converged. This one fires on *every* razor-2p
+- **razor2p's far mesh** — that basis is first order in the far mesh, so its
+  default-mesh answer is not converged. This one fires on *every* razor2p
   solve, by design: momwire measured that no solve-free predictor of the error
   correlates, so there is no honest threshold to gate it behind.
 
@@ -1621,9 +1621,9 @@ option. The box is unticked, and no server setting ticks it for you. It is on
 the hosted app and on Linux and Windows local installs, where momwire
 certifies it, and not on macOS.
 
-**razor-2p and B-spline have the box too (momwire 0.94.0).** momwire's one
+**razor2p and B-spline have the box too (momwire 0.94.0).** momwire's one
 *reuse repeated geometry* switch turns on whatever reuse each solver
-supports: razor-2p's fill-pair reuse, B-spline's offset reuse, the
+supports: razor2p's fill-pair reuse, B-spline's offset reuse, the
 sinusoidal pair reuse. A tab offers the box only where momwire certifies the
 reuse behind it, which on the hosted simulator is all three; on a local
 install below that reach the box is not shown. It stays off by default, and
@@ -1724,7 +1724,7 @@ from momwire's own table of couplings, never retyped here.
   (momwire#249). The two grey each other out, so you can always back out of
   either.
 - **A buried wire** keeps the standard kernel. On the B-spline tab (since
-  momwire 0.78, momwire#1170), `razor-2p` (since momwire 0.82,
+  momwire 0.78, momwire#1170), `razor2p` (since momwire 0.82,
   momwire#1614) and Sin-Galerkin (since momwire 0.83, momwire#1626) the
   extended kernel acts on the wires above the ground and the buried wires
   keep the standard one, which the solve's advisory says; the point-matched

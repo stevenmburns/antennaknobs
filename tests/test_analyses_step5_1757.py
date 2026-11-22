@@ -111,7 +111,7 @@ def test_crosses_multiply_across_every_kind_and_the_product_is_named_over_cap():
         an.Sweep("length_factor", 0.9, 1.0, points=3),
         cross=(
             an.Cross(designs=("dipoles.invvee", "dipoles.invvee_apex")),
-            an.Cross(engines=("momwire:bspline", "momwire:razor-2p")),
+            an.Cross(engines=("momwire:bs2", "momwire:razor2p")),
             an.Cross(step=an.Sweep("angle_deg", values=(0, 60))),
         ),
     )
@@ -136,20 +136,20 @@ def test_cells_enumerate_the_product_in_written_order_with_their_labels():
         cross=(
             an.Cross(planes=("rig", "feed")),
             an.Cross(step=an.Sweep("angle_deg", values=(0, 30))),
-            an.Cross(engines=("momwire:bspline",)),
+            an.Cross(engines=("momwire:bs2",)),
         ),
     )
     got = ar.cells(a, "momwire", get_builder("dipoles.invvee")())
     assert [c.label for c in got] == [
-        "rig, angle_deg = 0, momwire:bspline",
-        "rig, angle_deg = 30, momwire:bspline",
-        "feed, angle_deg = 0, momwire:bspline",
-        "feed, angle_deg = 30, momwire:bspline",
+        "rig, angle_deg = 0, momwire:bs2",
+        "rig, angle_deg = 30, momwire:bs2",
+        "feed, angle_deg = 0, momwire:bs2",
+        "feed, angle_deg = 30, momwire:bs2",
     ]
     assert [(c.plane, c.step, c.engine) for c in got][1] == (
         "rig",
         ("angle_deg", 30),
-        "momwire:bspline",
+        "momwire:bs2",
     )
 
 
@@ -297,7 +297,7 @@ def test_every_plane_curve_equals_the_workbench_solve_at_that_plane(
 
 
 # E5 as docs/design/sweep-framework-examples.md records it (0.90.0,
-# momwire:bspline, 13.9..14.45 MHz in 23 points): best SWR, where, and Z
+# momwire:bs2, 13.9..14.45 MHz in 23 points): best SWR, where, and Z
 # there. Those numbers are FREE SPACE, though the page captions them "the
 # file's own ground": on this deck's own Sommerfeld ground (εr 20, σ 0.0303)
 # the rig reads 51.24 − j4.16 at 14.45, SWR 1.09. The 0.90.0 script ran with
@@ -410,7 +410,7 @@ def test_a_design_with_no_network_refuses_every_plane_by_name(
 
 LADDER = an.Sweep(an.DENSITY, values=(8, 12, 17))
 TWO_DESIGNS = an.Cross(designs=("dipoles.invvee", "dipoles.invvee_apex"))
-MOMWIRE = ("momwire:bspline", "momwire:razor-2p")
+MOMWIRE = ("momwire:bs2", "momwire:razor2p")
 
 
 def test_each_design_curve_equals_analyze_of_that_design_alone(
@@ -458,7 +458,7 @@ def _refused_apex(monkeypatch, capsys, tmp_path, engine):
     a = an.convergence(
         name="spellings",
         sweep=LADDER,
-        cross=(TWO_DESIGNS, an.Cross(engines=("momwire:bspline", engine))),
+        cross=(TWO_DESIGNS, an.Cross(engines=("momwire:bs2", engine))),
     )
     _offer(monkeypatch, _invvee_cls(), [a])
     runs = _capture_run(monkeypatch)
@@ -472,9 +472,9 @@ def _refused_apex(monkeypatch, capsys, tmp_path, engine):
         rf"^{re.escape(cell)}: refused: this design uses PortAtVertex", out, re.M
     )
     assert list(runs[0]["curves"]) == [
-        "dipoles.invvee, momwire:bspline",
+        "dipoles.invvee, momwire:bs2",
         f"dipoles.invvee, {engine}",
-        "dipoles.invvee_apex, momwire:bspline",
+        "dipoles.invvee_apex, momwire:bs2",
     ]
     (call,) = overlay
     assert call[1]["refused"] == [cell]  # in the legend
@@ -499,10 +499,10 @@ def test_nec2_x_apex_is_a_named_refused_cell(monkeypatch, capsys, tmp_path):
 # E7's Z∞ table (docs/design/sweep-framework-examples.md, momwire main, free
 # space, the app's 7-rung ladder): the momwire rows.
 E7_ZINF = {
-    "dipoles.invvee, momwire:bspline": 55.144 - 9.674j,
-    "dipoles.invvee, momwire:razor-2p": 55.097 - 10.072j,
-    "dipoles.invvee_apex, momwire:bspline": 54.512 - 11.830j,
-    "dipoles.invvee_apex, momwire:razor-2p": 54.464 - 12.271j,
+    "dipoles.invvee, momwire:bs2": 55.144 - 9.674j,
+    "dipoles.invvee, momwire:razor2p": 55.097 - 10.072j,
+    "dipoles.invvee_apex, momwire:bs2": 54.512 - 11.830j,
+    "dipoles.invvee_apex, momwire:razor2p": 54.464 - 12.271j,
 }
 
 
@@ -712,16 +712,14 @@ def test_a_map_crossed_with_engines_draws_one_map_per_cell_and_names_refused(
         )
 
     monkeypatch.setattr(ar, "_map_figure", spy)
-    a = _small_map(
-        cross=an.Cross(engines=("momwire:bspline", "momwire:razor-2p", "nope"))
-    )
+    a = _small_map(cross=an.Cross(engines=("momwire:bs2", "momwire:razor2p", "nope")))
     _offer(monkeypatch, _invvee_cls(), [a])
     runs = _capture_run(monkeypatch)
     _analyze(["--builder", "dipoles.invvee", "--analysis", "small map"], tmp_path)
     out = capsys.readouterr().out
     maps = runs[0]["maps"]
-    assert list(maps) == ["momwire:bspline", "momwire:razor-2p"]
-    assert not np.allclose(maps["momwire:bspline"][2], maps["momwire:razor-2p"][2])
+    assert list(maps) == ["momwire:bs2", "momwire:razor2p"]
+    assert not np.allclose(maps["momwire:bs2"][2], maps["momwire:razor2p"][2])
     assert "nope: refused:" in out
     assert "nope: refused" in legends and "X = 0 Ω" in legends
 
@@ -750,7 +748,7 @@ def _map_vs_recorded(monkeypatch, capsys, tmp_path, name):
 # measured 2026-09-28, max |ΔZ| is 0 Ω over all 825 cells (bit-identical to
 # 0.90.0's grid). --nominal-nsegs 21 states the density the grid was made at;
 # the session's plain `momwire` runs at the design's own 21 anyway, while
-# `momwire:bspline` at its roster density (15) moves cells by about 0.15 Ω,
+# `momwire:bs2` at its roster density (15) moves cells by about 0.15 Ω,
 # which is the mesh, not the map.
 EX2_TOL_OHM = 1e-6
 

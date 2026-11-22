@@ -617,7 +617,7 @@ def test_solve_dispatches_to_momwire_for_dipole():
             "geometry": "dipoles.invvee",
             "measurement_freq_mhz": 28.47,
             "design_freq_mhz": 28.47,
-            "momwire_model": "bspline",
+            "momwire_model": "bs2",
         }
     )
     assert out["solver"] == "momwire"
@@ -642,7 +642,7 @@ def test_solve_at_a_picked_plane_measures_the_bare_antenna():
         "geometry": "dipoles.invvee_coax_station",
         "measurement_freq_mhz": 28.47,
         "design_freq_mhz": 28.47,
-        "momwire_model": "bspline",
+        "momwire_model": "bs2",
     }
     at_rig = server.solve(base)
     assert at_rig["plane"] == "rig"
@@ -676,7 +676,7 @@ def test_solve_carries_rig_report_only_for_designs_that_have_one():
             "geometry": "dipoles.invvee_catenary",
             "measurement_freq_mhz": 28.47,
             "design_freq_mhz": 28.47,
-            "momwire_model": "bspline",
+            "momwire_model": "bs2",
         }
     )
     assert out["rig"]["rig_model"] == "halyard"
@@ -687,7 +687,7 @@ def test_solve_carries_rig_report_only_for_designs_that_have_one():
             "geometry": "dipoles.invvee",
             "measurement_freq_mhz": 28.47,
             "design_freq_mhz": 28.47,
-            "momwire_model": "bspline",
+            "momwire_model": "bs2",
         }
     )
     assert "rig" not in bare
@@ -713,7 +713,7 @@ def test_rig_report_failure_never_fails_the_solve(monkeypatch):
             # rig key and all — without ever calling the patched method.
             "measurement_freq_mhz": 28.51,
             "design_freq_mhz": 28.47,
-            "momwire_model": "bspline",
+            "momwire_model": "bs2",
         }
     )
     assert "rig" not in out
@@ -755,7 +755,7 @@ def test_solve_carries_generic_readout_rows_for_designs_that_have_them():
             # _SOLVE_CACHE is keyed on the request.
             "measurement_freq_mhz": 28.53,
             "design_freq_mhz": 28.47,
-            "momwire_model": "bspline",
+            "momwire_model": "bs2",
         }
     )
     rows = out["readouts"]
@@ -773,7 +773,7 @@ def test_solve_carries_generic_readout_rows_for_designs_that_have_them():
             "geometry": "dipoles.invvee",
             "measurement_freq_mhz": 28.53,
             "design_freq_mhz": 28.47,
-            "momwire_model": "bspline",
+            "momwire_model": "bs2",
         }
     )
     assert "readouts" not in bare
@@ -794,7 +794,7 @@ def test_readout_rows_failure_never_fails_the_solve(monkeypatch):
             "geometry": "dipoles.invvee_catenary",
             "measurement_freq_mhz": 28.55,
             "design_freq_mhz": 28.47,
-            "momwire_model": "bspline",
+            "momwire_model": "bs2",
         }
     )
     assert "readouts" not in out
@@ -831,7 +831,7 @@ def test_malformed_readout_rows_are_dropped_not_shipped(monkeypatch):
             "geometry": "dipoles.invvee_catenary",
             "measurement_freq_mhz": 28.59,
             "design_freq_mhz": 28.47,
-            "momwire_model": "bspline",
+            "momwire_model": "bs2",
         }
     )
     rows = out["readouts"]
@@ -877,7 +877,7 @@ def test_solve_emits_one_feed_marker_per_declared_port():
             "geometry": "wire.expanded_lazy_h",
             "measurement_freq_mhz": 28.57,
             "design_freq_mhz": 28.57,
-            "momwire_model": "bspline",
+            "momwire_model": "bs2",
         }
     )
     fps = out["feed_positions"]
@@ -896,7 +896,7 @@ def test_solve_inline_ex_multifeed_marks_every_feed():
             "geometry": "verticals.four_square",
             "measurement_freq_mhz": 7.15,
             "design_freq_mhz": 7.15,
-            "momwire_model": "bspline",
+            "momwire_model": "bs2",
         }
     )
     assert out["multi_feed"] is True
@@ -911,7 +911,7 @@ def test_solve_single_feed_reports_one_marker():
             "geometry": "dipoles.invvee",
             "measurement_freq_mhz": 28.47,
             "design_freq_mhz": 28.47,
-            "momwire_model": "bspline",
+            "momwire_model": "bs2",
         }
     )
     assert len(out["feed_positions"]) == 1
@@ -950,7 +950,7 @@ def test_solve_always_carries_norm_and_caches():
         "geometry": "dipoles.invvee",
         "measurement_freq_mhz": 28.47,
         "design_freq_mhz": 28.47,
-        "momwire_model": "bspline",
+        "momwire_model": "bs2",
     }
     server._SOLVE_CACHE.clear()
     out = server.solve(req)
@@ -997,14 +997,14 @@ _NORM_ACCURACY_REQS = [
         "geometry": "dipoles.invvee",
         "measurement_freq_mhz": 28.47,
         "design_freq_mhz": 28.47,
-        "momwire_model": "bspline",
+        "momwire_model": "bs2",
         "ground": False,
     },
     {
         "geometry": "dipoles.invvee",
         "measurement_freq_mhz": 28.47,
         "design_freq_mhz": 28.47,
-        "momwire_model": "bspline",
+        "momwire_model": "bs2",
         "ground": True,
         "ground_model": "pec",
     },
@@ -1015,7 +1015,7 @@ _NORM_ACCURACY_REQS = [
         "geometry": "loops.triangular_skyloop",
         "measurement_freq_mhz": 50.0,
         "design_freq_mhz": 3.8,
-        "momwire_model": "bspline",
+        "momwire_model": "bs2",
         "n_per_wire": 100,
         "ground": False,
     },
@@ -1023,7 +1023,7 @@ _NORM_ACCURACY_REQS = [
         "geometry": "loops.triangular_skyloop",
         "measurement_freq_mhz": 50.0,
         "design_freq_mhz": 3.8,
-        "momwire_model": "bspline",
+        "momwire_model": "bs2",
         "n_per_wire": 100,
         "ground": True,
         "ground_model": "pec",
@@ -1078,7 +1078,7 @@ def test_norm_check_endpoint_reports_power_balance(client: TestClient):
         "geometry": "dipoles.invvee",
         "measurement_freq_mhz": 28.47,
         "design_freq_mhz": 28.47,
-        "momwire_model": "bspline",
+        "momwire_model": "bs2",
         "ground": True,
         "ground_model": "pec",
     }
@@ -1101,7 +1101,7 @@ def test_norm_check_finite_ground_uses_grid_method(client: TestClient):
         "geometry": "dipoles.invvee",
         "measurement_freq_mhz": 28.47,
         "design_freq_mhz": 28.47,
-        "momwire_model": "bspline",
+        "momwire_model": "bs2",
         "ground": True,
         "ground_model": "fast",
     }
@@ -1130,7 +1130,7 @@ def test_norm_check_reports_no_radiated_fraction_under_mininec_ground(
         "geometry": "dipoles.invvee",
         "measurement_freq_mhz": 28.47,
         "design_freq_mhz": 28.47,
-        "momwire_model": "bspline",
+        "momwire_model": "bs2",
         "ground": True,
         "ground_model": "mininec",
     }
@@ -1182,7 +1182,7 @@ def test_norm_check_radiated_fraction_matches_far_field_ledger(
         "geometry": geometry,
         "measurement_freq_mhz": 21.35,
         "design_freq_mhz": 21.35,
-        "momwire_model": "bspline",
+        "momwire_model": "bs2",
         "ground": True,
         "ground_model": "sommerfeld",
         **req_extra,
@@ -1211,7 +1211,7 @@ def test_norm_check_radiated_fraction_pec_and_free_space(client: TestClient):
         "geometry": "dipoles.invvee",
         "measurement_freq_mhz": 28.47,
         "design_freq_mhz": 28.47,
-        "momwire_model": "bspline",
+        "momwire_model": "bs2",
     }
     for ground in (
         {"ground": True, "ground_model": "pec"},
@@ -1231,7 +1231,7 @@ def test_directivity_norm_gl_beats_uniform_at_coarse_grid():
         "geometry": "loops.triangular_skyloop",
         "measurement_freq_mhz": 50.0,
         "design_freq_mhz": 3.8,
-        "momwire_model": "bspline",
+        "momwire_model": "bs2",
         "n_per_wire": 80,
         "ground": False,
     }
@@ -1256,10 +1256,10 @@ def test_solve_reports_radiation_efficiency_for_terminated_antenna():
     efficiency multiply), so the norm must still agree with the old
     field-side construction (4π/∮|M_perp|²dΩ)·efficiency — the plotted gain
     of the rhombic did not move in this rework."""
-    term = server.solve({"geometry": "wire.rhombic", "momwire_model": "bspline"})
+    term = server.solve({"geometry": "wire.rhombic", "momwire_model": "bs2"})
     assert 0.1 < term["radiation_efficiency"] < 0.6  # ~0.29: most power in the load
 
-    lossless = server.solve({"geometry": "broadband.g5rv", "momwire_model": "bspline"})
+    lossless = server.solve({"geometry": "broadband.g5rv", "momwire_model": "bs2"})
     assert lossless["radiation_efficiency"] == 1.0
 
     # Circuit-side norm ≡ (pattern-integral norm × efficiency), the old
@@ -1428,7 +1428,7 @@ def test_sweep_endpoint_streams_one_record_per_freq_then_done(client: TestClient
             "geometry": "dipoles.invvee",
             "freqs_mhz": freqs,
             "measurement_freq_mhz": 28.47,
-            "momwire_model": "bspline",
+            "momwire_model": "bs2",
         },
     )
     assert r.status_code == 200
@@ -1466,7 +1466,7 @@ def test_converge_endpoint_streams_one_record_per_n_then_done(client: TestClient
             "geometry": "dipoles.invvee",
             "n_values": ns,
             "measurement_freq_mhz": 28.47,
-            "momwire_model": "bspline",
+            "momwire_model": "bs2",
         },
     )
     assert r.status_code == 200
@@ -1579,15 +1579,15 @@ def test_examples_carry_requires_backends(client: TestClient):
     # allowlist is FOUR. On this deck they land at rel 8.8e-6 (hmatrix) and
     # 8.7e-5 (arrayblock) from the dense parent, INSIDE the 3.2e-4 the
     # already-admitted sinusoidal-Galerkin sits at — the bar the list applies
-    # was always looser than the accelerators. bspline stays first: it is the
+    # was always looser than the accelerators. bs2 stays first: it is the
     # reference implementation and `default_backend` is `requires_backends[0]`.
     assert by_name["wire.sterba_bl"]["requires_backends"] == [
-        "bspline",
-        "sinusoidal-galerkin",
+        "bs2",
+        "sg",
         "hmatrix",
         "arrayblock",
     ]
-    assert by_name["wire.sterba_bl"]["default_backend"] == "bspline"
+    assert by_name["wire.sterba_bl"]["default_backend"] == "bs2"
     # The unrestricted Sterba siblings stay unrestricted — including the
     # network-TL one (TL/BalancedLine on PortOnWire gaps run everywhere).
     assert by_name["wire.sterba"]["requires_backends"] is None
@@ -1928,7 +1928,7 @@ def test_solve_for_multi_feed_geometry_includes_feeds_array():
         {
             "geometry": "arrays.bowtiearray1x2",
             "measurement_freq_mhz": 28.5,
-            "momwire_model": "bspline",
+            "momwire_model": "bs2",
         }
     )
     assert "feeds" in out
@@ -1950,7 +1950,7 @@ def test_solve_for_single_feed_geometry_omits_feeds_array():
         {
             "geometry": "dipoles.invvee",
             "measurement_freq_mhz": 28.47,
-            "momwire_model": "bspline",
+            "momwire_model": "bs2",
         }
     )
     assert "feeds" not in out
@@ -1994,7 +1994,7 @@ def test_solve_response_carries_z0_ohms_for_array_design():
         {
             "geometry": "arrays.bowtiearray1x2",
             "measurement_freq_mhz": 28.5,
-            "momwire_model": "bspline",
+            "momwire_model": "bs2",
         }
     )
     assert out["z0_ohms"] == 100.0
@@ -2037,7 +2037,7 @@ def test_phase_lr_drives_per_feed_voltage_phasor():
         {
             "geometry": "arrays.bowtiearray1x2",
             "measurement_freq_mhz": 28.5,
-            "momwire_model": "bspline",
+            "momwire_model": "bs2",
             "phase_lr": 0.0,
         }
     )
@@ -2045,7 +2045,7 @@ def test_phase_lr_drives_per_feed_voltage_phasor():
         {
             "geometry": "arrays.bowtiearray1x2",
             "measurement_freq_mhz": 28.5,
-            "momwire_model": "bspline",
+            "momwire_model": "bs2",
             "phase_lr": 90.0,
         }
     )
@@ -2069,7 +2069,7 @@ def test_sweep_endpoint_streams_feeds_z_for_multi_feed_geometry(client: TestClie
         json={
             "geometry": "arrays.bowtiearray1x2",
             "freqs_mhz": [28.4, 28.5],
-            "momwire_model": "bspline",
+            "momwire_model": "bs2",
         },
     )
     assert r.status_code == 200
@@ -2103,7 +2103,7 @@ def test_ws_endpoint_round_trips_a_solve(client: TestClient):
                 {
                     "geometry": "dipoles.invvee",
                     "measurement_freq_mhz": 28.47,
-                    "momwire_model": "bspline",
+                    "momwire_model": "bs2",
                 }
             )
         )
@@ -2122,7 +2122,7 @@ def test_ws_endpoint_handles_multiple_requests_on_one_socket(client: TestClient)
         {
             "geometry": "dipoles.invvee",
             "measurement_freq_mhz": 28.47,
-            "momwire_model": "bspline",
+            "momwire_model": "bs2",
         }
     )
     with client.websocket_connect("/ws") as ws:
@@ -2208,7 +2208,7 @@ def test_ws_endpoint_echoes_seq_on_success(client: TestClient):
                 {
                     "geometry": "dipoles.invvee",
                     "measurement_freq_mhz": 28.47,
-                    "momwire_model": "bspline",
+                    "momwire_model": "bs2",
                     "_seq": 7,
                 }
             )
@@ -2342,7 +2342,7 @@ def test_solve_aborted_propagates_uncached(monkeypatch):
     req = {
         "geometry": "dipoles.invvee",
         "solver": "momwire",
-        "momwire_model": "bspline",
+        "momwire_model": "bs2",
         "_seq": 7,
     }
     token = momwire.CancelToken()
@@ -2357,7 +2357,7 @@ def test_solve_z_only_returns_primary_z_and_no_feeds_for_dipole():
         {
             "geometry": "dipoles.invvee",
             "measurement_freq_mhz": 28.47,
-            "momwire_model": "bspline",
+            "momwire_model": "bs2",
         }
     )
     assert isinstance(z, complex)
@@ -2412,7 +2412,7 @@ def test_compute_directivity_norm_ground_on_stays_finite_and_positive():
 _CANONICAL_REQ = {
     "geometry": "multiband.fandipole",
     "solver": "momwire",
-    "momwire_model": "bspline",
+    "momwire_model": "bs2",
     "model_options": {
         "degree": 2,
         "use_singular_enrichment": True,
@@ -2578,7 +2578,7 @@ def test_cache_key_quantises_floats_below_step():
 
 def test_cache_key_recurses_into_model_options():
     """Sanity: per-solver kwargs inside model_options must contribute to
-    the key. Otherwise switching bspline degrees or toggling singular
+    the key. Otherwise switching bs2 degrees or toggling singular
     enrichment via model_options.use_singular_enrichment would return
     a stale answer."""
     base_key = server._canonical_solve_key(_CANONICAL_REQ)
@@ -2636,7 +2636,7 @@ def test_size_guard_disabled_by_default_local_is_unlocked():
         {
             "geometry": "dipoles.invvee",
             "n_per_wire": server._MAX_BASIS * 100,
-            "momwire_model": "bspline",
+            "momwire_model": "bs2",
         },
         use_pynec=False,
     )
@@ -2645,7 +2645,7 @@ def test_size_guard_disabled_by_default_local_is_unlocked():
 def test_check_solve_size_passes_for_normal_request(hosted):
     # A modest segment count is well under every cap → no rejection.
     server._check_solve_size(
-        {"geometry": "dipoles.invvee", "n_per_wire": 40, "momwire_model": "bspline"},
+        {"geometry": "dipoles.invvee", "n_per_wire": 40, "momwire_model": "bs2"},
         use_pynec=False,
     )
 
@@ -2658,7 +2658,7 @@ def test_check_solve_size_rejects_oversized_dense_but_allows_compressed(hosted):
     req = {
         "geometry": geom,
         "n_per_wire": _n_per_wire_for_basis(geom, target),
-        "momwire_model": "bspline",
+        "momwire_model": "bs2",
     }
     basis = REGISTRY[geom].count_basis(req)
     assert server._MAX_BASIS < basis <= server._MAX_BASIS_COMPRESSED, (
@@ -2683,7 +2683,7 @@ def test_solve_rejects_oversized_request_before_filling_matrix(hosted):
                 "geometry": "dipoles.invvee",
                 "n_per_wire": _n_per_wire_for_basis("dipoles.invvee", server._MAX_BASIS)
                 * 2,
-                "momwire_model": "bspline",
+                "momwire_model": "bs2",
             }
         )
 
@@ -2709,7 +2709,7 @@ def _oversized_req(**extra) -> dict:
     return {
         "geometry": "dipoles.invvee",
         "n_per_wire": n,
-        "momwire_model": "bspline",
+        "momwire_model": "bs2",
         **extra,
     }
 
@@ -2780,7 +2780,7 @@ def test_optimize_max_evals_clamped_when_hosted(hosted, client, monkeypatch):
     req = {
         "geometry": "dipoles.invvee",
         "n_per_wire": 7,
-        "momwire_model": "bspline",
+        "momwire_model": "bs2",
         "optimize": {
             "free": [{"name": "length_factor", "min": 0.95, "max": 1.05}],
             "objective": "swr",
@@ -3091,7 +3091,7 @@ def test_momwire_bspline_ground_model_drives_sommerfeld_solve():
     base = {
         "geometry": "dipoles.invvee",
         "solver": "momwire",
-        "momwire_model": "bspline",
+        "momwire_model": "bs2",
         "measurement_freq_mhz": 28.47,
         "ground": True,
     }
@@ -3152,9 +3152,9 @@ def test_momwire_sinusoidal_ground_model_drives_refl_coef_solve():
 def test_momwire_sommerfeld_applies_on_every_solver(model):
     """Since momwire 0.8.0 the "sommerfeld" ground model drives the TRUE
     Sommerfeld solve on every momwire backend (sinusoidal field-based,
-    hmatrix/arrayblock on their fast paths), not just plain bspline —
+    hmatrix/arrayblock on their fast paths), not just plain bs2 —
     the wiring this release exists to deliver. The sommerfeld solve
-    agrees with bspline-sommerfeld at the cross-solver floor and stays
+    agrees with bs2-sommerfeld at the cross-solver floor and stays
     a genuinely different solve from refl-coef."""
     base = {
         "geometry": "dipoles.invvee",
@@ -3164,9 +3164,7 @@ def test_momwire_sommerfeld_applies_on_every_solver(model):
     }
     somm = server.solve({**base, "momwire_model": model, "ground_model": "sommerfeld"})
     fast = server.solve({**base, "momwire_model": model, "ground_model": "fast"})
-    ref = server.solve(
-        {**base, "momwire_model": "bspline", "ground_model": "sommerfeld"}
-    )
+    ref = server.solve({**base, "momwire_model": "bs2", "ground_model": "sommerfeld"})
     assert somm["ground_model_applied"] == "sommerfeld"
     assert fast["ground_model_applied"] == "refl-coef"
     z_somm = complex(somm["z_in_re"], somm["z_in_im"])
@@ -3219,7 +3217,7 @@ def test_solve_response_omits_solver_diag_for_other_engines():
         "geometry": "dipoles.invvee",
         "measurement_freq_mhz": 28.47,
     }
-    for model in ("bspline", "sinusoidal", "hmatrix"):
+    for model in ("bs2", "sinusoidal", "hmatrix"):
         resp = server.solve({**base, "solver": "momwire", "momwire_model": model})
         assert "solver_diag" not in resp, model
     resp = server.solve({**base, "solver": "pynec"})
@@ -3236,15 +3234,15 @@ def test_retired_model_name_falls_back_to_bspline():
         "measurement_freq_mhz": 28.47,
     }
     stale = server.solve({**base, "momwire_model": "triangular"})
-    bspline = server.solve({**base, "momwire_model": "bspline"})
-    assert stale["z_in_re"] == bspline["z_in_re"]
-    assert stale["z_in_im"] == bspline["z_in_im"]
+    bs2 = server.solve({**base, "momwire_model": "bs2"})
+    assert stale["z_in_re"] == bs2["z_in_re"]
+    assert stale["z_in_im"] == bs2["z_in_im"]
 
 
 def test_swept_mem_budget_injected_for_bspline_family(monkeypatch):
     """The deployment sweep-memory budget (ANTENNAKNOBS_SWEPT_MEM_MB, read
     at adapter import into _SWEPT_MEM_MB) must be injected into the
-    bspline-family solvers' kwargs — overriding any client-sent value —
+    B-spline family solvers' kwargs — overriding any client-sent value —
     and must NOT be passed to sinusoidal (no batched sweep, no such
     kwarg). Asserted at the engine-kwargs level so the test doesn't
     require a momwire version that accepts the kwarg (momwire >= 0.9).
@@ -3258,7 +3256,7 @@ def test_swept_mem_budget_injected_for_bspline_family(monkeypatch):
     builder = adapter._build_builder(design.Builder, req_base)
 
     monkeypatch.setattr(adapter, "_SWEPT_MEM_MB", 64)
-    for model in ("bspline", "hmatrix", "arrayblock"):
+    for model in ("bs2", "hmatrix", "arrayblock"):
         eng = adapter._make_momwire_engine(
             {**req_base, "momwire_model": model}, builder
         )
@@ -3267,7 +3265,7 @@ def test_swept_mem_budget_injected_for_bspline_family(monkeypatch):
     eng = adapter._make_momwire_engine(
         {
             **req_base,
-            "momwire_model": "bspline",
+            "momwire_model": "bs2",
             "model_options": {"swept_mem_mb": 4096, "degree": 1},
         },
         builder,
@@ -3282,9 +3280,7 @@ def test_swept_mem_budget_injected_for_bspline_family(monkeypatch):
 
     # Unset (local default): nothing injected, momwire default applies.
     monkeypatch.setattr(adapter, "_SWEPT_MEM_MB", None)
-    eng = adapter._make_momwire_engine(
-        {**req_base, "momwire_model": "bspline"}, builder
-    )
+    eng = adapter._make_momwire_engine({**req_base, "momwire_model": "bs2"}, builder)
     assert "swept_mem_mb" not in (eng._solver_kwargs or {})
 
 
@@ -3305,14 +3301,14 @@ def test_extended_kernel_reaches_momwire_engine():
     builder = adapter._build_builder(design.Builder, req_base)
 
     eng_off = adapter._make_momwire_engine(
-        {**req_base, "momwire_model": "bspline"}, builder
+        {**req_base, "momwire_model": "bs2"}, builder
     )
     assert eng_off._extended_kernel is False
 
     eng_on = adapter._make_momwire_engine(
         {
             **req_base,
-            "momwire_model": "bspline",
+            "momwire_model": "bs2",
             "model_options": {"extended_kernel": True},
         },
         builder,
@@ -3348,7 +3344,7 @@ def test_extended_kernel_moves_impedance_and_matches_direct_engine():
     base = {
         "geometry": "dipoles.invvee",
         "solver": "momwire",
-        "momwire_model": "bspline",
+        "momwire_model": "bs2",
         "measurement_freq_mhz": 28.47,
         "wire_radius": 0.008,  # fat wire — the kernels must visibly disagree
     }
@@ -3370,7 +3366,7 @@ def test_extended_kernel_moves_impedance_and_matches_direct_engine():
 
 
 def test_geometry_extended_kernel_galerkin_serves(client: TestClient):
-    """momwire 0.27.0 (issue #849): EK + sinusoidal-galerkin — the request
+    """momwire 0.27.0 (issue #849): EK + sg — the request
     that used to be the structured-refusal case — now solves. The invvee is a
     deliberately NON-COLLINEAR deck: momwire#299's node-gated end brackets
     are what make this answer sound, so this doubles as the web-path pin on
@@ -3379,7 +3375,7 @@ def test_geometry_extended_kernel_galerkin_serves(client: TestClient):
         "/geometry",
         json={
             "geometry": "dipoles.invvee",
-            "momwire_model": "sinusoidal-galerkin",
+            "momwire_model": "sg",
             "model_options": {"extended_kernel": True},
         },
     )
@@ -3401,7 +3397,7 @@ def test_geometry_extended_kernel_enrichment_refusal_is_structured(
         "/geometry",
         json={
             "geometry": "dipoles.invvee",
-            "momwire_model": "sinusoidal-galerkin",
+            "momwire_model": "sg",
             "model_options": {
                 "extended_kernel": True,
                 "use_singular_enrichment": True,
@@ -3425,7 +3421,7 @@ def test_ws_extended_kernel_enrichment_refusal_keeps_socket_alive(
             json.dumps(
                 {
                     "geometry": "dipoles.invvee",
-                    "momwire_model": "sinusoidal-galerkin",
+                    "momwire_model": "sg",
                     "model_options": {
                         "extended_kernel": True,
                         "use_singular_enrichment": True,
@@ -3445,7 +3441,7 @@ def test_momwire_ground_off_reports_free_model():
         {
             "geometry": "dipoles.invvee",
             "solver": "momwire",
-            "momwire_model": "bspline",
+            "momwire_model": "bs2",
             "measurement_freq_mhz": 28.47,
         }
     )

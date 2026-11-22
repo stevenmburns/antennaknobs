@@ -2,7 +2,7 @@
 reference (2026-09-03, the buried radial flow plan).
 
 Two legs of the buried radial flow were anchored before this file: the
-feedpoint impedance (BLE 1937 in momwire, the bspline degree pair) and the
+feedpoint impedance (BLE 1937 in momwire, the bs2 degree pair) and the
 mesh. The radiated fraction — "where do the watts go" — was not. Two gates:
 
 1. POWER BALANCE on the catalog deck. Gain is power density per input watt,

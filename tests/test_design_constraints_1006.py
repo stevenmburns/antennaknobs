@@ -142,8 +142,8 @@ def test_an_unknown_cause_gets_no_reason_rather_than_a_wrong_one():
     None lets the gate fall back to generic copy — a worse message, not a
     false one. Inheriting would be the failure this whole change is about.
     """
-    got = _backend_restriction(("bspline",))  # neither known tuple
-    assert got["backends"] == ["bspline"]
+    got = _backend_restriction(("bs2",))  # neither known tuple
+    assert got["backends"] == ["bs2"]
     assert got["reason"] is None
 
 
@@ -243,7 +243,7 @@ def test_a_backend_that_cannot_take_buried_serves_momwires_reason():
 
     `buried` has been served since #1108, but only as True/False/None. With no
     prose, nothing downstream could gate on it without inventing a reason — so
-    nothing gated at all, and `razor-2p` on a buried design solved, raised,
+    nothing gated at all, and `razor2p` on a buried design solved, raised,
     and put a ValueError traceback in the user's error banner.
 
     This is a SINGLE-CELL refusal and `COUPLINGS` rightly does not name it: a
@@ -269,8 +269,8 @@ def test_the_one_backend_that_serves_buried_has_no_refusal():
     from antennaknobs.web.adapter import backend_roster
 
     rows = {r["name"]: r for r in backend_roster(have_pynec=True, have_nec5=True)}
-    assert rows["bspline"]["buried"] is True
-    assert rows["bspline"]["buried_refusal"] is None
+    assert rows["bs2"]["buried"] is True
+    assert rows["bs2"]["buried_refusal"] is None
 
 
 def test_cannot_be_asked_stays_None():

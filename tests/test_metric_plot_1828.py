@@ -35,8 +35,8 @@ from antennaknobs.web.analyses_offer import builder_for
 from antennaknobs.web.examples import example_for
 
 INVVEE = "dipoles.invvee"
-BSPLINE = "momwire:bspline"
-RAZOR = "momwire:razor-2p"
+BSPLINE = "momwire:bs2"
+RAZOR = "momwire:razor2p"
 N = 15
 DX = an.ElevationWindow("DX gain", 2, 10, step=0.1)
 LF = (0.95, 1.0)
@@ -257,7 +257,7 @@ def _req(**knobs) -> dict:
         "design_freq_mhz": b.design_freq,
         "measurement_freq_mhz": b.freq,
         "solver": "momwire",
-        "momwire_model": "bspline",
+        "momwire_model": "bs2",
         "n_per_wire": N,
         "ground": False,
     }

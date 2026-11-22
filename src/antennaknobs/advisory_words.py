@@ -99,15 +99,15 @@ def _far_mesh(text: str, _locate) -> str | None:
     if m is None:
         return None
     return (
-        f"razor-2p's answer keeps moving as segments are added: on typical "
+        f"razor2p's answer keeps moving as segments are added: on typical "
         f"models it sits a few percent from converged (median {m.group(1)} %). "
-        f"Doubling the segments roughly halves that, and bspline is already "
+        f"Doubling the segments roughly halves that, and bs2 is already "
         f"converged at the same segment counts."
     )
 
 
 def _ek_above_ground(text: str, _locate) -> str | None:
-    """B-spline (momwire 0.78, momwire#1170) and razor-2p (momwire 0.82,
+    """B-spline (momwire 0.78, momwire#1170) and razor2p (momwire 0.82,
     momwire#1614) serve the extended kernel on a deck with buried wires in
     part: the pairs above the ground take it, the buried wires keep the
     standard kernel. One summary for both ways of getting there, an explicit
@@ -159,7 +159,7 @@ def summary(category: str, text: str, locate=None) -> str | None:
 #
 # Four pieces, each its own function so one can change without the others:
 # WHY the kernel was on, WHAT refused it, WHAT WAS AFFECTED, and what the
-# user can do. The B-spline basis (since momwire 0.78) and razor-2p (since
+# user can do. The B-spline basis (since momwire 0.78) and razor2p (since
 # momwire 0.82) serve a buried deck in part (extended kernel above the
 # ground, standard kernel on the buried wires), so on those two nothing falls
 # back and this advisory is not composed; momwire's own
@@ -267,7 +267,7 @@ _EK_WHAT_TO_DO = {
         "options (the gear beside the solver slot) and switch off "
         '"K≥3 junction singular enrichment".'
     ),
-    # Only the B-spline basis (bs2, the default), razor-2p and the sinusoidal
+    # Only the B-spline basis (bs2, the default), razor2p and the sinusoidal
     # Galerkin basis (momwire 0.83, momwire#1626) serve the extended kernel
     # beside a buried wire, and only on the wires above the ground;
     # `test_ek_advisory_wording_1996.py` holds that claim to momwire.

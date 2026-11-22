@@ -20,22 +20,26 @@ name (#1559). Now:
 
 WHAT THE NAMES BIND
 
+The names are momwire's (momwire#2091): no dash, the basis alone. The
+spellings that shipped before the rename are read through
+`antennaknobs.engine_names` at every entry and never printed.
+
 - ``sinusoidal`` is NEC-2's formulation: the three-term basis, point matching
-  and the segment gap. ``sinusoidal-galerkin`` is the same basis tested
-  variationally (momwire#182), with the point gap as its default; its feed
-  model is a web-panel choice (#640), not a second CLI name (momwire#654
-  retired the ``-converged`` suffix).
-- ``razor-2p`` binds ``RazorSolver``'s identified two-point quadrature
+  and the segment gap. ``sg`` is the same basis tested variationally
+  (momwire#182), with the point gap as its default; its feed model is a
+  web-panel choice (#640), not a second CLI name (momwire#654 retired the
+  ``-converged`` suffix).
+- ``razor2p`` binds ``RazorSolver``'s identified two-point quadrature
   (``nec5_quadrature=True``, momwire#316), the name momwire's own deck front
   end (``momwire.deck.BASES``) uses. Plain ``razor`` — the converged
-  Gauss-Legendre lane, 12-80x slower than ``bspline-d2`` for ~0.001 Ω —
-  left the roster in momwire#753; construct ``RazorSolver(...)`` directly for
+  Gauss-Legendre lane, 12-80x slower than ``bs2`` for ~0.001 Ω — left the
+  roster in momwire#753; construct ``RazorSolver(...)`` directly for
   convergence work.
 - ``pulse`` is ``HarringtonSolver``, point-matched pulse expansion (the app's
   Pulse tab, AK#1148). The bare ``PulseSolver`` stays library-only.
-- ``bspline-d1`` (alias) is the degree axis: ``bspline`` with ``degree=1``
-  (#821). ``razor-nec5`` (alias) is ``razor-2p``'s deprecated spelling, kept
-  because it shipped.
+- ``bs1`` (alias) is the degree axis: ``bs2`` with ``degree=1`` (#821).
+  ``razor-nec5``, the old spelling of ``razor2p``, is refused by name, as
+  momwire refuses it.
 """
 
 from __future__ import annotations
@@ -54,6 +58,8 @@ from momwire import (
     SinusoidalSolver,
 )
 
+from .engine_names import canonical_basis
+
 
 @dataclass(frozen=True)
 class Basis:
@@ -68,20 +74,19 @@ class Basis:
 BASES: Mapping[str, Basis] = MappingProxyType(
     {
         "sinusoidal": Basis(SinusoidalSolver),
-        "sinusoidal-galerkin": Basis(SinusoidalGalerkinSolver),
-        "bspline": Basis(BSplineSolver),
+        "sg": Basis(SinusoidalGalerkinSolver),
+        "bs2": Basis(BSplineSolver),
         "pulse": Basis(HarringtonSolver),
         "hmatrix": Basis(HMatrixSolver),
         "arrayblock": Basis(ArrayBlockSolver),
-        "razor-2p": Basis(RazorSolver, MappingProxyType({"nec5_quadrature": True})),
+        "razor2p": Basis(RazorSolver, MappingProxyType({"nec5_quadrature": True})),
     }
 )
 
 # CLI spelling -> (roster name, kwargs it adds to that name's binding).
 ALIASES: Mapping[str, tuple[str, Mapping[str, object]]] = MappingProxyType(
     {
-        "bspline-d1": ("bspline", MappingProxyType({"degree": 1})),
-        "razor-nec5": ("razor-2p", MappingProxyType({})),
+        "bs1": ("bs2", MappingProxyType({"degree": 1})),
     }
 )
 
@@ -93,7 +98,9 @@ def cli_names() -> list[str]:
 
 def resolve(name: str) -> tuple[str, type, dict[str, object]] | None:
     """``(roster name, solver class, bound kwargs)`` for a CLI basis name, or
-    None when it names no basis."""
+    None when it names no basis. A deprecated spelling (``bs2``) resolves
+    as its canonical name; a retired one raises `RetiredEngineName`."""
+    name = canonical_basis(name)
     roster, extra = ALIASES.get(name, (name, {}))
     basis = BASES.get(roster)
     if basis is None:

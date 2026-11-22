@@ -49,7 +49,7 @@ def _pins() -> an.Analysis:
                 an.Cell(an.State("low", design=INVVEE, base=5.0), engine="nec5"),
                 an.Cell(
                     an.State("tall", design=INVVEE, variant="dipole", base=12.0),
-                    engine="momwire:bspline",
+                    engine="momwire:bs2",
                     ground="finite-fast:13.0,0.005",
                 ),
             )
@@ -137,14 +137,14 @@ def test_the_runner_makes_one_cell_per_listed_cell_in_order():
         (
             # The ground part in the ground tabs' words, as the workbench
             # labels it; the spec stays what a reference names it by.
-            f"{INVVEE}:dipole, tall, momwire:bspline, refl-coef · average",
-            "momwire:bspline",
+            f"{INVVEE}:dipole, tall, momwire:bs2, refl-coef · average",
+            "momwire:bs2",
             "finite-fast:13.0,0.005",
             f"{INVVEE}:dipole",
         ),
     ]
     assert got[1].spelled == (
-        f"{INVVEE}:dipole, tall, momwire:bspline, finite-fast:13.0,0.005"
+        f"{INVVEE}:dipole, tall, momwire:bs2, finite-fast:13.0,0.005"
     )
     # What a cell leaves out follows the analysis.
     loose = an.Analysis(

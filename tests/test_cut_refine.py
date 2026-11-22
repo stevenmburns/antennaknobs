@@ -55,7 +55,7 @@ def _hertzian(h: float = 2.0, ground: bool = True) -> dict:
 _SOLVE_REQ = {
     "geometry": "dipoles.invvee",
     "measurement_freq_mhz": 28.47,
-    "momwire_model": "bspline",
+    "momwire_model": "bs2",
     "az_elev_deg": 15.0,
     "elev_az_deg": 45.0,
 }

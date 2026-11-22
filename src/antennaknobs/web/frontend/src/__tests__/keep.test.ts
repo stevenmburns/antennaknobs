@@ -24,7 +24,7 @@ import {
   sweepPinsBlocked,
 } from "../lib/keep";
 
-const ENGINES: Record<string, string> = { A: "momwire:bspline", B: "momwire:razor-2p", C: "nec5" };
+const ENGINES: Record<string, string> = { A: "momwire:bs2", B: "momwire:razor2p", C: "nec5" };
 const GROUNDS: Record<string, string> = { "X": "finite-fast", "Y": "free" };
 const env = (over: Partial<CrossEnv> = {}): CrossEnv => ({
   slots: Object.entries(ENGINES).map(([id, spec]) => ({
@@ -71,7 +71,7 @@ describe("listed cells are a union", () => {
       cell({
         label: "tall, razor",
         state: state("tall", { variant: "dipole", knobs: { base: 12 } }),
-        engine: "momwire:razor-2p",
+        engine: "momwire:razor2p",
         ground: "free",
         plane: "feed",
       }),
@@ -136,8 +136,8 @@ describe("listed cells are a union", () => {
     expect(cross.slots).toEqual(["A", "B", "C"]);
     const plan = crossPlan(cross, listed, env());
     expect(plan.cells.map((c) => [c.label, c.slot, c.ground, c.listed, c.refused])).toEqual([
-      ["A: momwire:bspline", "A", "Y", undefined, null],
-      ["B: momwire:razor-2p", "B", "Y", undefined, null],
+      ["A: momwire:bs2", "A", "Y", undefined, null],
+      ["B: momwire:razor2p", "B", "Y", undefined, null],
       ["C: nec5", "C", "Y", undefined, null],
     ]);
     expect(refusedLines(plan)).toEqual([]);

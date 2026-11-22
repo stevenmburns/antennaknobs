@@ -12,6 +12,8 @@ from __future__ import annotations
 import math
 from collections.abc import Mapping
 
+from ..engine_names import canonical_model
+
 #: The density parameter: the request field every engine meshes from
 #: (``AntennaBuilder.nominal_nsegs``, segments per λ/4 at the design
 #: frequency). The same name on the wire and in the request.
@@ -103,8 +105,8 @@ def _is_delta_gap(req: Mapping, solver_name: str) -> str | None:
         return None
     opts = req.get("model_options")
     if isinstance(opts, Mapping) and opts.get("feed_model") == "segment":
-        return f"{req.get('momwire_model') or 'momwire'} (segment gap)"
-    if req.get("momwire_model") == "sinusoidal":
+        return f"{canonical_model(req.get('momwire_model')) or 'momwire'} (segment gap)"
+    if canonical_model(req.get("momwire_model")) == "sinusoidal":
         return "Sinusoidal"
     return None
 

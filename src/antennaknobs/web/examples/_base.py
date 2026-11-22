@@ -290,7 +290,7 @@ class AntennaExample:
     default_backend: Optional[str] = None
     # Backend allowlist when the design is restricted to specific solver
     # backends; None = no restriction. Today: designs with PortAtEnd
-    # junction ports report ("bspline",) — only the dense B-spline solver
+    # junction ports report ("bs2",) — only the dense B-spline solver
     # implements junction ports (momwire#172), and NEC-2 has no equivalent
     # card at all (PyNECEngine rejects such designs at construction, issue
     # #579). Derived from the network spec by the adapter, not declared.

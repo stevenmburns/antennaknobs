@@ -172,7 +172,7 @@ def test_the_deliberately_unexposed_kwargs_are_ACCEPTED_and_still_not_listed():
     adding what the constructor happens to take.
     """
     by_name = {b.name: b for b in MOMWIRE}
-    # `("bspline", "feed_model")` used to be here and is NOT any more: the
+    # `("bs2", "feed_model")` used to be here and is NOT any more: the
     # row that justified it was wrong. It declared only the segment gap while
     # the constructor defaulted to the point gap, so "accepted and
     # deliberately not exposed" was really "accepted, mis-declared, and
@@ -180,8 +180,8 @@ def test_the_deliberately_unexposed_kwargs_are_ACCEPTED_and_still_not_listed():
     # offered now — the exclusion went away because its premise did, which is
     # the right way for one to end.
     cases = [
-        ("razor-2p", "degree", 2),
-        ("razor-2p", "n_qp_source", 16),
+        ("razor2p", "degree", 2),
+        ("razor2p", "n_qp_source", 16),
     ]
     for name, kwarg, value in cases:
         spec = by_name[name]
@@ -199,7 +199,7 @@ def test_the_deliberately_unexposed_kwargs_are_ACCEPTED_and_still_not_listed():
 
 
 def test_the_families_share_a_list_exactly_where_they_share_a_surface():
-    """bspline/hmatrix/arrayblock are one class and two accelerated
+    """bs2/hmatrix/arrayblock are one class and two accelerated
     subclasses, so three separate literals would be three things to drift.
 
     The sinusoidal pair does NOT share one any more, and that is the point:
@@ -208,11 +208,9 @@ def test_the_families_share_a_list_exactly_where_they_share_a_surface():
     shared tuple until that bug, and splitting them is the fix.
     """
     by_name = {b.name: b.model_kwargs for b in MOMWIRE}
-    assert by_name["bspline"] is by_name["hmatrix"] is by_name["arrayblock"]
-    assert by_name["sinusoidal"] is not by_name["sinusoidal-galerkin"]
-    assert set(by_name["sinusoidal-galerkin"]) - set(by_name["sinusoidal"]) == {
-        "feed_model"
-    }
+    assert by_name["bs2"] is by_name["hmatrix"] is by_name["arrayblock"]
+    assert by_name["sinusoidal"] is not by_name["sg"]
+    assert set(by_name["sg"]) - set(by_name["sinusoidal"]) == {"feed_model"}
 
 
 def test_the_exposed_lists_reproduce_the_pre_refactor_request_payloads():
@@ -226,8 +224,8 @@ def test_the_exposed_lists_reproduce_the_pre_refactor_request_payloads():
     """
     expected = {
         "sinusoidal": {"n_qp_const"},
-        "sinusoidal-galerkin": {"feed_model", "n_qp_const"},
-        "bspline": {
+        "sg": {"feed_model", "n_qp_const"},
+        "bs2": {
             "auto_tap_ratio_threshold",
             "degree",
             # ADDED DELIBERATELY. The stock request for this family now
@@ -245,9 +243,9 @@ def test_the_exposed_lists_reproduce_the_pre_refactor_request_payloads():
             "tikhonov_lambda",
             "use_singular_enrichment",
         },
-        "razor-2p": set(),
+        "razor2p": set(),
     }
-    expected["hmatrix"] = expected["arrayblock"] = expected["bspline"]
+    expected["hmatrix"] = expected["arrayblock"] = expected["bs2"]
     for name, want in expected.items():
         spec = next(b for b in MOMWIRE if b.name == name)
         got = set(spec.model_kwargs) - {"extended_kernel"}
@@ -264,4 +262,4 @@ def test_n_qp_const_belongs_to_the_sinusoidal_family_and_not_the_bspline_one():
     """
     by_name = {b.name: set(b.model_kwargs) for b in MOMWIRE}
     assert "n_qp_const" in by_name["sinusoidal"]
-    assert "n_qp_const" not in by_name["bspline"]
+    assert "n_qp_const" not in by_name["bs2"]

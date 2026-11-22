@@ -17,7 +17,7 @@ from antennaknobs.web.examples import REGISTRY
 
 
 def _solve(geometry: str, **kw) -> dict:
-    req = {"geometry": geometry, "momwire_model": "bspline", **kw}
+    req = {"geometry": geometry, "momwire_model": "bs2", **kw}
     return REGISTRY[geometry].momwire_solve(req)
 
 

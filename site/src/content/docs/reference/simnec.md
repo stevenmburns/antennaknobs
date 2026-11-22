@@ -332,7 +332,7 @@ and the import note says which. So a full-station `.ssn` opens by itself
 through Open… and on the hosted app, with no folder of sidecars. When every
 wire's count is held by `JamSegments`, SimNEC solves the file's own mesh, and
 the two agree: on a full-station file (a wire antenna, a measured
-transformer and choke as S blocks, and coax runs), `momwire:razor-2p` reads
+transformer and choke as S blocks, and coax runs), `momwire:razor2p` reads
 SimNEC's own Generator impedance within 0.06 % at the bottom and the top of
 its HF range.
 
@@ -619,7 +619,7 @@ through the antenna's field, is not in it. Model that as wires.
 
 `nec5_station.export_nec5_station(builder)` writes the antenna and its
 whole station as ONE NEC-5 deck, so the station runs on licensed NEC-5 (or
-momwire's `momwire-nec5-bspline` drop-in) with no antennaknobs installed:
+momwire's `momwire-nec5-bs2` drop-in) with no antennaknobs installed:
 
 ```python
 from antennaknobs.nec5_station import station_deck
@@ -664,7 +664,7 @@ block and 12 m of RG-58; `scratch/2209-station-deck/`):
 | run | against | agreement |
 | --- | --- | --- |
 | licensed NEC-5 | the station on NEC-5's own antenna | 1.3e-6 / 8.7e-6, inside the printout's rounding |
-| `momwire-nec5-bspline` | the station on the drop-in's own antenna | 1.5e-6 / 9.6e-6 |
+| `momwire-nec5-bs2` | the station on the drop-in's own antenna | 1.5e-6 / 9.6e-6 |
 | AK's importer → momwire | the station on momwire | 3.7e-8 / 5.4e-8, the pins' measured 4e-8 / 6e-8 |
 
 On a full-station model (a wire antenna fed at a wire junction, a measured

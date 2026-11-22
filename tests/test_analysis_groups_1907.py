@@ -180,7 +180,7 @@ def test_analyses_endpoint_serves_the_group():
             "geometry": "dipoles.invvee",
             "measurement_freq_mhz": 28.47,
             "design_freq_mhz": 28.47,
-            "momwire_model": "bspline",
+            "momwire_model": "bs2",
             "n_per_wire": 9,
         },
     )

@@ -219,7 +219,7 @@ PowerShell window here") and put `.\` in front of the name:
 
 ```powershell
 .\antennaknobs-cli.exe --help
-.\antennaknobs-cli.exe sweep --param nominal_nsegs --builder dipoles.invvee:dipole --engine momwire:bspline
+.\antennaknobs-cli.exe sweep --param nominal_nsegs --builder dipoles.invvee:dipole --engine momwire:bs2
 ```
 
 The second line is a convergence study: one cold solve per segment count, a

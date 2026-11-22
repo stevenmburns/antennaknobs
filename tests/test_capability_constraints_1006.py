@@ -8,7 +8,7 @@ can say WHY instead of vanishing — #1006 point 4.
 THE GATE THAT MATTERS IS ATTRIBUTION. A coupling belongs to the class that
 raises it, and the obvious filter — "show the couplings whose `value_a` this
 backend can be configured to" — mis-attributes three of the six rows. It would
-tell a `bspline` user that the extended kernel forbids `near_correction=False`,
+tell a `bs2` user that the extended kernel forbids `near_correction=False`,
 a keyword `BSplineSolver` does not have at all (measured: TypeError, not a
 refusal). `applies_to` exists because of that, and the tests below assert the
 mis-attribution does NOT happen rather than merely asserting the right rows
@@ -50,21 +50,21 @@ def test_a_backend_is_told_only_about_couplings_that_apply_to_IT():
     MEMBERSHIP, NEVER A COUNT. This used to assert `len(...) == 1`, which
     stopped meaning anything the moment momwire#888 added four rows — and a
     count cannot distinguish "the right rows" from "some rows". What is
-    actually being protected is the mis-attribution: `bspline` can be
+    actually being protected is the mis-attribution: `bs2` can be
     configured to `kernel=extended`, so a filter keyed on value reachability
     would hand it the Galerkin-only rows, and `BSplineSolver` has no
     `near_correction` keyword at all (measured: TypeError, not a refusal). A
     constraint naming one would be advice about a control the user lacks.
     """
     r = _rows()
-    forbids = {(c["axis"], c["forbids_axis"]) for c in r["bspline"]["constraints"]}
+    forbids = {(c["axis"], c["forbids_axis"]) for c in r["bs2"]["constraints"]}
     # The absence half — this is the guard.
     assert ("kernel", "near_correction") not in forbids
     assert ("kernel", "junctions") not in forbids
     # The presence half, so the absence cannot pass by returning nothing.
     # (`kernel` x `wire_position` left this row with momwire 0.78, which
     # serves the extended kernel beside a buried wire in part, momwire#1170,
-    # and razor-2p's with momwire 0.82, momwire#1614.)
+    # and razor2p's with momwire 0.82, momwire#1614.)
     assert ("kernel", "singular_enrichment") in forbids
     assert ("per_wire_radius", "singular_enrichment") in forbids
 
@@ -77,9 +77,7 @@ def test_the_galerkin_pair_is_split_the_right_way_round():
     """
     r = _rows()
     sin = {(c["axis"], c["forbids_axis"]) for c in r["sinusoidal"]["constraints"]}
-    sg = {
-        (c["axis"], c["forbids_axis"]) for c in r["sinusoidal-galerkin"]["constraints"]
-    }
+    sg = {(c["axis"], c["forbids_axis"]) for c in r["sg"]["constraints"]}
     assert ("testing", "feed_model") in sin
     assert ("testing", "feed_model") not in sg, (
         "the Galerkin solver serves the point gap — that is the whole reason "
@@ -111,7 +109,7 @@ def test_the_accelerators_get_their_own_row_not_their_parents():
 def test_empty_is_not_None_even_though_no_shipped_BACKEND_is_empty_now():
     """ "No constraints" and "cannot be asked" are different answers.
 
-    This used to ride on `razor-2p == []`. momwire#888's `contact+refl-coef`
+    This used to ride on `razor2p == []`. momwire#888's `contact+refl-coef`
     row names all six momwire classes, so NO shipped backend is empty any
     more — and a test asserting the distinction through a backend would have
     quietly stopped exercising the empty case while still passing on the None
@@ -144,7 +142,7 @@ def test_the_condition_travels_verbatim_and_is_None_when_flat():
     and it would send them to the wrong workaround, since uniform-radius
     junctions are the common case and are untouched."""
     r = _rows()
-    by_axis = {c["forbids_axis"]: c for c in r["sinusoidal-galerkin"]["constraints"]}
+    by_axis = {c["forbids_axis"]: c for c in r["sg"]["constraints"]}
     assert by_axis["junctions"]["condition"] == "a radius step at the junction"
     assert by_axis["near_correction"]["condition"] is None
 
@@ -156,12 +154,12 @@ def test_the_non_axis_rows_are_served_with_their_marker_not_dropped():
     leave a user picking the extended kernel with no warning at all. Served
     with `forbids_is_axis=False`, and the frontend decides.
 
-    Membership rather than "all of them": sinusoidal-galerkin now carries the
+    Membership rather than "all of them": sg now carries the
     `contact+refl-coef` row too, whose forbidden side IS an axis, so an
     `all(... is False)` sweep would fail for the right payload.
     """
     r = _rows()
-    by_axis = {c["forbids_axis"]: c for c in r["sinusoidal-galerkin"]["constraints"]}
+    by_axis = {c["forbids_axis"]: c for c in r["sg"]["constraints"]}
     for kwarg_side in ("near_correction", "junctions"):
         assert kwarg_side in by_axis
         assert by_axis[kwarg_side]["forbids_is_axis"] is False
@@ -227,7 +225,7 @@ def test_the_reason_is_momwires_own_prose():
 
 def test_the_payload_is_json():
     rows = _rows()
-    assert json.loads(json.dumps(rows["sinusoidal-galerkin"]))["constraints"]
+    assert json.loads(json.dumps(rows["sg"]))["constraints"]
 
 
 def test_a_momwire_without_the_table_answers_None():
@@ -264,7 +262,7 @@ def test_the_accelerators_ARE_told_about_the_refusals_they_inherit():
     original slipped through.
     """
     r = _rows()
-    for name in ("bspline", "hmatrix", "arrayblock"):
+    for name in ("bs2", "hmatrix", "arrayblock"):
         forbids = {c["forbids_axis"] for c in r[name]["constraints"]}
         assert "singular_enrichment" in forbids, name
         rows = [
@@ -279,6 +277,6 @@ def test_the_accelerators_ARE_told_about_the_refusals_they_inherit():
         }, (name, sorted(c["axis"] for c in rows))
     # ...and the families that do NOT take the keyword are still not told,
     # which is the half that was already guarded.
-    for name in ("sinusoidal", "sinusoidal-galerkin", "razor-2p"):
+    for name in ("sinusoidal", "sg", "razor2p"):
         forbids = {c["forbids_axis"] for c in r[name]["constraints"]}
         assert "singular_enrichment" not in forbids, name
