@@ -29,8 +29,17 @@ import { Card, CardGrid, LinkCard } from "@astrojs/starlight/components";
 {/* What's-new box: refresh as part of the release ritual (bump the version,
     swap the highlights) — a stale "new" box is worse than none. */}
 
-<Card title="New in v0.124.0" icon="star">
-  **On momwire 0.97.0, with shorter engine names.** The engines are now
+<Card title="New in v0.124.1" icon="star">
+  **On momwire 0.97.1.** momwire's advisories stay off unless you ask for
+  them (`MOMWIRE_ADVISORIES`), so the EZNEC drop-in no longer writes one on
+  every launch.
+
+  **Insulated wires on the ground reopen as you wrote them.** A NEC-5 deck
+  exported from a design with insulated radials lying on the soil now opens
+  with each jacket resting on the ground, so bs2 solves it instead of
+  refusing it as sunk into the soil.
+
+  **From v0.124.0: on momwire 0.97.0, with shorter engine names.** The engines are now
   `bs2`, `bs1`, `sg` and `razor2p` (were `bspline`, `bspline-d1`,
   `sinusoidal-galerkin` and `razor-2p`). The old names still work in saved
   settings, kept studies and on the command line, and are read as the new
@@ -50,7 +59,8 @@ import { Card, CardGrid, LinkCard } from "@astrojs/starlight/components";
   deck's own speed of light. Copy link says when it leaves out a multiband
   design's band settings.
 
-  Full notes: [v0.124.0](https://github.com/stevenmburns/antennaknobs/releases/tag/v0.124.0).
+  Full notes: [v0.124.1](https://github.com/stevenmburns/antennaknobs/releases/tag/v0.124.1),
+  [v0.124.0](https://github.com/stevenmburns/antennaknobs/releases/tag/v0.124.0).
 </Card>
 
 ## The whole pitch, in one line
