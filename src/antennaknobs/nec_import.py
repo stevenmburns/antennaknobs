@@ -5963,6 +5963,7 @@ def _translate_network_cards(
             # to invert.
             from .engines._nec_wire import (  # noqa: PLC0415
                 jacket_from_equivalent_radius,
+                jacket_resting_at,
             )
 
             for wi in by_wire:
@@ -5981,6 +5982,14 @@ def _translate_network_cards(
                         "read as a jacket pair",
                     )
                     continue
+                p1, p2 = wires[wi][2], wires[wi][3]
+                if ground and p1[2] == p2[2]:
+                    # A jacketed wire laid alongside the ground: read the
+                    # member of the family that rests on it rather than the
+                    # canonical one, which may sink into it (AK#2355).
+                    resting = jacket_resting_at(wires[wi][4], l_ins, p1[2])
+                    if resting is not None:
+                        inverted = resting
                 radius, insulation_radius, eps_r = inverted
                 wire_conductor_radius[wi] = radius
                 wire_insulation[wi] = (insulation_radius, eps_r)
