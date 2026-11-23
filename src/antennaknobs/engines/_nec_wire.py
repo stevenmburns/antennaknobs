@@ -215,3 +215,33 @@ def jacket_from_equivalent_radius(
     k = 1.0 - 1.0 / CANONICAL_INSULATION_EPS_R
     insulation_radius = radius * math.exp(ln_ratio / k)
     return radius, insulation_radius, CANONICAL_INSULATION_EPS_R
+
+
+def jacket_resting_at(
+    a_eq: float, inductance: float, height: float
+) -> tuple[float, float, float] | None:
+    """The member of the a′+L′ family (:func:`jacket_from_equivalent_radius`)
+    whose jacket RESTS on a ground ``height`` below the wire's axis: outer
+    radius b = ``height``, with the εr that keeps a′ and L′ exactly (AK#2355).
+
+    A deck cannot say which (b, εr) it meant, and every member is
+    electrically the same wire. But a wire laid alongside the ground at a
+    height under the canonical member's b would read as a jacket sunk into
+    the soil, which the deck never described: the engines judge the stand-off
+    by b. The resting member is the one reading of such a deck that is a wire
+    lying ON the ground, and it is what AK's own writers emit for a jacketed
+    wire laid there (axis one jacket radius up).
+
+    ``None`` when no member rests there: every member has b > a′, so a
+    ``height`` at or under a′ cannot be one; and a ``height`` at or above the
+    canonical b needs no other member.
+    """
+    inverted = jacket_from_equivalent_radius(a_eq, inductance)
+    if inverted is None:
+        return None
+    radius, canonical_b, _ = inverted
+    if not (a_eq < height < canonical_b):
+        return None
+    # k ln(b/a) = ln(a'/a) pins k = 1 - 1/εr for the chosen b.
+    k = math.log(a_eq / radius) / math.log(height / radius)
+    return radius, height, 1.0 / (1.0 - k)
