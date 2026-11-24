@@ -20,7 +20,12 @@ defines. With *n* unknowns the fill does about *n²* integrals and the factor
 about *n³* arithmetic, so the fill dominates a moderate mesh and the factor
 takes over as the mesh grows. Where that crossover falls depends on the
 engine and the ground: an integral over Sommerfeld ground costs far more than
-one in free space.
+one in free space. Measured on the 10-element Yagi below (same machine as the
+worked examples), the fill and the factor take equal time at about 2,300
+segments on Sinusoidal in free space, 3,200 on `razor2p` and 6,600 on `bs2`.
+Over Sommerfeld ground the fill stays the larger stage much longer: to about
+14,000 segments on Sinusoidal, and, extrapolating beyond the 9,300 measured,
+past 25,000 on `razor2p` and `bs2`.
 
 The two switches shorten different stages, and that decides which can help.
 **Reuse repeated geometry** computes each repeated pair of wires once and
@@ -86,7 +91,7 @@ design's wires, and its census is close to zero.
 
 **Compression** is pairs ÷ (computed + near): how far the matrix shrank. It
 is not the time saved. The long wire below compresses 1254× on `bs2` and its
-solve gets 7× faster, because the factor, and the copying itself, still take
+solve gets 4× faster, because the factor, and the copying itself, still take
 time. Over a ground the counts come in two sections, the free-space term and
 the ground terms; the ground terms depend on height as well as spacing, so
 fewer pairs share them.
@@ -138,8 +143,8 @@ All three are catalog designs you can open by name. Each is meshed well past
 the stock N so that a solve takes seconds; the **N** is the gear menu's
 segments per λ/4. The ground is the workbench's default Sommerfeld ground.
 
-Times are in seconds on one 16 GB laptop with 4 cores (Intel i7-8550U), at
-default threads. Each is the median of three solves after a first one, which
+Times are in seconds on one desktop, an Intel i7-6700K (4 cores, 8 threads)
+with 46 GB, at default threads, with nothing else running. Each is the median of three solves after a first one, which
 is how a running workbench sees a design it has already solved once. For the
 engines that search for repeats, **first** is the time of the first solve of
 that geometry, which includes the census. They are typical, not a promise:
@@ -154,20 +159,18 @@ N = 150: 2,550 segments.
 
 | engine | switch | state | fill | factor | total | first | Z (Ω) |
 |---|---|---|---|---|---|---|---|
-| `bs2` | off | dense, off | 5.56 | 0.38 | 5.96 | | 30.20 + j7.18 |
-| `bs2` | rotational symmetry | sector, 16 sectors | 0.60 | 0.00 | 0.61 | | 30.20 + j7.18 |
-| `bs2` | reuse | dense, served (2.8×) | 2.99 | 0.49 | 3.53 | | 30.20 + j7.18 |
-| Sinusoidal | off | dense, off | 2.65 | 0.42 | 3.08 | | 30.14 + j7.15 |
-| Sinusoidal | rotational symmetry | sector, 16 sectors | 0.18 | 0.00 | 0.20 | | 30.14 + j7.15 |
-| Sinusoidal | reuse | dense, served (16.9×) | 0.26 | 0.34 | 0.64 | 1.67 | 30.14 + j7.15 |
+| `bs2` | off | dense, off | 2.30 | 0.24 | 2.54 | | 30.20 + j7.18 |
+| `bs2` | rotational symmetry | sector, 16 sectors | 0.42 | 0.00 | 0.43 | | 30.20 + j7.18 |
+| `bs2` | reuse | dense, served (2.8×) | 1.39 | 0.23 | 1.62 | | 30.20 + j7.18 |
+| Sinusoidal | off | dense, off | 0.93 | 0.22 | 1.16 | | 30.14 + j7.15 |
+| Sinusoidal | rotational symmetry | sector, 16 sectors | 0.14 | 0.00 | 0.15 | | 30.14 + j7.15 |
+| Sinusoidal | reuse | dense, served (16.9×) | 0.22 | 0.24 | 0.49 | 1.20 | 30.14 + j7.15 |
 
-This is the design the sector route is for: about 10× faster on `bs2` and
-15× on Sinusoidal. The sector route computed 765,000 of the matrix's
+This is the design the sector route is for: about 6× faster on `bs2` and
+8× on Sinusoidal. The sector route computed 765,000 of the matrix's
 6,502,500 entries, and its factor became too small to show. Reuse helps too,
-but it leaves the factor as it was and, on Sinusoidal, pays a one-second
-census the first time. On a radial screen, tick rotational symmetry. (The
-Sinusoidal off times varied from 2.4 to 4.8 s between runs; the median is
-shown.)
+but it leaves the factor as it was and, on Sinusoidal, pays a census of
+about 0.7 s the first time. On a radial screen, tick rotational symmetry.
 
 ### A long wire
 
@@ -176,17 +179,17 @@ segments.
 
 | engine | switch | state | fill | factor | total | first | Z (Ω) |
 |---|---|---|---|---|---|---|---|
-| `bs2` | off | dense, off | 11.72 | 0.41 | 12.16 | | 131.69 − j13.38 |
-| `bs2` | reuse | dense, served (1254×) | 1.15 | 0.49 | 1.65 | | 131.69 − j13.38 |
-| Sinusoidal | off | dense, off | 2.07 | 0.32 | 2.46 | | 131.69 − j13.38 |
-| Sinusoidal | reuse | dense, served (499×) | 0.13 | 0.33 | 0.49 | 1.06 | 131.69 − j13.38 |
-| `razor2p` | off | dense, off | 2.09 | 0.36 | 2.43 | | 131.59 − j14.07 |
-| `razor2p` | reuse | dense, served (675×) | 0.52 | 0.37 | 0.97 | 1.58 | 131.59 − j14.07 |
+| `bs2` | off | dense, off | 2.96 | 0.21 | 3.17 | | 131.69 − j13.38 |
+| `bs2` | reuse | dense, served (1254×) | 0.56 | 0.21 | 0.77 | | 131.69 − j13.38 |
+| Sinusoidal | off | dense, off | 0.86 | 0.22 | 1.08 | | 131.69 − j13.38 |
+| Sinusoidal | reuse | dense, served (499×) | 0.12 | 0.21 | 0.35 | 0.79 | 131.69 − j13.38 |
+| `razor2p` | off | dense, off | 1.42 | 0.21 | 1.64 | | 131.59 − j14.07 |
+| `razor2p` | reuse | dense, served (675×) | 0.39 | 0.21 | 0.65 | 1.15 | 131.59 − j14.07 |
 
 A uniform wire is the best case for reuse: every segment pair at a given
-spacing is the same pair, so almost nothing is computed. `bs2` goes from 12.2
-to 1.7 s. Read the fill share as well: on Sinusoidal it falls from 87 % with
-reuse off to 28 % with it on. What is left is mostly the factor, which reuse
+spacing is the same pair, so almost nothing is computed. `bs2` goes from 3.2
+to 0.8 s. Read the fill share as well: on Sinusoidal it falls from 80 % with
+reuse off to 36 % with it on. What is left is mostly the factor, which reuse
 cannot shorten, so a finer mesh than this would gain less and less.
 
 ### A 10-element Yagi
@@ -196,31 +199,31 @@ cannot shorten, so a finer mesh than this would gain less and less.
 
 | engine | switch | state | fill | factor | total | first | Z (Ω) |
 |---|---|---|---|---|---|---|---|
-| `bs2` | off | dense, off | 3.53 | 0.25 | 3.80 | | 34.80 − j45.92 |
-| `bs2` | reuse | dense, served (1.6×) | 1.78 | 0.24 | 2.04 | | 34.80 − j45.92 |
-| Sinusoidal | off | dense, off | 1.40 | 0.21 | 1.61 | | 34.80 − j45.99 |
-| Sinusoidal | reuse | dense, served (5.5×) | 0.27 | 0.23 | 0.53 | 1.52 | 34.80 − j45.99 |
-| `razor2p` | off | dense, off | 1.55 | 0.21 | 1.77 | | 34.68 − j46.71 |
-| `razor2p` | reuse | dense, **declined** | 1.58 | 0.22 | 1.80 | 1.98 | 34.68 − j46.71 |
+| `bs2` | off | dense, off | 1.62 | 0.14 | 1.77 | | 34.80 − j45.92 |
+| `bs2` | reuse | dense, served (1.6×) | 1.27 | 0.15 | 1.42 | | 34.80 − j45.92 |
+| Sinusoidal | off | dense, off | 0.67 | 0.14 | 0.81 | | 34.80 − j45.99 |
+| Sinusoidal | reuse | dense, served (5.5×) | 0.22 | 0.14 | 0.38 | 1.15 | 34.80 − j45.99 |
+| `razor2p` | off | dense, off | 1.12 | 0.14 | 1.26 | | 34.68 − j46.71 |
+| `razor2p` | reuse | dense, **declined** | 1.08 | 0.14 | 1.22 | 1.46 | 34.68 − j46.71 |
 
 The directors repeat, but the compression is modest (1.6× on `bs2`, 5.5× on
-Sinusoidal): much of the matrix is still computed. `bs2` saves 1.8 s. Sinusoidal is 3× faster on a
-repeat solve, and barely faster on the first, because the census takes about
-as long as it saves. `razor2p` declined: *the plan and its census would
+Sinusoidal): much of the matrix is still computed. `bs2` saves 0.35 s. Sinusoidal is 2× faster on a
+repeat solve, and slower on the first (1.15 s against 0.81 s), because the
+census costs more than one solve saves. `razor2p` declined: *the plan and its census would
 exceed the 256 MB budget*. Its row is the ordinary solve plus the search
 that found the plan would not fit, and the Fill view says so rather than
 showing an "on" solve that did nothing.
 
 The same Yagi in free space, with no ground terms to compute, has a much
-cheaper fill: Sinusoidal fills it in 0.23 s with reuse off, and its first
-solve with reuse on takes 0.83 s against 0.50 s off. Where the fill is
+cheaper fill: Sinusoidal fills it in 0.13 s with reuse off, and its first
+solve with reuse on takes 0.60 s against 0.27 s off. Where the fill is
 already quick, the census can cost more than it saves.
 
 ## When it won't help
 
 - **A small deck.** At the stock `bs2` N of 15 the vertical with 16 radials
-  has 256 segments and solves in 0.08 s; the sector route takes it to 0.01 s,
-  and the 10-element Yagi (267 segments) takes 0.08 s with reuse off and 0.09 s
+  has 256 segments and solves in 0.07 s; the sector route takes it to 0.01 s,
+  and the 10-element Yagi (267 segments) takes 0.07 s with reuse off and 0.08 s
   with it on. Neither is
   something you will notice.
 - **A factor-dominated deck.** When the Fill view's share is low, reuse can
