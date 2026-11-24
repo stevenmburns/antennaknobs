@@ -1,0 +1,9 @@
+verticals.vertical {'n_radials': 1} ground=False: RotationalSymmetryRefused: rotational symmetry: no wire lies on a single vertical line, so the deck has no axial group and no axis. The route serves a radial screen about a vertical axis. Untick 'rotational symmetry (radial screens)' to solve this design densely.
+verticals.vertical {'n_radials': 4} ground=True: route=sector sectors=4 axial=1
+verticals.inverted_l {} ground=True: RotationalSymmetryRefused: rotational symmetry: no wire lies on a single vertical line, so the deck has no axial group and no axis. The route serves a radial screen about a vertical axis. Untick 'rotational symmetry (radial screens)' to solve this design densely.
+verticals.buried_radial_vertical {} ground=True: route=sector sectors=4 axial=2
+verticals.elevated_buried_counterpoise {} ground=True: route=sector sectors=4 axial=1
+verticals.elevated_buried_counterpoise {'n_elevated': 3} ground=True: RotationalSymmetryRefused: rotational symmetry: sector 1's wire has 2 vertices against sector 0's 10. Every sector must map onto the next under rotation by 2*pi/N, vertex for vertex. Untick 'rotational symmetry (radial screens)' to solve this design densely.
+verticals.raised_vertical {} ground=True: RotationalSymmetryRefused: rotational symmetry: sector 1 sits at 315.000 deg, where 2 sectors require 225.000 deg (tolerance 1e-09 x 8.2 m). Every sector must map onto the next under rotation by 2*pi/N. Untick 'rotational symmetry (radial screens)' to solve this design densely.
+broadband.discone {} ground=False: route=sector sectors=12 axial=1
+dipoles.dipole_turnstile {} ground=False: RotationalSymmetryRefused: rotational symmetry: no wire lies on a single vertical line, so the deck has no axial group and no axis. The route serves a radial screen about a vertical axis. Untick 'rotational symmetry (radial screens)' to solve this design densely.
