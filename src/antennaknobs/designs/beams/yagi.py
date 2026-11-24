@@ -19,6 +19,12 @@ class Builder(AntennaBuilder):
             "boom_factor": 0.2,
             "angle_deg": 0.0,
             "n_directors": 2,
+            # Every element built on the same core: a centre wire of +-eps and
+            # arms out to the director's half-length, the driver and reflector
+            # reaching their own lengths through extension wires. Equal wires
+            # mesh equally, and the elements sit at equal boom spacing, so the
+            # pairs between any two elements repeat and pair_reuse copies them.
+            "uniform_cores": False,
         }
     )
 
@@ -69,6 +75,11 @@ class Builder(AntennaBuilder):
 
         C, D, T = ry(B), ry(A), ry(S)
 
+        if self.uniform_cores:
+            return self._uniform_core_wires(
+                b, eps, driver_y, reflector_y, director_y, boom_x, y_cos, z_sin
+            )
+
         tups = [
             Wire(S, A),
             Wire(B, U),
@@ -83,4 +94,44 @@ class Builder(AntennaBuilder):
             C = ry(B)
             tups.extend([Wire(B, U), Wire(U, C)])
 
+        return tups
+
+    def _uniform_core_wires(
+        self, b, eps, driver_y, reflector_y, director_y, boom_x, y_cos, z_sin
+    ):
+        """Each element: centre wire (-eps, eps), core arms (eps, director_y)
+        on both sides, then extension arms out to the element's own half
+        length. The driver is fed on its centre wire.
+
+        Every element bends at +-eps, as the default driver does, so all
+        cores are congruent. At angle_deg != 0 the reflector and directors
+        therefore droop from +-eps rather than from the boom, which moves
+        their tips out by eps * (1 - cos(angle)) and up by eps * sin(angle)
+        at the same wire length; flat, they are the default layout's
+        elements exactly."""
+
+        def at(x, t):
+            # t is the distance along the element from its centre.
+            if abs(t) <= eps:
+                return (x, t, b)
+            r = abs(t) - eps
+            return (x, math.copysign(eps + r * y_cos, t), b - r * z_sin)
+
+        def element(x, half, ex=None):
+            wires = [
+                Wire(at(x, -eps), at(x, eps), **({"ex": ex} if ex is not None else {})),
+                Wire(at(x, eps), at(x, director_y)),
+                Wire(at(x, -director_y), at(x, -eps)),
+            ]
+            if half > director_y:
+                wires += [
+                    Wire(at(x, director_y), at(x, half)),
+                    Wire(at(x, -half), at(x, -director_y)),
+                ]
+            return wires
+
+        tups = element(0.0, driver_y, ex=1 + 0j)
+        tups += element(-boom_x, reflector_y)
+        for i in range(self.n_directors):
+            tups += element(boom_x * (1 + i), director_y)
         return tups
