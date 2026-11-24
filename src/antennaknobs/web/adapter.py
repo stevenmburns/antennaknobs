@@ -871,7 +871,7 @@ def _backend_axes(spec):
 
 def _offers_rotational_symmetry(spec) -> bool:
     """Whether `spec`'s momwire class exposes the sector (block-circulant)
-    route (momwire#1029) — the checkbox, unadvertised, on the bs2 panel.
+    route (momwire#1029) — the checkbox on the bs2 and Sinusoidal panels.
 
     Probed exactly the way `_backend_axes` probes every other composition
     fact: through `axes_for`, never a hand-kept backend-name list. A momwire
@@ -1536,9 +1536,8 @@ class _OptionSpec(NamedTuple):
     # this table would be the retyped-prose failure momwire#888 is about.
     shown_when: str | None = None
     # One sentence, rendered as the control's native `title` tooltip — the
-    # ONLY doc a knob gets beyond its own `label` (issue #1029's checkbox:
-    # unadvertised means no site page, no release note, nothing beyond what
-    # the control itself says). Optional and generic — most knobs carry none
+    # only text a knob carries beyond its own `label`; the site documents
+    # knobs separately. Optional and generic — most knobs carry none
     # — so adding it here never touches an existing spec.
     description: str | None = None
 
@@ -1870,11 +1869,10 @@ _OPTION_SPECS: dict[str, _OptionSpec] = {
     # served list reads as it always did.
     **_feature_specs(),
     # The sector (block-circulant) solve route for a rotationally symmetric
-    # radial screen (momwire#1029). Unadvertised on purpose (Steve, #1567
-    # thread): a checkbox on the bs2 panel, offered only where momwire's
+    # radial screen (momwire#1029): a checkbox offered only where momwire's
     # roster declares the route (`_offers_rotational_symmetry`, never a
-    # hand-kept backend list) and silently absent otherwise — no site page,
-    # no release note, nothing beyond this label and tooltip.
+    # hand-kept backend list) and silently absent otherwise. Advertised since
+    # Steve lifted the #1567 hold (2026-11-23): advanced/faster-solves.md.
     "rotational_symmetry": _OptionSpec(
         "bool",
         label="rotational symmetry (radial screens)",
@@ -6476,7 +6474,7 @@ _AXIS_VALUE_LABELS = {
         "dense": "dense",
         "aca": "ACA",
         "element-block": "element-block",
-        # momwire#1029, unadvertised (issue #1567): terse like its siblings,
+        # momwire#1029 (issue #1567): terse like its siblings,
         # never "rotational symmetry" — that phrase is the CHECKBOX's label,
         # which already exists once; the composition line names the AXIS
         # VALUE, the same register "dense"/"ACA" are in.

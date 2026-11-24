@@ -261,7 +261,7 @@ def test_the_roster_names_only_kwargs_the_catalogue_describes():
             seen.add(k)
     # ...and the catalogue is not carrying descriptions nobody can reach —
     # except a kwarg whose EXPOSURE is itself a live momwire-capability probe
-    # (`rotational_symmetry`, momwire#1029, unadvertised issue #1567). Its
+    # (`rotational_symmetry`, momwire#1029, issue #1567). Its
     # spec is unconditional (`_OPTION_SPECS`, so the frontend can always
     # render the checkbox WHEN a backend offers it), but no roster row names
     # it on the submodule pointer this suite runs against today — that is
