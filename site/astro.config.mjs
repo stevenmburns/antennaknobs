@@ -97,6 +97,7 @@ export default defineConfig({
             { label: "Cut for one band, worked on another", slug: "advanced/off-band" },
             { label: "Tuning for several bands", slug: "advanced/multiband-tuning" },
             { label: "How many segments?", slug: "advanced/convergence" },
+            { label: "Faster solves", slug: "advanced/faster-solves" },
             { label: "Antennas on a levee", slug: "advanced/terrain" },
             { label: "Calibrating against your VNA", slug: "advanced/calibrating" },
             { label: "Buried radials, two engines", slug: "advanced/buried-radials" },
