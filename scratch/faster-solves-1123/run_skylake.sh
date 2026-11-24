@@ -23,7 +23,8 @@ CAP=$((12 * 1024 * 1024 * 1024))
 {
   echo "# mode: $MODE  date: $(date -Is)"
   echo "# host: $(hostname) $(lscpu | sed -n 's/^Model name: *//p'), nproc $(nproc), $(free -g | awk '/Mem:/{print $2}') GB"
-  echo "# momwire: $($PY -c 'import momwire; print(momwire.__version__, momwire.__file__)') at $(git -C "$MW_SRC/.." rev-parse --short HEAD)"
+  # momwire has no __version__: read its pyproject, beside MW_SRC.
+  echo "# momwire: $(sed -n 's/^version = "\(.*\)"/\1/p' "$MW_SRC/../pyproject.toml") $($PY -c 'import momwire; print(momwire.__file__)') at $(git -C "$MW_SRC/.." rev-parse --short HEAD)"
   echo "# antennaknobs: $(git rev-parse --short HEAD) ($(git rev-parse --abbrev-ref HEAD))"
   echo "# OMP_NUM_THREADS=${OMP_NUM_THREADS:-unset} OPENBLAS_NUM_THREADS=${OPENBLAS_NUM_THREADS:-unset}"
 } >> "$OUTDIR/env.txt"
