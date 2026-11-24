@@ -1,0 +1,70 @@
+case                         sw   segs   fill factor census  total   cold  route  reuse            Z (readout)  |dZ|/|Z| vs off
+vertical16_sector_bs2        off  2550   2.30   0.24   0.00   2.54   3.26  dense  off          30.20 + j  7.18  
+                                  cold (rep 0, first solve of this geometry in the process): fill 2.92, census 0.00, factor 0.31, total 3.26
+vertical16_sector_bs2        on   2550   0.42   0.00   0.00   0.43   0.47  sector off          30.20 + j  7.18  1.3e-12
+                                  cold (rep 0, first solve of this geometry in the process): fill 0.43, census 0.00, factor 0.00, total 0.47
+                                  sector: 16 sectors, 1 axis wire(s), 765,000 of 6,502,500 entries computed
+vertical16_sector_sin        off  2550   0.93   0.22   0.00   1.16   1.21  dense  off          30.14 + j  7.15  
+                                  cold (rep 0, first solve of this geometry in the process): fill 0.99, census 0.00, factor 0.22, total 1.21
+vertical16_sector_sin        on   2550   0.14   0.00   0.00   0.15   0.17  sector off          30.14 + j  7.15  1.0e-08
+                                  cold (rep 0, first solve of this geometry in the process): fill 0.16, census 0.00, factor 0.00, total 0.17
+                                  sector: 16 sectors, 1 axis wire(s), 765,000 of 6,502,500 entries computed
+vertical16_reuse_bs2         off  2550   2.29   0.23   0.00   2.52   2.61  dense  off          30.20 + j  7.18  
+                                  cold (rep 0, first solve of this geometry in the process): fill 2.36, census 0.00, factor 0.23, total 2.61
+vertical16_reuse_bs2         on   2550   1.39   0.23   0.00   1.62   1.70  dense  served       30.20 + j  7.18  7.3e-12
+                                  cold (rep 0, first solve of this geometry in the process): fill 1.44, census 0.00, factor 0.23, total 1.70
+                                  reuse: 19,507,500 pairs, 6,982,451 computed, 12,525,049 reused, 0 near; compression 2.8x
+vertical16_reuse_sin         off  2550   0.93   0.22   0.00   1.15   1.21  dense  off          30.14 + j  7.15  
+                                  cold (rep 0, first solve of this geometry in the process): fill 0.99, census 0.00, factor 0.22, total 1.21
+vertical16_reuse_sin         on   2550   0.22   0.24   0.00   0.49   1.20  dense  served       30.14 + j  7.15  3.1e-11
+                                  cold (rep 0, first solve of this geometry in the process): fill 0.96, census 0.72, factor 0.22, total 1.20
+                                  reuse: 13,005,000 pairs, 743,817 computed, 12,235,774 reused, 25,409 near; compression 16.9x
+longwire_reuse_bs2           off  2507   2.96   0.21   0.00   3.17   3.78  dense  off         131.69 - j 13.38  
+                                  cold (rep 0, first solve of this geometry in the process): fill 3.55, census 0.00, factor 0.21, total 3.78
+longwire_reuse_bs2           on   2507   0.56   0.21   0.00   0.77   0.86  dense  served      131.69 - j 13.38  2.3e-11
+                                  cold (rep 0, first solve of this geometry in the process): fill 0.62, census 0.00, factor 0.21, total 0.86
+                                  reuse: 18,855,147 pairs, 15,039 computed, 18,840,108 reused, 0 near; compression 1253.8x
+longwire_reuse_sin           off  2507   0.86   0.22   0.00   1.08   1.12  dense  off         131.69 - j 13.38  
+                                  cold (rep 0, first solve of this geometry in the process): fill 0.91, census 0.00, factor 0.21, total 1.12
+longwire_reuse_sin           on   2507   0.12   0.21   0.00   0.35   0.79  dense  served      131.69 - j 13.38  1.4e-12
+                                  cold (rep 0, first solve of this geometry in the process): fill 0.56, census 0.41, factor 0.21, total 0.79
+                                  reuse: 12,570,098 pairs, 5,982 computed, 12,544,891 reused, 19,225 near; compression 498.7x
+longwire_reuse_razor         off  2506   1.42   0.21   0.00   1.64   1.73  dense  off         131.59 - j 14.07  
+                                  cold (rep 0, first solve of this geometry in the process): fill 1.48, census 0.00, factor 0.21, total 1.73
+longwire_reuse_razor         on   2506   0.39   0.21   0.00   0.65   1.15  dense  served      131.59 - j 14.07  1.5e-12
+                                  cold (rep 0, first solve of this geometry in the process): fill 0.88, census 0.49, factor 0.21, total 1.15
+                                  reuse: 18,840,108 pairs, 7,522 computed, 18,812,187 reused, 20,399 near; compression 674.8x
+yagi10_reuse_bs2             off  2153   1.62   0.14   0.00   1.77   2.01  dense  off          34.80 - j 45.92  
+                                  cold (rep 0, first solve of this geometry in the process): fill 1.85, census 0.00, factor 0.14, total 2.01
+yagi10_reuse_bs2             on   2153   1.27   0.15   0.00   1.42   1.44  dense  served       34.80 - j 45.92  2.7e-12
+                                  cold (rep 0, first solve of this geometry in the process): fill 1.27, census 0.00, factor 0.14, total 1.44
+                                  reuse: 13,906,227 pairs, 8,536,102 computed, 5,370,125 reused, 0 near; compression 1.6x
+yagi10_reuse_sin             off  2153   0.67   0.14   0.00   0.81   0.86  dense  off          34.80 - j 45.99  
+                                  cold (rep 0, first solve of this geometry in the process): fill 0.70, census 0.00, factor 0.16, total 0.86
+yagi10_reuse_sin             on   2153   0.22   0.14   0.00   0.38   1.15  dense  served       34.80 - j 45.99  3.2e-10
+                                  cold (rep 0, first solve of this geometry in the process): fill 1.00, census 0.76, factor 0.14, total 1.15
+                                  reuse: 9,270,818 pairs, 1,674,109 computed, 7,580,550 reused, 16,159 near; compression 5.5x
+yagi10_reuse_razor           off  2154   1.12   0.14   0.00   1.26   1.35  dense  off          34.68 - j 46.71  
+                                  cold (rep 0, first solve of this geometry in the process): fill 1.18, census 0.00, factor 0.14, total 1.35
+yagi10_reuse_razor           on   2154   1.08   0.14   0.00   1.22   1.46  dense  declined     34.68 - j 46.71  0.0e+00
+                                  cold (rep 0, first solve of this geometry in the process): fill 1.30, census 0.20, factor 0.14, total 1.46
+                                  declined: the plan and its census would exceed the 256 MB budget
+yagi10_free_reuse_bs2        off  2153   0.36   0.14   0.00   0.50   0.55  dense  off          35.68 - j 44.96  
+                                  cold (rep 0, first solve of this geometry in the process): fill 0.39, census 0.00, factor 0.14, total 0.55
+yagi10_free_reuse_bs2        on   2153   0.32   0.14   0.00   0.46   0.54  dense  served       35.68 - j 44.96  3.2e-12
+                                  cold (rep 0, first solve of this geometry in the process): fill 0.36, census 0.00, factor 0.15, total 0.54
+                                  reuse: 4,635,409 pairs, 2,045,594 computed, 2,589,815 reused, 0 near; compression 2.3x
+yagi10_free_reuse_sin        off  2153   0.13   0.14   0.00   0.27   0.28  dense  off          35.67 - j 45.03  
+                                  cold (rep 0, first solve of this geometry in the process): fill 0.13, census 0.00, factor 0.14, total 0.28
+yagi10_free_reuse_sin        on   2153   0.06   0.15   0.00   0.23   0.60  dense  served       35.67 - j 45.03  3.3e-10
+                                  cold (rep 0, first solve of this geometry in the process): fill 0.45, census 0.38, factor 0.14, total 0.60
+                                  reuse: 4,635,409 pairs, 838,834 computed, 3,780,416 reused, 16,159 near; compression 5.4x
+longwire_free_reuse_sin      off  2507   0.17   0.21   0.00   0.38   0.39  dense  off         131.53 - j 12.61  
+                                  cold (rep 0, first solve of this geometry in the process): fill 0.18, census 0.00, factor 0.21, total 0.39
+longwire_free_reuse_sin      on   2507   0.04   0.22   0.00   0.27   0.50  dense  served      131.53 - j 12.61  8.9e-13
+                                  cold (rep 0, first solve of this geometry in the process): fill 0.26, census 0.21, factor 0.22, total 0.50
+                                  reuse: 6,285,049 pairs, 3,206 computed, 6,262,618 reused, 19,225 near; compression 280.2x
+
+pooled off rows, verticals.vertical 16 radials (6 timed solves each):
+  bs2: fill 2.29, factor 0.23, total 2.53 (range 2.51-2.58)
+  sin: fill 0.93, factor 0.22, total 1.15 (range 1.14-1.16)

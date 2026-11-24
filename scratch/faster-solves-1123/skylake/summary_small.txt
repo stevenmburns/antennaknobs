@@ -1,0 +1,19 @@
+case                         sw   segs   fill factor census  total   cold  route  reuse            Z (readout)  |dZ|/|Z| vs off
+vertical16_sector_bs2        off   256   0.06   0.00   0.00   0.07   0.09  dense  off          30.17 + j  6.98  
+                                  cold (rep 0, first solve of this geometry in the process): fill 0.08, census 0.00, factor 0.00, total 0.09
+vertical16_sector_bs2        on    256   0.01   0.00   0.00   0.01   0.03  sector off          30.17 + j  6.98  9.1e-13
+                                  cold (rep 0, first solve of this geometry in the process): fill 0.02, census 0.00, factor 0.00, total 0.03
+                                  sector: 16 sectors, 1 axis wire(s), 7,936 of 65,536 entries computed
+yagi10_reuse_bs2             off   267   0.06   0.00   0.00   0.07   0.08  dense  off          34.80 - j 46.47  
+                                  cold (rep 0, first solve of this geometry in the process): fill 0.07, census 0.00, factor 0.00, total 0.08
+yagi10_reuse_bs2             on    267   0.08   0.00   0.00   0.08   0.10  dense  served       34.80 - j 46.47  1.1e-13
+                                  cold (rep 0, first solve of this geometry in the process): fill 0.09, census 0.00, factor 0.00, total 0.10
+                                  reuse: 213,867 pairs, 133,432 computed, 80,435 reused, 0 near; compression 1.6x
+longwire_reuse_bs2           off   209   0.03   0.00   0.00   0.03   0.05  dense  off         131.74 - j 13.32  
+                                  cold (rep 0, first solve of this geometry in the process): fill 0.04, census 0.00, factor 0.00, total 0.05
+longwire_reuse_bs2           on    209   0.01   0.00   0.00   0.01   0.03  dense  served      131.74 - j 13.32  2.7e-13
+                                  cold (rep 0, first solve of this geometry in the process): fill 0.02, census 0.00, factor 0.00, total 0.03
+                                  reuse: 131,043 pairs, 1,251 computed, 129,792 reused, 0 near; compression 104.8x
+
+pooled off rows, verticals.vertical 16 radials (6 timed solves each):
+  bs2: fill 0.06, factor 0.00, total 0.07 (range 0.07-0.07)
