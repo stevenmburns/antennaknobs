@@ -4,10 +4,10 @@ momwire-capability probe rather than a hand-kept name list, and left OFF the
 wire entirely for a backend that does not offer it — on BOTH the hosted and
 the local-verbatim request path.
 
-Steve's ask (issue thread, 2026-09-18): enable the route in AK, but not
-advertise it — a checkbox on the bs2 engine panel, "coded up through the
-roster". Unadvertised means: no site page, no release-note headline, no docs
-beyond the option's own label and tooltip.
+Steve's ask (issue thread, 2026-09-18): enable the route in AK as a
+checkbox on the bs2 engine panel, "coded up through the roster". It was
+unadvertised until Steve lifted that on 2026-11-23; the site's
+advanced/faster-solves page now describes it.
 
 THIS FILE RUNS UNDER WHATEVER MOMWIRE IS ON THE PATH, submodule pointer
 (0.58.0, no sector route) included — every assertion here holds true whether
@@ -59,7 +59,7 @@ NEVER_OFFERS = (
 )
 
 
-def test_the_option_is_a_plain_unadvertised_bool():
+def test_the_option_is_a_plain_bool():
     spec = _OPTION_SPECS["rotational_symmetry"]
     assert spec.kind == "bool"
     assert spec.default is False

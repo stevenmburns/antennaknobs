@@ -88,7 +88,7 @@ def _controls(row) -> set[str]:
 # way: `renderableOptions`' Rule 3 ("no axis governs this kwarg, so the
 # kwarg list decides") draws a plain `OptionField` straight from a served
 # `model_kwargs` entry, bypassing `axisControls`/`AXIS_KWARG` entirely.
-# `rotational_symmetry` (momwire#1029, unadvertised issue #1567) is the
+# `rotational_symmetry` (momwire#1029, issue #1567) is the
 # first of these — its axis is `solve_strategy` and there is deliberately
 # no bespoke widget for it, unlike `degree`/`kernel`/`feed_model`/
 # `quadrature`. The invariant this file exists to protect (a control a

@@ -1278,7 +1278,7 @@ function currentAxisValue(axis: string, opts: BackendOpts): string | undefined {
       const f = opts.model.feed_model;
       return f === "point" ? "point-gap" : f === "segment" ? "segment-gap" : undefined;
     }
-    // momwire#1029, unadvertised (issue #1567): free only on a momwire that
+    // momwire#1029 (issue #1567): free only on a momwire that
     // serves the sector route at all — `solve_strategy` stays single-valued
     // (fixed, never reaching here) everywhere else, hmatrix/arrayblock
     // included, since their OWN axis excludes "sector" (see

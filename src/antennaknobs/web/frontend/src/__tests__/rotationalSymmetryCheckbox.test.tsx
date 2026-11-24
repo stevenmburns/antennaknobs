@@ -1,6 +1,6 @@
 /**
  * The `rotational_symmetry` checkbox (momwire#1029's sector route), served
- * unadvertised on the bs2 panel — issue #1567/Steve's ask, 2026-09-18.
+ * on the bs2 panel — issue #1567/Steve's ask, 2026-09-18.
  *
  * No bespoke widget: unlike the EK card, this control has NO per-engine
  * component of its own. It renders wherever `renderableOptions` names it
