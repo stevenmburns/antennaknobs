@@ -28,6 +28,21 @@ class Transform:
         )
 
     @staticmethod
+    def mirrorYZ():
+        """Reflect across the YZ plane (x -> -x)."""
+        return Transform.scale(sx=-1)
+
+    @staticmethod
+    def mirrorXZ():
+        """Reflect across the XZ plane (y -> -y)."""
+        return Transform.scale(sy=-1)
+
+    @staticmethod
+    def mirrorXY():
+        """Reflect across the XY plane (z -> -z)."""
+        return Transform.scale(sz=-1)
+
+    @staticmethod
     def rotX(theta_degrees):
         c = np.cos(np.pi / 180 * theta_degrees)
         s = np.sin(np.pi / 180 * theta_degrees)
