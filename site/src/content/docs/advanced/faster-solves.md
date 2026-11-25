@@ -192,32 +192,72 @@ to 0.8 s. Read the fill share as well: on Sinusoidal it falls from 80 % with
 reuse off to 36 % with it on. What is left is mostly the factor, which reuse
 cannot shorten, so a finer mesh than this would gain less and less.
 
-### A 10-element Yagi
+### A 10-element Yagi, and designing for reuse
 
 `beams.yagi` with 8 directors (the **n_directors** knob), N = 120: about
 2,150 segments.
 
 | engine | switch | state | fill | factor | total | first | Z (Ω) |
 |---|---|---|---|---|---|---|---|
-| `bs2` | off | dense, off | 1.62 | 0.14 | 1.77 | | 34.80 − j45.92 |
-| `bs2` | reuse | dense, served (1.6×) | 1.27 | 0.15 | 1.42 | | 34.80 − j45.92 |
-| Sinusoidal | off | dense, off | 0.67 | 0.14 | 0.81 | | 34.80 − j45.99 |
-| Sinusoidal | reuse | dense, served (5.5×) | 0.22 | 0.14 | 0.38 | 1.15 | 34.80 − j45.99 |
-| `razor2p` | off | dense, off | 1.12 | 0.14 | 1.26 | | 34.68 − j46.71 |
-| `razor2p` | reuse | dense, **declined** | 1.08 | 0.14 | 1.22 | 1.46 | 34.68 − j46.71 |
+| `bs2` | off | dense, off | 1.62 | 0.14 | 1.76 | | 34.80 − j45.92 |
+| `bs2` | reuse | dense, served (1.9×) | 1.14 | 0.14 | 1.31 | | 34.80 − j45.92 |
+| Sinusoidal | off | dense, off | 0.68 | 0.14 | 0.82 | | 34.80 − j45.99 |
+| Sinusoidal | reuse | dense, served (5.5×) | 0.22 | 0.14 | 0.37 | 1.16 | 34.80 − j45.99 |
+| `razor2p` | off | dense, off | 1.12 | 0.15 | 1.27 | | 34.68 − j46.71 |
+| `razor2p` | reuse | dense, served (5.6×) | 0.38 | 0.14 | 0.55 | 1.33 | 34.68 − j46.71 |
 
-The directors repeat, but the compression is modest (1.6× on `bs2`, 5.5× on
-Sinusoidal): much of the matrix is still computed. `bs2` saves 0.35 s. Sinusoidal is 2× faster on a
-repeat solve, and slower on the first (1.15 s against 0.81 s), because the
-census costs more than one solve saves. `razor2p` declined: *the plan and its census would
-exceed the 256 MB budget*. Its row is the ordinary solve plus the search
-that found the plan would not fit, and the Fill view says so rather than
-showing an "on" solve that did nothing.
+The directors repeat, but the compression is modest: much of the matrix is
+still computed. The reason is in how the Yagi is built. Its elements have
+different lengths, so they mesh differently, and a segment on one element
+seldom sits in the same position relative to a segment on another. Only
+pairs that line up exactly can be copied.
 
-The same Yagi in free space, with no ground terms to compute, has a much
-cheaper fill: Sinusoidal fills it in 0.13 s with reuse off, and its first
-solve with reuse on takes 0.60 s against 0.27 s off. Where the fill is
-already quick, the census can cost more than it saves.
+The **uniform_cores** box in the Yagi's parameters builds every element on
+the same core instead: a short centre wire and two arms out to the
+director's half-length. The driver and the reflector reach their own,
+longer, lengths through extension wires on each end. Equal wires mesh
+equally, and the elements sit at equal spacing along the boom, so nearly
+every pair between two elements repeats. The antenna is the same; only the
+way its wires are divided has changed, and the impedance agrees with the
+default layout to within 0.05 Ω on every engine. The same Yagi with
+**uniform_cores** ticked (about 2,165 segments):
+
+| engine | switch | state | fill | factor | total | first | Z (Ω) |
+|---|---|---|---|---|---|---|---|
+| `bs2` | off | dense, off | 1.67 | 0.15 | 1.82 | | 34.80 − j45.91 |
+| `bs2` | reuse | dense, served (2.7×) | 0.88 | 0.14 | 1.04 | | 34.80 − j45.91 |
+| Sinusoidal | off | dense, off | 0.68 | 0.15 | 0.83 | | 34.80 − j45.97 |
+| Sinusoidal | reuse | dense, served (55×) | 0.12 | 0.14 | 0.28 | 0.68 | 34.80 − j45.97 |
+| `razor2p` | off | dense, off | 1.12 | 0.15 | 1.28 | | 34.68 − j46.66 |
+| `razor2p` | reuse | dense, served (49×) | 0.25 | 0.14 | 0.42 | 0.91 | 34.68 − j46.66 |
+
+On Sinusoidal and `razor2p` the compression goes from about 5.5× to about
+50×, and the fill becomes a small part of the solve. The first solve
+benefits most, because the census also finds the repeats faster: on
+Sinusoidal it now takes 0.68 s, which beats the 0.82 s with reuse off,
+where on the default layout it lost (1.16 s). `razor2p`'s first solve
+drops from 1.33 s to 0.91 s.
+
+`bs2` gains less. Over Sommerfeld ground its compression only rises from
+1.9× to 2.7×, although in free space the same layout compresses 51×, so
+over ground most of its matrix is still computed. Its repeat solve still
+drops from 1.31 s to 1.04 s.
+
+With reuse off, the two layouts take about the same time, so ticking
+**uniform_cores** costs nothing on its own. It is worth ticking whenever
+you tick reuse on a long Yagi.
+
+In free space, with no ground terms to compute, the fill is already cheap:
+Sinusoidal fills the default layout in 0.13 s with reuse off. There the
+census can cost more than it saves: the first solve with reuse on takes
+0.60 s against 0.28 s off. Uniform cores narrows that to 0.38 s, but does
+not close it.
+
+The general lesson applies to any design you build: reuse rewards
+geometry that is divided the same way. Wires of equal length, at equal
+spacing, meshed with the same segment count, give the census repeats to
+find. Where the antenna allows it, build the parts that differ as
+extensions on a common core.
 
 ## When it won't help
 
