@@ -123,6 +123,21 @@ def test_axis_wires_run_along_the_frames_own_axes():
     assert len(st.wires) == 3
 
 
+def test_a_tracer_hears_every_push_and_emit_and_costs_nothing_unset():
+    seen = []
+    st = TransformStack()
+    assert st.tracer is None
+    st.tracer = lambda kind, s: seen.append((kind, len(s.stack), len(s.wires)))
+    with st.push_pop_tr(Transform.translate(0, 0, 1)):
+        st.wire_x(0, 1)
+        st.path([(0, 0, 0), (0, 1, 0), (0, 2, 0)])
+    assert seen == [
+        ("push", 2, 0),
+        ("emit", 2, 1),
+        ("emit", 2, 2),
+        ("emit", 2, 3),
+    ]
+
 
 def test_mirrors_are_named_for_the_plane_they_reflect_across():
     p = (1, 2, 3)
