@@ -1,4 +1,5 @@
 import numpy as np
+import pytest
 from antennaknobs import Transform, TransformStack
 from antennaknobs.network import Wire
 
@@ -74,3 +75,49 @@ def test_push_pop_tr():
     except RuntimeError:
         pass
     assert len(st.stack) == 1
+
+
+def test_path_shares_endpoints_and_closes():
+    st = TransformStack()
+    st.push(Transform.translate(0, 0, 5))
+    pts = [(0, 0, 0), (1, 0, 0), (1, 1, 0)]
+    wires = st.path(pts, closed=True)
+    assert wires == st.wires
+    assert [(w.p0, w.p1) for w in wires] == [
+        ((0, 0, 5), (1, 0, 5)),
+        ((1, 0, 5), (1, 1, 5)),
+        ((1, 1, 5), (0, 0, 5)),
+    ]
+    # Every joint is the same point twice, bit for bit.
+    for a, b in zip(wires, wires[1:] + wires[:1], strict=True):
+        assert a.p1 == b.p0
+
+
+def test_path_feed_goes_on_every_segment_or_the_one_named():
+    pts = [(0, 0, 0), (1, 0, 0), (2, 0, 0)]
+    every = TransformStack().path(pts, ex=1 + 0j)
+    assert [w.ex for w in every] == [1 + 0j, 1 + 0j]
+    one = TransformStack().path(pts, ex=1 + 0j, ex_segment=-1)
+    assert [w.ex for w in one] == [None, 1 + 0j]
+    with pytest.raises(ValueError):
+        TransformStack().path(pts, ex=1 + 0j, ex_segment=2)
+    with pytest.raises(ValueError):
+        TransformStack().path(pts[:1])
+
+
+def test_path_hands_other_wire_fields_to_every_segment():
+    ws = TransformStack().path([(0, 0, 0), (1, 0, 0), (2, 0, 0)], n_seg=7, name="arm")
+    assert [(w.n_seg, w.name) for w in ws] == [(7, "arm"), (7, "arm")]
+
+
+def test_axis_wires_run_along_the_frames_own_axes():
+    st = TransformStack()
+    st.push(Transform.translate(1, 2, 3))
+    with st.push_pop_tr(Transform.rotZ(90)):
+        # In the rotated frame +X is the parent's +Y.
+        w = st.wire_x(0, 5, ex=1 + 0j)
+    assert np.allclose(w.p0, (1, 2, 3)) and np.allclose(w.p1, (1, 7, 3))
+    assert w.ex == 1 + 0j
+    assert st.wire_y(-1, 1, x=2)[:2] == ((3, 1, 3), (3, 3, 3))
+    assert st.wire_z(0, 4, x=1, y=1)[:2] == ((2, 3, 3), (2, 3, 7))
+    assert len(st.wires) == 3
