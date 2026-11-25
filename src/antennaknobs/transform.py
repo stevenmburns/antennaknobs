@@ -82,9 +82,16 @@ class TransformStack:
     def __init__(self):
         self.stack = [Transform()]
         self.wires = []
+        # A callable ``tracer(kind, stack)`` told after every push ("push",
+        # the new top is in place) and every emit ("emit", the wire is
+        # appended). Left None by designs; an editor sets it to learn which
+        # statement ran under which frame (docs/design/block-builder.md).
+        self.tracer = None
 
     def push(self, tr):
         self.stack.append(self.stack[-1].postmult(tr))
+        if self.tracer is not None:
+            self.tracer("push", self)
 
     def pop(self):
         self.stack.pop()
@@ -97,6 +104,8 @@ class TransformStack:
         with both endpoints under the current transform."""
         w = as_wire(raw_w)
         self.wires.append(w._replace(p0=self.hit(w.p0), p1=self.hit(w.p1)))
+        if self.tracer is not None:
+            self.tracer("emit", self)
 
     @contextmanager
     def push_pop_tr(self, tr: Transform):
