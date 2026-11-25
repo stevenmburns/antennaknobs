@@ -239,9 +239,12 @@ where on the default layout it lost (1.16 s). `razor2p`'s first solve
 drops from 1.33 s to 0.91 s.
 
 `bs2` gains less. Over Sommerfeld ground its compression only rises from
-1.9× to 2.7×, although in free space the same layout compresses 51×, so
-over ground most of its matrix is still computed. Its repeat solve still
-drops from 1.31 s to 1.04 s.
+1.9× to 2.7×, although in free space the same layout compresses 51×. Over
+ground `bs2` fills three terms, and it does not yet reuse one of them, the
+ground image, across wires
+([momwire#2074](https://github.com/stevenmburns/momwire/issues/2074)), so
+that term is still computed almost in full. Its repeat solve still drops
+from 1.31 s to 1.04 s.
 
 With reuse off, the two layouts take about the same time, so ticking
 **uniform_cores** costs nothing on its own. It is worth ticking whenever
