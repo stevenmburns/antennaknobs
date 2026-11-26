@@ -144,3 +144,35 @@ def test_mirrors_are_named_for_the_plane_they_reflect_across():
     assert Transform.mirrorYZ().hit(p) == (-1, 2, 3)
     assert Transform.mirrorXZ().hit(p) == (1, -2, 3)
     assert Transform.mirrorXY().hit(p) == (1, 2, -3)
+
+
+def test_wire_spec_sets_the_default_spec_innermost_wins():
+    from antennaknobs.wire_catalog import WIRES
+
+    thick, thin = WIRES["12-awg"], WIRES["28-awg"]
+    st = TransformStack()
+    st.wire_x(0, 1)
+    with st.wire_spec(thick):
+        st.wire_x(1, 2)
+        with st.push_pop_tr(Transform.translate(0, 0, 5)), st.wire_spec(thin):
+            st.wire_x(2, 3)
+            # An explicit per-wire spec wins over the block's.
+            st.wire_x(3, 4, spec=thick)
+            with st.wire_spec(None):
+                st.wire_x(4, 5)
+        st.path([(5, 0, 0), (6, 0, 0)])
+    st.wire_x(6, 7)
+    assert [w.spec for w in st.wires] == [None, thick, thin, thick, None, thick, None]
+    # The spec is the stock, never scaled by the transform.
+    assert st.wires[2].spec.radius == thin.radius
+    assert st.wires[2].p0 == (2, 0, 5)
+
+
+def test_wire_spec_pops_when_the_block_raises():
+    from antennaknobs.wire_catalog import WIRES
+
+    st = TransformStack()
+    with pytest.raises(RuntimeError), st.wire_spec(WIRES["14-awg"]):
+        raise RuntimeError
+    st.wire_x(0, 1)
+    assert st.wires[0].spec is None
