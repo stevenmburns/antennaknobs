@@ -319,13 +319,20 @@ def _unknown_builder_message(nm):
 def get_builder(nm):
     """Resolve a builder spec into a zero-arg factory.
 
-    Spec is "name", "name:variant", or "@path/to/file.nec|.ssn|.maa|.ez". A variant
+    Spec is "name", "name:variant", or "@path/to/file.nec|.ssn|.maa|.ez|.json". A variant
     binds the named '<variant>_params' class attribute as the builder's
     params; absent or ':default' uses default_params. An "@" spec loads an
-    antenna data file directly (see ``file_designs``) — pure data, no trust
+    antenna data file directly (see ``file_designs``; a ``.json`` is a block
+    program, ``block_design``) — pure data, no trust
     step — and takes no variant suffix, so colons in the path (Windows drive
     letters) pass through untouched.
     """
+    if nm.startswith("@") and nm.lower().endswith(".json"):
+        # A block program is data run by an interpreter, never exec'd, so it
+        # needs no trust step either (docs/design/block-builder.md, G5).
+        from .block_design import builder_from_json_file
+
+        return builder_from_json_file(nm[1:])
     if nm.startswith("@"):
         from .file_designs import builder_from_file
 
@@ -1208,14 +1215,22 @@ def cli(arguments=None):
                 "SimNEC circuit / MMANA-GAL model / EZNEC model directly.",
             )
         else:
-            p.add_argument(
+            which = p.add_mutually_exclusive_group()
+            which.add_argument(
                 "--builder",
                 type=str,
                 default="dipoles.invvee:dipole",
                 help='Use this antenna builder: "family.design[:variant]", '
                 '"user.<name>", or "@file.nec" / "@file.ssn" / "@file.maa" / '
                 '"@file.ez" to load a card deck / SimNEC circuit / MMANA-GAL '
-                "model / EZNEC model directly.",
+                "model / EZNEC model directly, or @file.json for a block program.",
+            )
+            which.add_argument(
+                "--blocks",
+                metavar="FILE.json",
+                default=None,
+                help="Run this block program (docs/design/block-json-v1.md) as "
+                "the design: the same as --builder @FILE.json.",
             )
 
     def add_engine_args(p, plural=False, allow_multi=False):
@@ -3474,6 +3489,10 @@ def cli(arguments=None):
     p.set_defaults(func=f)
 
     args = parser.parse_args(args=arguments)
+    if getattr(args, "blocks", None) is not None:
+        # Every command reads its design from args.builder; --blocks is
+        # spelled through the @ form so they all take it unchanged.
+        args.builder = f"@{args.blocks}"
     if args.command is None:
         # `-v` alone (AK#1769) parsed as verbosity with no command, and then
         # `args.func` did not exist: a traceback for a user checking the
