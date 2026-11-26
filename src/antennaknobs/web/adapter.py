@@ -6220,6 +6220,7 @@ def _make_example(name: str, cls, *, defer_hints: bool = False) -> AntennaExampl
         nec4_export=nec4_export,
         ssn_export=ssn_export,
         schematic_svg=schematic_svg,
+        solve_builder=_solve_builder,
         params_source=params_source,
         far_field_metrics=far_field_metrics,
         engine_metrics=engine_metrics,

@@ -402,6 +402,11 @@ class AntennaExample:
     # the /schematic endpoint then answers "no feed circuit" instead of
     # drawing an empty picture.
     schematic_svg: Optional[Callable[[dict], Optional[str]]] = None
+    # The builder a solve-forming request describes (the request's knobs,
+    # measurement and design frequency), built the way every solve builds it.
+    # The station rail (web/station_rail_api.py) puts its chain on it. None
+    # for an example made without the adapter's closures.
+    solve_builder: Optional[Callable[[dict], Any]] = None
     # Serialise the request's current knob values back to a paste-ready
     # Python `default_params = {...}` (or named-variant) block, so the UI can
     # offer a "Copy Python" action that drops straight into a design file.
