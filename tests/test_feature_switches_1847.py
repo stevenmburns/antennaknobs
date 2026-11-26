@@ -41,6 +41,7 @@ TABS = {
     "crossing_above_rule": ("bs2",),
     "kcl_nullspace": ("bs2",),
     "nec2_end_cap": ("sinusoidal",),
+    "mixed_lu": ("bs2", "sinusoidal", "razor2p"),
 }
 
 

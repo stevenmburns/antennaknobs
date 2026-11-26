@@ -41,7 +41,10 @@ describe("modelOptionsForRequest", () => {
     // route, `false` by default. ADDED with momwire 0.95.0 (#2041): the NEC-2
     // free-end cap, `false` by default and never seeded. ADDED with momwire
     // 0.96.0 (#2085): NEC-2's far-pair approximation, `false` by default.
+    // ADDED with momwire 0.98.0: the mixed-precision factor, `false` by
+    // default.
     expect(Object.keys(result).sort()).toEqual([
+      "mixed_lu",
       "n_qp_const",
       "nec2_end_cap",
       "nec2_far_approx",
@@ -58,11 +61,12 @@ describe("modelOptionsForRequest", () => {
       point_cplx_staged: false,
       nec2_end_cap: false,
       nec2_far_approx: false,
+      mixed_lu: false,
     });
     expect(result).not.toHaveProperty("feed_model");
   });
 
-  it("bs2 sends the nineteen b-spline kwargs, feed_model among them", () => {
+  it("bs2 sends the twenty b-spline kwargs, feed_model among them", () => {
     const model = {
       degree: 1,
       n_qp_pair: 5,
@@ -98,6 +102,9 @@ describe("modelOptionsForRequest", () => {
         // before the factor; `false` by default, and on it moves Z only in
         // the last digits.
         "kcl_nullspace",
+        // ADDED with momwire 0.98.0: the mixed-precision factor; `false` by
+        // default, and on it moves Z only in the last digits.
+        "mixed_lu",
         "n_qp_pair",
         "n_qp_sing",
         "n_qp_source",
@@ -146,6 +153,7 @@ describe("modelOptionsForRequest", () => {
       crossing_table: false,
       crossing_above_rule: false,
       kcl_nullspace: false,
+      mixed_lu: false,
     });
     // Not set in the model literal above, so it carries the SERVED default —
     // which is the value this family was already solving with.
@@ -222,7 +230,8 @@ describe("modelOptionsForRequest", () => {
     // free-end cap with 0.95.0 (#2041).
     expect(stock("sinusoidal")).toBe(
       '{"n_qp_const":8,"rotational_symmetry":false,"pair_reuse":false,' +
-        '"transmitted_anchors":false,"point_cplx_staged":false,"nec2_end_cap":false,"nec2_far_approx":false}',
+        '"transmitted_anchors":false,"point_cplx_staged":false,"nec2_end_cap":false,"nec2_far_approx":false,' +
+        '"mixed_lu":false}',
     );
     // "point" since momwire#654 made it the solver's default — the wire
     // format still carries the value explicitly, so a request says which
@@ -240,7 +249,7 @@ describe("modelOptionsForRequest", () => {
       BSPLINE_JSON.slice(0, -1) +
         ',"rotational_symmetry":false,"pair_reuse":false,"transmitted_anchors":false' +
         ',"factored_columns":true,"height_sheet_recal":true,"crossing_table":false' +
-        ',"crossing_above_rule":false,"kcl_nullspace":false}',
+        ',"crossing_above_rule":false,"kcl_nullspace":false,"mixed_lu":false}',
     );
     expect(stock("hmatrix")).toBe(BSPLINE_JSON);
     expect(stock("arrayblock")).toBe(BSPLINE_JSON);

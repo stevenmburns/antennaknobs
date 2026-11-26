@@ -356,6 +356,17 @@ export const SERVED_OPTION_SPECS: ModelOptionSpecs =
     "shown_when_value": null,
     "description": "Uses NEC-2's interaction approximation: segment pairs more than a wavelength apart (or a deck's KH range) are filled from a lumped current, as NEC-2 does. A faster fill on large decks, and closer to NEC-2 engines there, at the cost of the answer's last digits. Results move by up to 1e-03 relative: compare against a solve with this off before trusting them."
   },
+  "mixed_lu": {
+    "kind": "bool",
+    "label": "mixed-precision solve (faster)",
+    "default": false,
+    "auto_when_null": false,
+    "shown_when": null,
+    "gate_label": null,
+    "gate_on_value": null,
+    "shown_when_value": null,
+    "description": "Factors the moment matrix in single precision, about twice as fast, then refines the answer against the double-precision matrix until it is as accurate as the ordinary solve; any solve that does not converge cleanly is redone the ordinary way. Memory: the matrix plus a half-size copy. Results change only in the last digits."
+  },
   "rotational_symmetry": {
     "kind": "bool",
     "label": "rotational symmetry (radial screens)",

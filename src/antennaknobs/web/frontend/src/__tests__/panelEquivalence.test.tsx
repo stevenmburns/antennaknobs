@@ -192,6 +192,8 @@ describe.each(BSPLINE_FAMILY)("%s — the panel the schema draws", (name) => {
             "lighter above-ground rule at a crossing (faster)",
             // ADDED with momwire 0.91.0 (#1898), from its registry.
             "eliminate junction constraints (faster)",
+            // ADDED with momwire 0.98.0, from its registry.
+            "mixed-precision solve (faster)",
           ]
         : []),
     ]);
@@ -341,6 +343,8 @@ describe.each(BSPLINE_FAMILY)("%s — the panel the schema draws", (name) => {
             "lighter above-ground rule at a crossing (faster)",
             // ADDED with momwire 0.91.0 (#1898), from its registry.
             "eliminate junction constraints (faster)",
+            // ADDED with momwire 0.98.0, from its registry.
+            "mixed-precision solve (faster)",
           ]
         : []),
       // ADDED DELIBERATELY, and it is why this list is asserted rather than
@@ -402,6 +406,8 @@ describe("the backends that never had a bespoke panel", () => {
       "factored rod columns (faster)",
       "shared near-ground tables (faster)",
       "table for wires crossing the ground (faster, approximate)",
+      // ADDED with momwire 0.98.0, from its registry.
+      "mixed-precision solve (faster)",
     ]);
     // `degree` and `n_qp_source` are ACCEPTED by RazorSolver and deliberately
     // not exposed; a renderer driven by acceptance would draw both.

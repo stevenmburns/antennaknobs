@@ -129,6 +129,9 @@ def test_the_kwarg_tuples_match_what_the_server_measured():
         # momwire#1898 (0.91.0): KCL elimination before the factor, a
         # registry pass-through feature (AK#2233).
         "kcl_nullspace",
+        # momwire 0.98.0: the mixed-precision factor, a registry pass-through
+        # feature on the bs2, Sinusoidal and razor2p tabs.
+        "mixed_lu",
     ]
     assert _ts_tuple(src, "RAZOR_KWARGS") == live["razor2p"]
     # The NEC-4.2 row exists only where $NEC42_EXE resolves, so it is asked for.
