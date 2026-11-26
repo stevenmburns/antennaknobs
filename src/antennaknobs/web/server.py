@@ -6190,5 +6190,13 @@ def _mount_frontend(app: FastAPI, directory: Path) -> None:
     )
 
 
+# The station rail (docs/design/block-builder.md), local installs only: its
+# routes solve without the hosted solve path's guards (station_rail_api's
+# docstring). Included before the frontend mount, which answers every path.
+if not _HOSTED:
+    from .station_rail_api import router as _station_rail_router
+
+    app.include_router(_station_rail_router)
+
 _FRONTEND_DIR = Path(__file__).resolve().parent / "static"
 _mount_frontend(app, _FRONTEND_DIR)
