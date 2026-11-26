@@ -251,3 +251,19 @@ model = { rotational_symmetry = true }
     assert written["slots"]["A"]["model"] == {"rotational_symmetry": True}
     assert written.get("switches", {}) == {}
     assert written.get("ground", {}) == {}
+
+
+def test_an_unticked_box_is_passed_as_false_over_the_server_env(monkeypatch):
+    """Since momwire#2152 an absent keyword defers to
+    MOMWIRE_X_ROTATIONAL_SYMMETRY, so the engine passes False for an unticked
+    box: a server started with the variable set does not choose the route for
+    a request that said no (AK#2317's rule, for the unoffered sector route)."""
+    monkeypatch.setenv("MOMWIRE_X_ROTATIONAL_SYMMETRY", "1")
+    with warnings.catch_warnings():
+        warnings.simplefilter("ignore")
+        eng = _engine(DESIGN, rotational_symmetry=False)
+        eng.impedance()
+    assert eng._solver_kwargs["rotational_symmetry"] is False
+    sim = eng._solved_cache[1][0]
+    assert not sim.rotational_symmetry
+    assert getattr(sim, "_rotational_map", None) is None
