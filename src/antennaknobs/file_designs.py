@@ -61,6 +61,7 @@ from pathlib import Path
 from types import MappingProxyType
 
 from .builder import C_LIGHT_MHZ_M, AntennaBuilder
+from .deck_pragma_note import env_feature, pragma_notes
 from .ez_import import accept_guesses_from_env, read_ez
 from .frequency_range import DEFAULT_AMATEUR_BANDS
 from .maa_import import decode_maa, read_maa
@@ -944,6 +945,7 @@ def _nec_builder(
         [
             deck.dialect_note(),
             deck.skipped_note(),
+            *pragma_notes(text),
             deck.fixed_frequency_note(),
             freq_note,
             knob_note,
@@ -1131,6 +1133,7 @@ def _ssn_builder(
             circuit.skipped_note(),
             circuit.mesh_note(),
             _ground_note(circuit.ground),
+            *pragma_notes(also=_os_env_features(circuit.os_env)),
             freq_note,
             bands_note,
             knob_note,
@@ -1156,6 +1159,17 @@ def _ssn_builder(
         bands=bands,
         note_lists=circuit.note_lists(),
     )
+
+
+def _os_env_features(os_env) -> list[tuple[str, str]]:
+    """``(feature, how asked)`` for each ``OSEnv`` line that sets a momwire
+    feature's variable on (`deck_pragma_note.env_feature`)."""
+    out = []
+    for name, value in os_env:
+        feature = env_feature(name, value)
+        if feature is not None:
+            out.append((feature, f'NECOptions.OSEnv("{name}", {value})'))
+    return out
 
 
 def _generator_zo(zo):

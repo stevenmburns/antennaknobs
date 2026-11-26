@@ -147,6 +147,7 @@ from dataclasses import dataclass, field, replace
 import numpy as np
 
 from . import network as _net
+from .deck_pragma_note import ENV_PREFIX
 from .design_data import read_data
 from .nec_import import (
     _SY_INT_FIELDS,
@@ -1374,6 +1375,9 @@ class SsnCircuit:
     other_elements: tuple[str, ...] = ()
     # Daemon statements not understood, verbatim.
     ignored_directives: tuple[str, ...] = ()
+    # The ``NECOptions.OSEnv`` assignments, ``(name, value)`` as written;
+    # none is applied (`deck_pragma_note.env_feature` reads the momwire ones).
+    os_env: tuple[tuple[str, str], ...] = ()
     # The frequencies the armed sweep evaluates, MHz, in SimNEC's order: its
     # lin / log spacing of `points` over from..to, or the values its `expr`
     # names (AK#1679). None with no sweep, or a lin/log sweep with no count.
@@ -3385,6 +3389,12 @@ class _Script:
         self.display_units: tuple[str, ...] = ()
         self.name: str | None = None
         self.ignored: list[str] = []
+        # `NECOptions.OSEnv("NAME", value)`: the (name, value) pairs as
+        # written, quotes stripped. SimNEC hands them to the engine's
+        # environment; here they are not applied (they stay in `ignored`) and
+        # are kept only so the import can say which momwire feature one asks
+        # for (`deck_pragma_note`).
+        self.os_env: list[tuple[str, str]] = []
         # `$GW_<tag>.JamSegments(N)`: GW tag -> (segment count, the statement
         # as written) (AK#1679).
         self.jam: dict[int, tuple[int, str]] = {}
@@ -4085,6 +4095,16 @@ class _Script:
             self.jam.pop(tag, None)
             self.ignored.append(stmt)
             return
+        if f.calls("NECOptions", "OSEnv") and len(f.args) == 2:
+            name = f.args[0].strip().strip('"')
+            if name.startswith(ENV_PREFIX):
+                # A momwire feature's variable (`MOMWIRE_X_<NAME>`) is a
+                # speed or numerics switch of the engine, never part of the
+                # model, so the file opens without it; the import says what
+                # it asked for and applies nothing (`deck_pragma_note`). Any
+                # other variable stays unread, and refuses as before.
+                self.os_env.append((name, f.args[1].strip()))
+                return
         if f.calls(None, "Insulation"):
             if f.args[0].startswith('"'):
                 # SimNEC's W7EL (EZNEC) insulation, `NECOptions.Insulation(
@@ -4907,6 +4927,7 @@ def parse_ssn(
         chain=chain,
         other_elements=tuple(other),
         ignored_directives=tuple(str(s) for s in script.ignored),
+        os_env=tuple(script.os_env),
         sweep_points=sweep_points,
         sweep_note=sweep_note,
         sweep_grid=sweep_grid,

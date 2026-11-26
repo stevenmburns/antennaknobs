@@ -28,6 +28,7 @@ from __future__ import annotations
 
 from ._private import (
     couplings,
+    deck_pragmas,
     eps_tilde,
     feature_certified,
     feature_registry,
@@ -43,6 +44,7 @@ from .networks._spec import _rewrite_branch as rewrite_branch
 __all__ = [
     "branch_port_refs",
     "couplings",
+    "deck_pragmas",
     "eps_tilde",
     "feature_certified",
     "feature_registry",
