@@ -4,6 +4,7 @@ export type View =
   | "elevation"
   | "combined"
   | "schematic"
+  | "station"
   | "files"
   | "fill"
   | "zparam"
@@ -120,6 +121,19 @@ export const VIEWS: ViewMeta[] = [
   // an optimizer run leaves those alone until it applies its result — so the
   // drawing on screen stays accurate for the whole run.
   { id: "schematic", label: "Schematic", defaultPinned: false, staleWhileOptimizing: false, readoutStartsCollapsed: false },
+  // The station rail (docs/design/block-builder.md, phase S1): the circuit
+  // between the rig and this design's feed, its Python and its probes.
+  // Unpinned like the schematic, and NOT stale for the same reason: it
+  // solves its own antenna at the current knobs, which a run leaves alone.
+  // Its readout starts minimized: the rail carries Z and SWR at every
+  // junction, and the floating card would cover the panes.
+  {
+    id: "station",
+    label: "Station",
+    defaultPinned: false,
+    staleWhileOptimizing: false,
+    readoutStartsCollapsed: true,
+  },
   // The Files view (AK#1428): the design's source file and, on a NEC-5 or
   // NEC-2 slot, the deck that engine ran plus its printout. Unpinned like
   // schematic. NOT stale: the source is the file as it stands, and a deck or
