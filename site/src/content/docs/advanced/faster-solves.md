@@ -76,11 +76,12 @@ entries were computed against the total.
 - **partial** — reuse ran over part of it; the view names what it left out.
 - **declined** — the box was ticked but reuse did not run, and the fill was
   the ordinary one. The view gives momwire's reason. The two you are most
-  likely to see are a deck too small to repay the search, and *the plan and
-  its census would exceed the 256 MB budget*: a deck with many distinct
-  pairs of wires, where the table of repeats would grow past the memory
-  reuse is allowed. A declined solve takes the same time as one with the box
-  off, plus the search that found it would not fit.
+  likely to see are a deck too small to repay the search, and *more than N
+  classes for M pairs (the cap is 1.333x compression)*: a deck with so many
+  distinct pairs of wires that reuse could not shrink the matrix by at least
+  a third, so the table of repeats would cost more memory than it saves. A
+  declined solve takes the same time as one with the box off, plus the
+  search that found it would not pay.
 
 **The census** is the part of the fill spent finding what repeats. The
 Sinusoidal and `razor2p` engines search the geometry themselves, and pay the
@@ -161,7 +162,7 @@ N = 150: 2,550 segments.
 |---|---|---|---|---|---|---|---|
 | `bs2` | off | dense, off | 2.30 | 0.24 | 2.54 | | 30.20 + j7.18 |
 | `bs2` | rotational symmetry | sector, 16 sectors | 0.42 | 0.00 | 0.43 | | 30.20 + j7.18 |
-| `bs2` | reuse | dense, served (2.8×) | 1.39 | 0.23 | 1.62 | | 30.20 + j7.18 |
+| `bs2` | reuse | dense, partial (2.8×) | 1.39 | 0.23 | 1.62 | | 30.20 + j7.18 |
 | Sinusoidal | off | dense, off | 0.93 | 0.22 | 1.16 | | 30.14 + j7.15 |
 | Sinusoidal | rotational symmetry | sector, 16 sectors | 0.14 | 0.00 | 0.15 | | 30.14 + j7.15 |
 | Sinusoidal | reuse | dense, served (16.9×) | 0.22 | 0.24 | 0.49 | 1.20 | 30.14 + j7.15 |
@@ -200,7 +201,7 @@ cannot shorten, so a finer mesh than this would gain less and less.
 | engine | switch | state | fill | factor | total | first | Z (Ω) |
 |---|---|---|---|---|---|---|---|
 | `bs2` | off | dense, off | 1.62 | 0.14 | 1.76 | | 34.80 − j45.92 |
-| `bs2` | reuse | dense, served (1.9×) | 1.14 | 0.14 | 1.31 | | 34.80 − j45.92 |
+| `bs2` | reuse | dense, partial (1.9×) | 1.14 | 0.14 | 1.31 | | 34.80 − j45.92 |
 | Sinusoidal | off | dense, off | 0.68 | 0.14 | 0.82 | | 34.80 − j45.99 |
 | Sinusoidal | reuse | dense, served (5.5×) | 0.22 | 0.14 | 0.37 | 1.16 | 34.80 − j45.99 |
 | `razor2p` | off | dense, off | 1.12 | 0.15 | 1.27 | | 34.68 − j46.71 |
@@ -225,7 +226,7 @@ default layout to within 0.05 Ω on every engine. The same Yagi with
 | engine | switch | state | fill | factor | total | first | Z (Ω) |
 |---|---|---|---|---|---|---|---|
 | `bs2` | off | dense, off | 1.67 | 0.15 | 1.82 | | 34.80 − j45.91 |
-| `bs2` | reuse | dense, served (2.7×) | 0.88 | 0.14 | 1.04 | | 34.80 − j45.91 |
+| `bs2` | reuse | dense, partial (2.7×) | 0.88 | 0.14 | 1.04 | | 34.80 − j45.91 |
 | Sinusoidal | off | dense, off | 0.68 | 0.15 | 0.83 | | 34.80 − j45.97 |
 | Sinusoidal | reuse | dense, served (55×) | 0.12 | 0.14 | 0.28 | 0.68 | 34.80 − j45.97 |
 | `razor2p` | off | dense, off | 1.12 | 0.15 | 1.28 | | 34.68 − j46.66 |
