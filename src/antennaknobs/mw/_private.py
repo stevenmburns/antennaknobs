@@ -61,6 +61,18 @@ def feature_registry():
     return getattr(_features, "FEATURES", None)
 
 
+def deck_pragmas(text: str) -> list[str]:
+    """The feature names ``text``'s ``CM momwire: <name>`` cards ask for
+    (momwire's own reader, so the card's case and spacing rules are its),
+    or ``[]`` when the installed momwire has no such reader."""
+    try:
+        from momwire import _features  # noqa: PLC0415 — on use
+    except ImportError:
+        return []
+    read = getattr(_features, "deck_pragmas", None)
+    return list(read(text)) if read is not None else []
+
+
 def feature_certified(name) -> bool:
     """Whether momwire certifies feature `name` where this process runs.
     Raises as momwire does for an unknown name; ImportError when the
