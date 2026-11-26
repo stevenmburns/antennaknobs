@@ -93,18 +93,10 @@ def test_on_passes_the_hint_and_moves_z_by_ulps(monkeypatch, how):
     assert np.max(np.abs(z1 - z0) / np.abs(z0)) <= 1e-12
 
 
-@takes_hint
-def test_every_claim_holds_on_the_engines_own_mesh(monkeypatch):
-    """The engine's hint comes from the mesh it solves, so momwire drops
-    nothing."""
-    e = engine(fed_yagi(6), pair_reuse=True)
-    solvers = []
-    spy(monkeypatch, e, solvers)
-    e.impedance()
-    assert solvers
-    for s in solvers:
-        s._pair_reuse_plan(s._build_geometry())
-        assert s.pair_reuse_dropped == ()
+# momwire#2063 (stage 3, momwire 0.98.0) finds the classes itself from its own
+# mesh and no longer reads the hint, so nothing of it can be dropped: the two
+# tests that held momwire to every member of the hint went with
+# `_pair_reuse_plan`. The hint's own content is still pinned below.
 
 
 @takes_hint
@@ -115,9 +107,11 @@ def test_over_sommerfeld_ground_the_remainder_copies():
     if acc is None or not hasattr(acc, "remainder_q_reused_pairs"):
         pytest.skip("this momwire's remainder kernel takes no copy map")
     g = ("finite", 13.0, 0.005)
-    z0 = np.asarray(engine(fed_yagi(4), g).impedance(), dtype=complex)
+    # Eight elements: momwire 0.98.0 declines the reuse below 200 segments
+    # ("too few segments to repay the plan"), and four make 123.
+    z0 = np.asarray(engine(fed_yagi(8), g).impedance(), dtype=complex)
     c0 = acc.remainder_q_reused_pairs()
-    z1 = np.asarray(engine(fed_yagi(4), g, pair_reuse=True).impedance(), dtype=complex)
+    z1 = np.asarray(engine(fed_yagi(8), g, pair_reuse=True).impedance(), dtype=complex)
     assert acc.remainder_q_reused_pairs() > c0
     # The switch also passes offset_reuse (momwire#1809 step 2, 0.87.1), whose
     # route sums each element's own block in another order: 2.3e-13 measured
@@ -203,18 +197,6 @@ def test_every_pair_that_repeats_in_end_order_is_in_one_class():
     assert sorted(
         map(sorted, map(lambda g: [tuple(sorted(x)) for x in g], classes))
     ) == sorted(map(sorted, map(lambda g: [tuple(sorted(x)) for x in g], want)))
-
-
-@takes_hint
-def test_momwire_takes_every_member_of_the_reordered_hint(monkeypatch):
-    e = engine(reversed_director_yagi(6), pair_reuse=True)
-    solvers = []
-    spy(monkeypatch, e, solvers)
-    e.impedance()
-    assert solvers
-    for s in solvers:
-        s._pair_reuse_plan(s._build_geometry())
-        assert s.pair_reuse_dropped == ()
 
 
 def copied_pairs_mean(edges, hint):
