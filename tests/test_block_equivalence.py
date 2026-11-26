@@ -307,3 +307,88 @@ def test_the_bit_comparison_sees_a_sign_of_zero():
     b = [Wire((-0.0, 0.0, 0.0), (1.0, 0.0, 0.0))]
     assert a == b
     assert _bits(a) != _bits(b)
+
+
+def _seamed():
+    """A rotated square from a repeat and a rotated half under both sides:
+    each has corners an ulp apart until its block shares the seams."""
+    side = {"block": "wire_y", "from": "-h", "to": "h", "x": "h"}
+    return {
+        "block": "design",
+        "name": "seams",
+        "freq_mhz": 14.2,
+        "params": [{"name": "h", "value": 1.37}],
+        "body": [
+            {
+                "block": "repeat",
+                "var": "k",
+                "count": 4,
+                "each": {"rotate": {"axis": "z", "deg": "90 * k"}},
+                "body": [side],
+            },
+            {
+                "block": "both_sides",
+                "across": "yz",
+                "body": [
+                    {
+                        "block": "rotate",
+                        "axis": "z",
+                        "deg": 90,
+                        "body": [{"block": "wire_y", "from": 0, "to": 1, "x": 3}],
+                    }
+                ],
+            },
+        ],
+    }
+
+
+def test_a_codegen_that_drops_the_shared_seams_fails_the_gate(monkeypatch):
+    tree = _seamed()
+    assert_equivalent(tree, random.Random(2))
+    real = block_codegen.generate
+
+    def unseamed(t):
+        return real(t).replace("with st.shared_seams():", "if True:")
+
+    monkeypatch.setattr(block_codegen, "generate", unseamed)
+    with pytest.raises(AssertionError):
+        assert_equivalent(tree, random.Random(2))
+
+
+def test_programs_nested_to_the_cap_run_the_same_as_their_python():
+    rng = random.Random(12)
+    heads = [
+        {"block": "move", "by": [0.1, "i0 * 0.2", 0.3]},
+        {"block": "rotate", "axis": "x", "deg": 17},
+        {"block": "mirror", "across": "xz"},
+        {"block": "with_wire", "spec": "14-awg"},
+        {"block": "both_sides", "across": "yz"},
+        {"block": "rotate", "axis": "y", "deg": "5 + i0"},
+    ]
+    for _ in range(20):
+        body = [{"block": "wire_z", "from": 0.5, "to": 1.5, "x": 0.25}]
+        # Outermost a repeat with an each (3), then 9 levels of the rest.
+        left = block_design.MAX_NESTING - 3
+        while left > 0:
+            h = dict(rng.choice(heads))
+            cost = 3 if h["block"] == "both_sides" else 1
+            if cost > left:
+                continue
+            left -= cost
+            h["body"] = body
+            body = [h]
+        tree = {
+            "block": "design",
+            "name": "deep",
+            "freq_mhz": 7.1,
+            "body": [
+                {
+                    "block": "repeat",
+                    "var": "i0",
+                    "count": 3,
+                    "each": {"rotate": {"axis": "z", "deg": "120 * i0"}},
+                    "body": body,
+                }
+            ],
+        }
+        assert assert_equivalent(tree, rng) > 0

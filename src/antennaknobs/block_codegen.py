@@ -160,6 +160,8 @@ def _mirror(g, s, d):
 
 
 def _both_sides(g, s, d):
+    g.emit(d, "with st.shared_seams():")
+    d += 1
     g.emit(d, f"for side in (Transform(), Transform.{_MIRROR[s.args['across']]}()):")
     _with(g, s, d + 1, "st.push_pop_tr(side)")
 
@@ -172,6 +174,8 @@ def _repeat(g, s, d):
         # The interpreter refuses a count that is not a whole number, so
         # int() here only changes the type, never the value.
         n = f"int({g.e(count)})"
+    g.emit(d, "with st.shared_seams():")
+    d += 1
     g.emit(d, f"for {s.args['var']} in range({n}):")
     each = s.args["each"]
     if each is None:
@@ -209,11 +213,14 @@ EMITTERS = {
 
 
 def _module(prog, body_lines):
-    out = [f"# {prog.name}", "#"]
-    out += [
+    # The name is not on line 1 or 2, where Python would read a name like
+    # "-*- coding: utf-7 -*-" as the file's encoding (PEP 263).
+    out = [
         "# Written by the antennaknobs block builder from the block program in",
         "# this file's last line. A hand edit is fine Python, but the builder",
         "# then keeps the file as Python and will not reopen it as blocks.",
+        "#",
+        f"# Design: {prog.name}",
         "",
     ]
     if prog.uses_math:

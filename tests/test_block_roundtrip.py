@@ -120,3 +120,20 @@ def test_the_generated_file_is_house_style_python():
     dipole = cg.generate_code(template("dipole"))
     assert "for side in (Transform(), Transform.mirrorXZ()):" in dipole
     assert "st.wire_y(-eps, eps, ex=1 + 0j)" in dipole
+
+
+def test_a_design_name_cannot_become_an_encoding_declaration(tmp_path):
+    import importlib.util
+
+    tree = json.loads(json.dumps(template("dipole")))
+    tree["name"] = "-*- coding: utf-7 -*-"
+    text = cg.generate(tree)
+    # PEP 263 reads lines 1 and 2 only; the name is below them.
+    assert all("coding" not in line for line in text.splitlines()[:2])
+    path = tmp_path / "named.py"
+    path.write_text(text, encoding="utf-8")
+    spec = importlib.util.spec_from_file_location("named_design", path)
+    mod = importlib.util.module_from_spec(spec)
+    spec.loader.exec_module(mod)
+    assert mod.Builder().build_wires()
+    assert cg.reopen(path.read_text(encoding="utf-8")) == tree
