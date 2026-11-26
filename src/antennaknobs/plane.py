@@ -28,10 +28,10 @@ from __future__ import annotations
 
 from dataclasses import replace
 
-from .network import Network, PortOnWireFloating, PortVirtual
+from .network import Driven, Network, PortOnWireFloating, PortVirtual
 from .schematic import DATUM, _antenna_nodes, _datum_nodes, _walk, terminals_of
 
-__all__ = ["driven_at", "planes_of"]
+__all__ = ["antenna_side", "driven_at", "planes_of"]
 
 
 def _chain(net: Network):
@@ -161,4 +161,64 @@ def planes_of(net: Network) -> list[str]:
             except ValueError:
                 continue
             out.append(node)
+    return out
+
+
+def antenna_side(net: Network, feed: str) -> Network:
+    """The parts of ``net`` the antenna carries itself, driven at ``feed``.
+
+    The design's station comes off: everything upstream of ``feed``
+    (`driven_at`'s cut), and also whatever hangs on ``feed`` alone, such as an
+    L network's shunt part or a matching stub there, since from the feed back
+    to the rig is the station's side. What stays is every branch that reaches
+    a real port other than ``feed`` (a trap on its own wire, an LPDA's phasing
+    line from the feed to the next element), so an antenna built partly from
+    circuit elements is still that antenna. The station rail
+    (`antennaknobs.station_rail`) puts its chain on what this returns.
+    """
+    cut = driven_at(net, feed)
+    is_datum = _datum_nodes(cut)
+    real = {n for n, p in cut.ports.items() if not isinstance(p, PortVirtual)}
+
+    # Components over the nodes other than the datum and the feed: a branch
+    # stays when its component holds a real port that is not the feed.
+    parent: dict[str, str] = {}
+
+    def find(x):
+        parent.setdefault(x, x)
+        while parent[x] != x:
+            parent[x] = parent[parent[x]]
+            x = parent[x]
+        return x
+
+    inner = []
+    for br in cut.branches:
+        ts = [t for t in terminals_of(br) if t not in is_datum and t != feed]
+        inner.append(ts)
+        for t in ts[1:]:
+            parent[find(t)] = find(ts[0])
+    anchored = {find(n) for n in real if n != feed}
+    branches, paths = [], []
+    all_paths = cut.branch_paths or [""] * len(cut.branches)
+    for br, ts, path in zip(cut.branches, inner, all_paths, strict=True):
+        if ts and find(ts[0]) in anchored:
+            branches.append(br)
+            paths.append(path)
+    referenced = {feed}
+    for br in branches:
+        referenced |= set(terminals_of(br))
+    ports = {
+        name: p
+        for name, p in cut.ports.items()
+        if not isinstance(p, PortVirtual) or name in referenced
+    }
+    out = Network(
+        ports=ports, branches=branches, sources=[Driven(port=feed, voltage=1 + 0j)]
+    )
+    out.branch_paths = paths
+    out.composites = {
+        k: v
+        for k, v in (cut.composites or {}).items()
+        if any(p.startswith(k) for p in paths)
+    }
     return out
