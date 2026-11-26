@@ -181,6 +181,44 @@ def test_antenna_probe_is_bit_identical_where_the_design_feeds_its_port():
     assert z_probe == z_plain
 
 
+@pytest.mark.parametrize(
+    "design",
+    [
+        # A loading coil in series at the source port: no station, the coil
+        # is the antenna's.
+        "dipoles.short_dipole_loaded",
+        # Bonds shorting the idle stubs at their own ports.
+        "verticals.tri_moxon",
+    ],
+)
+def test_antenna_probe_is_the_designs_own_z_where_it_has_no_station(design):
+    z_plain = complex(_make_momwire_engine({}, _builder(design)).impedance()[0])
+    att, sa = solved(design)
+    z_probe = _z(solve_chain(sa, {"rig": "rig", "items": []}, att)["probes"][-1])
+    assert z_probe == z_plain
+
+
+def test_a_shunt_across_the_feed_is_named_where_the_plane_keeps_it():
+    """The sky loop's L match puts its shunt arm across the feed. The rail
+    takes it off with the station; the workbench's plane at the feed keeps
+    it. The two "feed" numbers differ, and the antenna says why."""
+    from types import SimpleNamespace
+
+    from antennaknobs.web.station_rail_api import _Antenna
+
+    att = sr.attach("loops.skyloop_lmatch", _builder("loops.skyloop_lmatch"))
+    assert att.at_feed == 1
+    view = SimpleNamespace(att=att, freq_mhz=7.0, z_ref=50.0)
+    assert "measurement plane at feed keeps it" in _Antenna.describe(view)["notice"]
+    att = sr.attach(
+        "dipoles.invvee_coax_station", _builder("dipoles.invvee_coax_station")
+    )
+    assert att.at_feed == 0
+    assert "notice" not in _Antenna.describe(
+        SimpleNamespace(att=att, freq_mhz=7.0, z_ref=50.0)
+    )
+
+
 # --- A/B rails: the antenna solved once --------------------------------------------------
 
 
@@ -264,6 +302,23 @@ def test_read_endpoint_reads_the_rails_own_file_and_refuses_another_designs():
     assert "dipoles.invvee" in got["refusal"]
     got = client.post("/station/read", json={"text": "import os\n"}).json()
     assert "refusal" in got
+
+
+def test_read_endpoint_refuses_a_file_for_another_feed_of_the_same_design():
+    client = TestClient(app)
+    req = {"geometry": "dipoles.invvee_coax_station"}
+    text = sr.to_python(
+        {"rig": "rig", "items": [{"kind": "cable", "cable": "RG-8X", "length_m": 9.0}]},
+        sr.attach(req["geometry"], _builder(req["geometry"])),
+    )
+    assert (
+        "chain"
+        in client.post("/station/read", json={"request": req, "text": text}).json()
+    )
+    other = text.replace('"feed"', '"feed_b"')
+    assert sr.read_python(other)[1]["feed"] == "feed_b"  # in the house style
+    got = client.post("/station/read", json={"request": req, "text": other}).json()
+    assert "'feed_b'" in got["refusal"] and "'feed'" in got["refusal"]
 
 
 def test_probe_rows_use_the_requests_reference():

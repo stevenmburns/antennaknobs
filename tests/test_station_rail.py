@@ -17,7 +17,15 @@ import pytest
 
 import antennaknobs.web.server  # noqa: F401 — adapter import order (registry)
 from antennaknobs import station_rail as sr
-from antennaknobs.network import Load, PortOnWire
+from antennaknobs.network import (
+    TL,
+    Driven,
+    Load,
+    Network,
+    PortOnWire,
+    PortVirtual,
+    Shunt,
+)
 from antennaknobs.plane import antenna_side
 from antennaknobs.station_rail_solve import SolvedAntenna, solve_chain
 from antennaknobs.web.adapter import _make_momwire_engine, list_designs
@@ -105,6 +113,7 @@ REFUSALS = {
     "is fed at": "several fed wires",
     "drives": "several sources",
     "floating": "floating feed",
+    "multi-feed": "multi-feed",
 }
 
 
@@ -128,12 +137,71 @@ def test_every_catalog_design_attaches_or_is_refused_by_name():
             frozen = sr.freeze(chain, att)[0]
             assert sr.read_python(sr.to_python(chain, att))[0] == frozen, design
     assert not odd, odd
-    assert forms == {"wire": 44, "port": 14, "cut": 28}, forms
+    assert forms == {"wire": 44, "port": 13, "cut": 25}, forms
     assert refused == {
         "several fed wires": 20,
         "several sources": 2,
         "floating feed": 3,
+        "multi-feed": 4,
     }, refused
+
+
+# Designs whose station meets the antenna at more than the feed: a floating
+# balun into an end-port pair, a phasing harness from a virtual junction.
+MULTI_FEED = [
+    "beams.yagi_endport",
+    "dipoles.invvee_endport",
+    "arrays.delta_looparray_network",
+    "wire.expanded_lazy_h",
+]
+
+
+@pytest.mark.parametrize("design", MULTI_FEED)
+def test_a_station_that_meets_the_antenna_twice_is_refused(design):
+    with pytest.raises(sr.RailRefusal, match="multi-feed"):
+        sr.attach(design, _builder(design))
+
+
+def test_where_the_source_is_the_feed_the_antenna_is_the_whole_design():
+    """No station to take off: the rail's antenna box is the design's network,
+    every branch and port, so its probe is the design's own feed-point Z (the
+    solve is gated in test_station_rail_probes). Over the whole catalog,
+    structurally: building networks only."""
+    seen = 0
+    with warnings.catch_warnings():
+        warnings.simplefilter("ignore")
+        for design in list_designs():
+            b = _builder(design)
+            net = b.build_network()
+            if net is None or len(net.sources) != 1:
+                continue
+            try:
+                att = sr.attach(design, b)
+            except sr.RailRefusal:
+                continue
+            if net.sources[0].port != att.feed:
+                continue
+            seen += 1
+            bare = sr.antenna_network(att)
+            assert bare.branches == net.branches, design
+            assert bare.ports == net.ports, design
+            assert bare.sources == net.sources, design
+    assert seen >= 20, seen
+
+
+def test_a_bond_on_another_antenna_port_stays_with_the_antenna():
+    # A zero-value Shunt bonds an idle stub's port to the datum: it is wired
+    # to that port, so it is the antenna's even with a station to take off.
+    net = Network(
+        ports={"feed": PortOnWire("feed"), "stub": PortOnWire("stub"), "rig": PortVirtual("rig")},
+        branches=[
+            TL(a="rig", b="feed", z0=50.0, length=3.0),
+            Shunt(port="stub", r=0.0),
+        ],
+        sources=[Driven(port="rig", voltage=1 + 0j)],
+    )  # fmt: skip
+    side = antenna_side(net, "feed")
+    assert side.branches == [Shunt(port="stub", r=0.0)]
 
 
 def test_the_antenna_side_keeps_what_the_antenna_carries():
@@ -290,6 +358,8 @@ def test_a_chain_with_bad_values_is_refused():
         ({"items": [{"kind": "balun", "n": 1.0, "name": "a b"}]}, "identifier"),
         ({"rig": "1x", "items": []}, "identifier"),
         ({"version": 2, "items": []}, "version"),
+        ({"items": [{"kind": "l_tuner", "tune_to": 50.0, "mode": "low\nx"}]}, "one of"),
+        ({"items": [{"kind": "l_tuner", "tune_to": 50.0, "shunt_at": "ant"}]}, "one of"),
     ]:  # fmt: skip
         with pytest.raises(sr.RailRefusal, match=why):
             sr.check_chain(bad)
@@ -405,3 +475,10 @@ def test_generated_names_keep_clear_of_the_antennas_own():
     chain = {"rig": "rig", "items": [sr.palette_item("coax", 28.0)] * 3}
     nodes, _ = sr.layout(chain, att)
     assert not (set(nodes) - {att.feed}) & set(att.reserved)
+
+
+def test_any_text_writes_as_one_python_literal():
+    import ast
+
+    for v in ['a\nb"c\\', "RG-8X", "Ω\x00\t"]:
+        assert ast.literal_eval(sr._lit(v)) == v

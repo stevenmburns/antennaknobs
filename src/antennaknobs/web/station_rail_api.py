@@ -100,15 +100,28 @@ class _Antenna:
             "freq_mhz": self.freq_mhz,
             "z_ref": self.z_ref,
         }
+        notices = []
         if origin is not None:
             out["origin"] = origin
             if origin == "default" and att.replaced:
-                out["notice"] = (
+                notices.append(
                     f"This design's own station ({att.replaced} "
                     f"branch{'es' if att.replaced != 1 else ''} in its "
                     "build_network) is not one the rail can read, so the rail "
                     "starts from the default chain and stands in for it."
                 )
+        if att.at_feed:
+            # Two numbers labelled "feed" in one app: say why they differ.
+            notices.append(
+                f"The design's station has {att.at_feed} part"
+                f"{'s' if att.at_feed != 1 else ''} across {att.feed} itself "
+                "(such as an L network's shunt arm). On the rail that is "
+                "station, so the antenna row is the bare antenna; the "
+                f"workbench's measurement plane at {att.feed} keeps "
+                f"{'them' if att.at_feed != 1 else 'it'}, and reads differently."
+            )
+        if notices:
+            out["notice"] = " ".join(notices)
         return out
 
 
@@ -367,7 +380,31 @@ def read(body: dict) -> dict:
                 "refusal": f"this file feeds {antenna['module']}; the workbench "
                 f"shows {module}. Open that design to put this station on it."
             }
+        # Same design, but the attachment is the one on screen too: the knobs
+        # can move a design's feed, and a file for another feed or form would
+        # put the chain somewhere the rail does not draw it. Attaching builds
+        # the network only; nothing is solved.
+        att = _attachment(req)
+        mine = {"form": att.form, "feed": att.feed}
+        theirs = {k: antenna[k] for k in mine}
+        if theirs != mine:
+            return {
+                "refusal": f"this file feeds {module} at {antenna['feed']!r} "
+                f"(form {antenna['form']!r}); on screen the rail feeds it at "
+                f"{att.feed!r} (form {att.form!r}), so the file is shown, not "
+                "put on the rail"
+            }
     return {"chain": chain, "antenna": antenna}
+
+
+def _attachment(req: dict) -> sr.Attachment:
+    from .examples import example_for
+
+    geometry = req.get("geometry")
+    ex = example_for(geometry)
+    if ex.solve_builder is None:
+        raise sr.RailRefusal(f"{geometry!r} cannot be built for the rail")
+    return sr.attach(geometry, ex.solve_builder(req), _module_for(geometry))
 
 
 def palette() -> dict:
