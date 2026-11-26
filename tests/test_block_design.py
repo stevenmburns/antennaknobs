@@ -10,6 +10,7 @@ import pytest
 from antennaknobs import Wire
 from antennaknobs.block_design import (
     MAX_REPEAT_COUNT,
+    MAX_NESTING,
     MAX_REPEAT_NESTING,
     MAX_STEPS,
     MAX_WIRES,
@@ -251,6 +252,130 @@ def test_loop_counts_and_nesting_are_bounded():
     for depth in range(MAX_REPEAT_NESTING + 1):
         nested = {"block": "repeat", "var": f"i{depth}", "count": 1, "body": [nested]}
     assert any("nest at most" in e["message"] for e in errors(design(nested)))
+
+
+# Each body block, its cost toward MAX_NESTING, and a one-level wrapper.
+_WRAPS = {
+    "move": (1, lambda b: {"block": "move", "by": [1, 0, 0], "body": b}),
+    "rotate": (1, lambda b: {"block": "rotate", "axis": "z", "deg": 10, "body": b}),
+    "mirror": (1, lambda b: {"block": "mirror", "across": "yz", "body": b}),
+    "with_wire": (1, lambda b: {"block": "with_wire", "spec": "14-awg", "body": b}),
+    "both_sides": (3, lambda b: {"block": "both_sides", "across": "xz", "body": b}),
+    "repeat": (2, lambda b: {"block": "repeat", "count": 1, "body": b}),
+    "repeat_each": (
+        3,
+        lambda b: {
+            "block": "repeat",
+            "count": 1,
+            "each": {"move": [0, 0, 1]},
+            "body": b,
+        },
+    ),
+}
+
+
+def _nest(kind, levels):
+    cost, wrap = _WRAPS[kind]
+    body = [{"block": "wire_z", "from": 0, "to": 1}]
+    for i in range(levels):
+        b = wrap(body)
+        if b["block"] == "repeat":
+            b["var"] = f"i{i}"
+        body = [b]
+    return design(*body), cost * levels
+
+
+@pytest.mark.parametrize("kind", sorted(_WRAPS))
+def test_nesting_is_capped_where_the_exported_python_still_compiles(kind):
+    from antennaknobs.block_codegen import generate
+
+    cost = _WRAPS[kind][0]
+    deepest = MAX_NESTING // cost
+    if kind.startswith("repeat"):
+        deepest = min(deepest, MAX_REPEAT_NESTING)
+    ok, _ = _nest(kind, deepest)
+    blocks_builder(ok)().build_wires()
+    compile(generate(ok), "<generated>", "exec")
+    if kind.startswith("repeat") and deepest == MAX_REPEAT_NESTING:
+        return  # the repeat cap is the one that binds; tested above
+    over, total = _nest(kind, deepest + 1)
+    assert total > MAX_NESTING
+    assert any("blocks nest at most" in e["message"] for e in errors(over))
+
+
+def test_a_mixed_nest_counts_every_level():
+    body = [{"block": "wire_z", "from": 0, "to": 1}]
+    # 3 + 1 + 3 + 1 + 3 = 11, then one move more is 12 (allowed), two is 13.
+    for kind in ("both_sides", "move", "repeat_each", "rotate", "both_sides"):
+        body = [_WRAPS[kind][1](body)]
+    from antennaknobs.block_codegen import generate
+
+    at_cap = design(_WRAPS["move"][1](body))
+    compile(generate(at_cap), "<generated>", "exec")
+    over = design(_WRAPS["move"][1]([_WRAPS["move"][1](body)]))
+    assert any("blocks nest at most" in e["message"] for e in errors(over))
+
+
+def test_a_very_deep_program_is_a_block_error_not_a_recursion_error():
+    body = [{"block": "wire_z", "from": 0, "to": 1}]
+    for _ in range(5000):
+        body = [{"block": "move", "by": [0, 0, 0], "body": body}]
+    errs = errors(design(*body))
+    assert len(errs) == 1
+    assert errs[0]["block_id"].count("/body/") == MAX_NESTING + 1
+
+
+def test_a_file_too_deep_or_with_a_huge_literal_is_refused_by_name(tmp_path):
+    from antennaknobs.block_design import load_tree
+
+    deep = tmp_path / "deep.json"
+    deep.write_text("[" * 100_000 + "]" * 100_000)
+    with pytest.raises(SystemExit, match="nested too deep"):
+        load_tree(deep)
+    huge = tmp_path / "huge.json"
+    huge.write_text('{"block": "design", "freq_mhz": ' + "1" * 5000 + "}")
+    with pytest.raises(SystemExit, match="not JSON"):
+        load_tree(huge)
+
+
+def test_both_sides_and_repeat_share_their_seams_exactly():
+    # Four sides by a rotation each pass: cos(90°) is not exactly 0, so the
+    # raw corners differ in the last bits. Q2: the repeat shares them.
+    square = design(
+        {
+            "block": "repeat",
+            "var": "k",
+            "count": 4,
+            "each": {"rotate": {"axis": "z", "deg": "90 * k"}},
+            "body": [{"block": "wire_y", "from": -1.37, "to": 1.37, "x": 1.37}],
+        }
+    )
+    ws = wires(square)
+    # The seams were real: some corner is off ±1.37 in its last bits.
+    assert {abs(float(c)) for w in ws for c in w.p1[:2]} != {1.37}
+    for a, b in zip(ws, ws[1:] + ws[:1], strict=True):
+        assert a.p1 == b.p0
+    # A rotated half, mirrored across YZ: its inner end (1, 0, 0) lands at
+    # x = cos(90°), about 6e-17, and its mirror at -6e-17. Both sides make
+    # them one point; the outer end lands at x = -1 and stays apart.
+    half = design(
+        {
+            "block": "both_sides",
+            "across": "yz",
+            "body": [
+                {
+                    "block": "rotate",
+                    "axis": "z",
+                    "deg": 90,
+                    "body": [{"block": "wire_y", "from": 0, "to": 1, "x": 1}],
+                }
+            ],
+        }
+    )
+    first, mirrored = wires(half)
+    assert float(first.p0[0]) != 0.0
+    assert mirrored.p0 == first.p0
+    assert mirrored.p1 != first.p1  # the far ends stay apart
 
 
 def test_a_run_is_bounded_in_wires_and_steps():

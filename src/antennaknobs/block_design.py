@@ -53,6 +53,17 @@ SCHEMA_VERSION = 1
 # rotated elements of repeated parts, more than any catalog design uses.
 MAX_REPEAT_COUNT = 256
 MAX_REPEAT_NESTING = 3
+# Every block with a body is one or more statically nested blocks of the
+# generated build_wires (see block_codegen): move, rotate, mirror and
+# with_wire one each (a ``with``); both_sides three (the shared-seams
+# ``with``, the ``for side`` and its ``with``); a repeat two (the
+# shared-seams ``with`` and the ``for``), three with an ``each``. CPython
+# refuses a function nested deeper than 20 such blocks (21 on 3.14), so a
+# program over that would run here and export as a file that cannot
+# compile. 12 keeps 8 levels of margin and is still four transforms inside
+# a mirrored array of repeats. The cap also bounds the compiler's recursion,
+# so no tree reaches a RecursionError.
+MAX_NESTING = 12
 # The hosted deck upload's segment cap is 3000 and every wire is at least
 # one segment, so a program with more wires than that cannot be solved there.
 MAX_WIRES = 3000
@@ -243,6 +254,7 @@ class _Compiler:
         self.declared = {}  # every name in the program -> its block id
         self.params = set()
         self.blocks = 0
+        self.depth = 0  # static block nesting, as MAX_NESTING counts it
         self.prog = None
 
     def err(self, block_id, message):
@@ -455,6 +467,23 @@ class _Compiler:
         for k in sorted(extra):
             self.err(bid, f"{k!r} is not a field of this block")
 
+    def nested_body(self, raw, bid, pointer, scope, nesting, cost):
+        """:meth:`body` for a block that opens ``cost`` static blocks of the
+        generated code; refused, without reading the body, past
+        MAX_NESTING."""
+        if self.depth + cost > MAX_NESTING:
+            self.err(
+                bid,
+                f"blocks nest at most {MAX_NESTING} deep (a both sides counts 3, "
+                "a repeat 2, or 3 with an each, every other block 1)",
+            )
+            return []
+        self.depth += cost
+        try:
+            return self.body(raw, pointer, scope, nesting)
+        finally:
+            self.depth -= cost
+
     def body(self, raw, pointer, scope, nesting):
         items = raw.get("body")
         if not isinstance(items, list):
@@ -600,9 +629,9 @@ class _Compiler:
     def b_loop(self, raw, bid, pointer, scope, nesting):
         return self._path(raw, bid, scope, closed=True)
 
-    def _nested(self, raw, bid, pointer, scope, nesting, frame):
+    def _nested(self, raw, bid, pointer, scope, nesting, frame, cost=1):
         inner = _Scope(scope, frame=frame, owner=bid)
-        return self.body(raw, pointer, inner, nesting)
+        return self.nested_body(raw, bid, pointer, inner, nesting, cost)
 
     def b_move(self, raw, bid, pointer, scope, nesting):
         by = self.triple(bid, raw["by"], scope, "by")
@@ -635,7 +664,7 @@ class _Compiler:
 
     def b_both_sides(self, raw, bid, pointer, scope, nesting):
         plane = self._plane(raw, bid)
-        body = self._nested(raw, bid, pointer, scope, nesting, frame=True)
+        body = self._nested(raw, bid, pointer, scope, nesting, frame=True, cost=3)
         self.prog.uses_transform = True
         return (
             None if plane is None else Stmt("both_sides", bid, {"across": plane}, body)
@@ -659,7 +688,8 @@ class _Compiler:
             each = self.each(bid, raw["each"], inner)
             inner.frame = True
             self.prog.uses_transform = True
-        body = self.body(raw, pointer, inner, nesting + 1)
+        cost = 3 if "each" in raw else 2
+        body = self.nested_body(raw, bid, pointer, inner, nesting + 1, cost)
         if count is None or not ok or ("each" in raw and each is None):
             return None
         return Stmt("repeat", bid, {"count": count, "var": var, "each": each}, body)
@@ -867,8 +897,9 @@ class _Interpreter:
         self._r_under(s, env, _MIRROR[s.args["across"]]())
 
     def r_both_sides(self, s, env):
-        for side in (Transform(), _MIRROR[s.args["across"]]()):
-            self._r_under(s, env, side)
+        with self.st.shared_seams():
+            for side in (Transform(), _MIRROR[s.args["across"]]()):
+                self._r_under(s, env, side)
 
     def r_repeat(self, s, env):
         n = self.value(s.args["count"], env, s.block_id)
@@ -877,8 +908,12 @@ class _Interpreter:
                 s.block_id,
                 f"count is {n!r}; a whole number from 0 to {MAX_REPEAT_COUNT}",
             )
+        with self.st.shared_seams():
+            self._r_passes(s, env, int(n))
+
+    def _r_passes(self, s, env, n):
         var, each = s.args["var"], s.args["each"]
-        for i in range(int(n)):
+        for i in range(n):
             inner = _Env(env)
             inner.vars[var] = i
             self.current = s.block_id
@@ -938,7 +973,11 @@ def load_tree(path) -> dict:
         raise SystemExit(f"{p}: a block program is at most {MAX_FILE_BYTES} bytes")
     try:
         return json.loads(p.read_text(encoding="utf-8"))
-    except json.JSONDecodeError as exc:
+    except RecursionError:
+        raise SystemExit(f"{p}: not a block program (JSON nested too deep)") from None
+    except ValueError as exc:
+        # JSONDecodeError, UnicodeDecodeError, and int() refusing a literal
+        # over sys.get_int_max_str_digits() are all ValueErrors.
         raise SystemExit(f"{p}: not JSON ({exc})") from None
 
 
