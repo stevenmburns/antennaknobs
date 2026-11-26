@@ -712,6 +712,13 @@ _CUT_LINES = """\
 def to_python(chain: dict, att: Attachment) -> str:
     """The chain as a house-style design file: the antenna's class imported,
     subclassed, and its ``build_network()`` written out."""
+    return python_and_spans(chain, att)[0]
+
+
+def python_and_spans(chain: dict, att: Attachment) -> tuple[str, list[list[int]]]:
+    """`to_python`'s text, and for each item of ``chain`` the 0-based
+    ``[first, last]`` lines its branch is written on: what lets a page light
+    the box a line belongs to, and the lines a box wrote."""
     nodes, placed = layout(chain, att)
     feed = att.feed
     net_names = {"Driven", "Network"}
@@ -719,7 +726,9 @@ def to_python(chain: dict, att: Attachment) -> str:
     branch_lines = []
     if att.form == "cut":
         branch_lines.append(" " * 16 + "*antenna.branches,")
+    spans = []
     for it, name, a, b in placed:
+        spans.append(len(branch_lines))
         if it["kind"] == "cable":
             net_names |= {"TL", "cable_from_catalog"}
         elif it["kind"] == "line":
@@ -728,6 +737,8 @@ def to_python(chain: dict, att: Attachment) -> str:
             net_names.add("Instance")
             station_names.add(KINDS[it["kind"]].factory)
         branch_lines += _render("", _branch_call(it, name, a, b), 16)
+    ends = [*spans[1:], len(branch_lines)] if spans else []
+    spans = [[first, nxt - 1] for first, nxt in zip(spans, ends, strict=True)]
 
     virtual = [n for n in reversed(nodes) if n != feed]
     if virtual:
@@ -768,16 +779,15 @@ def to_python(chain: dict, att: Attachment) -> str:
     lines.append("    def build_network(self):")
     if att.form == "cut":
         lines += _CUT_LINES.format(feed=_lit(feed)).splitlines()
+    lines += ["        return Network(", *port_lines, " " * 12 + "branches=["]
+    at = len(lines)
     lines += [
-        "        return Network(",
-        *port_lines,
-        " " * 12 + "branches=[",
         *branch_lines,
         " " * 12 + "],",
         " " * 12 + f"sources=[Driven(port={_lit(nodes[0])}, voltage=1 + 0j)],",
         "        )",
     ]
-    return "\n".join(lines) + "\n"
+    return "\n".join(lines) + "\n", [[at + f, at + t] for f, t in spans]
 
 
 # --- reading the house style back --------------------------------------------------

@@ -2913,6 +2913,7 @@ input[type=checkbox] {
   overflow: hidden;
 }
 .station-chip.shunt { border-style: dashed; }
+.station-chip.lit { outline: 2px solid var(--accent); }
 .station-chip button { border: 0; border-radius: 0; background: var(--panel); color: var(--fg); }
 .station-chip-body { display: flex; flex-direction: column; align-items: flex-start; }
 .station-chip-body small { color: var(--muted); font-size: var(--text-xs); }
@@ -2943,6 +2944,7 @@ input[type=checkbox] {
 }
 .station-code .changed,
 .station-card-diff .add { background: var(--accent-active); }
+.station-code .lit { box-shadow: inset 3px 0 0 var(--accent); background: var(--accent-soft); }
 .station-card-diff .del { color: var(--danger); text-decoration: line-through; }
 .station-svg svg,
 .station-card-svg svg { max-width: 100%; height: auto; }

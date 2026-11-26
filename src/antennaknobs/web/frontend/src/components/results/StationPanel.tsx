@@ -2,6 +2,7 @@ import { useEffect, useMemo, useRef, useState } from "react";
 import type { SolveRequest } from "../../lib/api";
 import {
   chainToJson,
+  chipAtLine,
   fetchPalette,
   fmtSwr,
   fmtZ,
@@ -79,6 +80,10 @@ function StationRail({ station }: { station: StationContext }) {
   const [gallery, setGallery] = useState<Gallery | null>(null);
   const [readText, setReadText] = useState("");
   const [readMsg, setReadMsg] = useState<string | null>(null);
+  // The chip under the pointer, on the rail or through one of its lines in
+  // the Python pane: both light together (the design note's link between
+  // panes). The schematic is not linked yet: its SVG carries no per-box ids.
+  const [lit, setLit] = useState<number | null>(null);
   // The key of the rails the server last answered for, frozen names and
   // all: putting its frozen chains back into state must not re-post them.
   const settled = useRef<string | null>(null);
@@ -134,6 +139,7 @@ function StationRail({ station }: { station: StationContext }) {
   }, [requestJson, railsJson]);
 
   const shown = data?.rails[active] ?? null;
+  const litSpan = shown && lit !== null ? (shown.spans[lit] ?? null) : null;
   const chain = rails[active] ?? null;
 
   const setChain = (c: StationChain) =>
@@ -228,6 +234,8 @@ function StationRail({ station }: { station: StationContext }) {
 
       <Rail
         rail={shown}
+        lit={lit}
+        onLight={setLit}
         antennaLabel={`${ant.design} · ${ant.feed}`}
         onMove={(i) => openGallery(`Move ${shown.chips[i].label}`, { move: i })}
         onRemove={(i) => chain && setChain(withoutItem(chain, i))}
@@ -245,12 +253,28 @@ function StationRail({ station }: { station: StationContext }) {
       <div className="station-panes">
         <section className="station-pane">
           <h3>Python</h3>
-          <pre className="station-code" aria-label="Generated Python">
-            {shown.python.split("\n").map((ln, i) => (
-              <div key={i} className={shown.changed.includes(i) ? "changed" : undefined}>
-                {ln || " "}
-              </div>
-            ))}
+          <pre
+            className="station-code"
+            aria-label="Generated Python"
+            onMouseLeave={() => setLit(null)}
+          >
+            {shown.python.split("\n").map((ln, i) => {
+              const cls = [
+                shown.changed.includes(i) ? "changed" : "",
+                litSpan && litSpan[0] <= i && i <= litSpan[1] ? "lit" : "",
+              ]
+                .filter(Boolean)
+                .join(" ");
+              return (
+                <div
+                  key={i}
+                  className={cls || undefined}
+                  onMouseEnter={() => setLit(chipAtLine(shown.spans, i))}
+                >
+                  {ln || " "}
+                </div>
+              );
+            })}
           </pre>
         </section>
         <section className="station-pane">
@@ -308,11 +332,15 @@ function StationRail({ station }: { station: StationContext }) {
 
 function Rail({
   rail,
+  lit,
+  onLight,
   antennaLabel,
   onMove,
   onRemove,
 }: {
   rail: RailResult;
+  lit: number | null;
+  onLight: (i: number | null) => void;
   antennaLabel: string;
   onMove: (i: number) => void;
   onRemove: (i: number) => void;
@@ -321,7 +349,12 @@ function Rail({
     <div className="station-rail" aria-label="Station rail">
       <span className="station-end">RIG</span>
       {rail.chips.map((c, i) => (
-        <span key={i} className={`station-chip${c.series ? "" : " shunt"}`}>
+        <span
+          key={i}
+          className={`station-chip${c.series ? "" : " shunt"}${i === lit ? " lit" : ""}`}
+          onMouseEnter={() => onLight(i)}
+          onMouseLeave={() => onLight(null)}
+        >
           <button className="station-chip-body" onClick={() => onMove(i)} title="Move">
             {c.label}
             <small>{c.series ? `${c.a} → ${c.b}` : `at ${c.a}`}</small>

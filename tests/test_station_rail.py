@@ -11,6 +11,7 @@ network is what is under test, and free space keeps the fills cheap.
 """
 
 import importlib
+import itertools
 import warnings
 
 import pytest
@@ -482,3 +483,28 @@ def test_any_text_writes_as_one_python_literal():
 
     for v in ['a\nb"c\\', "RG-8X", "Ω\x00\t"]:
         assert ast.literal_eval(sr._lit(v)) == v
+
+
+def test_each_items_lines_are_the_call_it_wrote():
+    att = _doublet()
+    chain = sr.freeze(
+        {
+            "rig": "rig",
+            "items": [
+                sr.palette_item("t_tuner", 7.1),
+                sr.palette_item("shorted_stub", 7.1),
+                {"kind": "cable", "cable": "RG-8X", "length_m": 10.0},
+            ],
+        },
+        att,
+    )[0]
+    text, spans = sr.python_and_spans(chain, att)
+    assert text == sr.to_python(chain, att)
+    lines = text.split("\n")
+    body = ["\n".join(lines[first : last + 1]).strip() for first, last in spans]
+    assert body[0].startswith("Instance(") and "t_network_tuner" in body[0]
+    assert body[1].startswith("Instance(") and "shunt_shorted_stub" in body[1]
+    assert body[2].startswith("TL.from_cable(") and "RG-8X" in body[2]
+    # Consecutive and disjoint, ending on the branch list's close.
+    assert all(a[1] + 1 == b[0] for a, b in itertools.pairwise(spans))
+    assert lines[spans[-1][1] + 1].strip() == "],"

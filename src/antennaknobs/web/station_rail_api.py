@@ -184,7 +184,7 @@ def _chips(chain: dict, att: sr.Attachment) -> list[dict]:
 def _rail(ant: _Antenna, chain: dict, prev_python: str | None, svg=True) -> dict:
     att = ant.att
     chain, _ = sr.freeze(sr.check_chain(chain), att)
-    py = sr.to_python(chain, att)
+    py, spans = sr.python_and_spans(chain, att)
     s = solve_chain(ant.sa, chain, att, z_ref=ant.z_ref)
     nodes, _ = sr.layout(chain, att)
     out = {
@@ -192,6 +192,7 @@ def _rail(ant: _Antenna, chain: dict, prev_python: str | None, svg=True) -> dict
         "python": py,
         "changed": _changed_lines(prev_python, py),
         "chips": _chips(chain, att),
+        "spans": spans,
         "nodes": nodes,
         "advisories": sr.advisories(chain, att),
         **{k: s[k] for k in ("z_re", "z_im", "swr", "loss_db", "probes")},
