@@ -1632,6 +1632,15 @@ class MomwireEngine(SimulationEngine):
                 asked = feature_default(name)
             if feature_served(self._solver, name):
                 self._feature_kwargs[feature_kwarg(name)] = bool(asked)
+        # The sector route is not a registry switch (momwire registers it
+        # unoffered) and reaches here only as a True from the request. Since
+        # momwire#2152 an absent keyword defers to MOMWIRE_X_ROTATIONAL_SYMMETRY,
+        # so an unticked box is passed as False: the server's environment must
+        # not choose the route for a request that said no.
+        if "rotational_symmetry" not in self._solver_kwargs and _takes_kwarg(
+            self._solver, "rotational_symmetry"
+        ):
+            self._solver_kwargs["rotational_symmetry"] = False
         # Per-instance parity: sinusoidal wants odd, bs2 depends on
         # degree. Set before _coerce_wire_tuples runs.
         self.segment_parity = _parity_for_solver(self._solver, self._solver_kwargs)
