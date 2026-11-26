@@ -90,11 +90,13 @@ class Call:
 _TOKEN = re.compile(
     r"""
     (?P<ws>\s+)
-  | (?P<num>(?:\d+\.\d*|\.\d+|\d+)(?:[eE][+-]?\d+)?)
+  | (?P<num>(?:[0-9]+\.[0-9]*|\.[0-9]+|[0-9]+)(?:[eE][+-]?[0-9]+)?)
   | (?P<name>[A-Za-z_][A-Za-z0-9_]*|λ)
   | (?P<op>[-+*/()−×÷])
     """,
-    re.VERBOSE,
+    # ASCII: \s and the digit classes match only what the grammar names,
+    # not every Unicode space or decimal digit ("١٢" is refused, not 12).
+    re.VERBOSE | re.ASCII,
 )
 _CANONICAL_OP = {"−": "-", "×": "*", "÷": "/"}
 

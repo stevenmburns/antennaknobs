@@ -264,3 +264,11 @@ def test_parenthesisation_keeps_a_right_operand_at_the_same_precedence():
     assert bx.to_python(bx.parse("--a"), spell) == "-(-a)"
     assert bx.to_python(bx.parse("λ * -width"), spell) == "wavelength * -width"
     assert bx.to_python(bx.parse("sin(a)"), spell) == "math.sin(math.radians(a))"
+
+
+@pytest.mark.parametrize("text", ["١٢", "１２", "1\u30002", "1\u00a0+ 2"])
+def test_digits_and_spaces_are_ascii_only(text):
+    # Unicode decimal digits and spaces are outside the grammar, so refused
+    # rather than read as the number they look like.
+    with pytest.raises(bx.ExprError, match="is not part of an expression"):
+        bx.parse(text)
