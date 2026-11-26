@@ -29,10 +29,25 @@ import { Card, CardGrid, LinkCard } from "@astrojs/starlight/components";
 {/* What's-new box: refresh as part of the release ritual (bump the version,
     swap the highlights) — a stale "new" box is worse than none. */}
 
-<Card title="New in v0.124.1" icon="star">
-  **On momwire 0.97.1.** momwire's advisories stay off unless you ask for
-  them (`MOMWIRE_ADVISORIES`), so the EZNEC drop-in no longer writes one on
-  every launch.
+<Card title="New in v0.125.0" icon="star">
+  **On momwire 0.98.0, with two speed switches.** A momwire tab's gear menu
+  has **reuse repeated geometry (faster fill)** on the `bs2`, Sinusoidal and
+  `razor2p` tabs, and **rotational symmetry (radial screens)** on `bs2` and
+  Sinusoidal. Both are off unless you tick them, and neither is meant to
+  change the answer. The new [Faster solves](/advanced/faster-solves/) page
+  says when each one pays, with timings, and the Fill view says what the
+  reuse copied.
+
+  **Yagis on one element core.** The `beams.yagi` design takes a
+  `uniform_cores` option that builds every element on the director's core,
+  so the pairs between elements repeat. On the 10-element Yagi, Sinusoidal's
+  fill reuse then compresses the fill 46× instead of 5.4×, and the impedance
+  moves by 0.02 Ω.
+
+  **More for writing geometry.** `TransformStack` gains `st.path` (a run of
+  wires that share their corners exactly), the axis wires `wire_x`, `wire_y`
+  and `wire_z`, and `Transform.mirrorYZ` / `mirrorXZ` / `mirrorXY`. See the
+  [reference](/reference/drone-transform/).
 
   **Insulated wires on the ground reopen as you wrote them.** A NEC-5 deck
   exported from a design with insulated radials lying on the soil now opens
@@ -43,23 +58,10 @@ import { Card, CardGrid, LinkCard } from "@astrojs/starlight/components";
   `bs2`, `bs1`, `sg` and `razor2p` (were `bspline`, `bspline-d1`,
   `sinusoidal-galerkin` and `razor-2p`). The old names still work in saved
   settings, kept studies and on the command line, and are read as the new
-  ones. `razor-nec5` is retired.
+  ones. `razor-nec5` is retired. A ↺ button beside the design picker puts
+  every knob back on the design's own values.
 
-  **NEC-4.2 decks: a wire listed twice is refused, as NEC-4.2 itself
-  does.** The answer it used to print for such a deck was meaningless. The
-  refusal names the deck's own GW tags and says which copy to delete.
-
-  **Reset knobs.** A new ↺ button beside the design picker puts every knob
-  back on the design's own values. Knob values carried by a link, or kept
-  from earlier in the tab, used to survive reopening the design's file. A
-  knob you never moved now follows an edited file to its new default.
-
-  **Smaller fixes.** NEC-4.2 decks with eight-field `GH` helices read as
-  NEC-4.2. PyNEC and OpenNEC compute a deck's transmission lines at the
-  deck's own speed of light. Copy link says when it leaves out a multiband
-  design's band settings.
-
-  Full notes: [v0.124.1](https://github.com/stevenmburns/antennaknobs/releases/tag/v0.124.1),
+  Full notes: [v0.125.0](https://github.com/stevenmburns/antennaknobs/releases/tag/v0.125.0),
   [v0.124.0](https://github.com/stevenmburns/antennaknobs/releases/tag/v0.124.0).
 </Card>
 
