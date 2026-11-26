@@ -40,10 +40,9 @@ Both are boxes in a momwire slot's gear menu, unticked by default.
 
 - **reuse repeated geometry (faster fill)** is on the `bs2`, Sinusoidal and
   `razor2p` tabs. It is offered only where momwire certifies the reuse behind
-  that tab: on the hosted app all three; on a local install the `razor2p` box
-  everywhere, and the `bs2` and Sinusoidal boxes on Linux and Windows, not on
-  macOS. PyNEC's tab has its own box of the same name, which is PyNEC's fill
-  reuse and is not covered here.
+  that tab, which is all three on the hosted app and on Linux, Windows and
+  macOS installs. PyNEC's tab has its own box of the same name, which is
+  PyNEC's fill reuse and is not covered here.
 - **rotational symmetry (radial screens)** is on the `bs2` and Sinusoidal tabs
   only.
 
