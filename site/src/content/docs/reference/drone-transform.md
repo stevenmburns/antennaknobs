@@ -158,6 +158,7 @@ A 4×4 homogeneous transform (rotation + translation). All rotation factories ta
 | `Transform.translate(x, y, z)` | Translation-only transform *(static)*. |
 | `Transform.rotX(deg)` / `rotY(deg)` / `rotZ(deg)` | Rotation about a world axis, in degrees *(static)*. |
 | `Transform.scale(sx=1, sy=1, sz=1)` | Scale each axis; `-1` mirrors that axis *(static)*. |
+| `Transform.mirrorYZ()` / `mirrorXZ()` / `mirrorXY()` | Reflect across the named plane: `x → -x`, `y → -y`, `z → -z` *(static)*. The same as `scale` with one `-1`, named for the plane the reflection keeps. |
 | `Transform.inverse(tr)` | The inverse of `tr` *(static)*. |
 | `t.hit(coords)` | Apply `t` to a point `coords=(x, y, z)`; returns the transformed `(x, y, z)`. |
 | `t.premult(other)` | Return `other @ t` (apply `t` first, then `other`). |
@@ -181,6 +182,8 @@ through the top.
 | `hit(v)` | Transform point `v` through the current top frame. |
 | `push_pop_tr(tr)` | Context manager: `push(tr)` for the `with` block, popped on the way out even if the block raises. |
 | `emit(w)` | Append wire `w` (a `Wire` or a plain wire tuple) to `wires`, its endpoints through the current top frame; other fields kept. |
+| `path(points, *, closed=False, ex=None, ex_segment=None, **fields)` | Emit one wire per consecutive pair of `points` under the current frame, and return them. Neighbouring wires share their endpoint exactly, so a path cannot leave a gap. `closed=True` adds the side from the last point back to the first. `ex` excites every segment, or only the one at index `ex_segment`. Any other `Wire` field (`n_seg`, `name`, `spec`, …) goes to every segment. |
+| `wire_x(x0, x1, *, y=0, z=0, **fields)` | One wire along the current frame's X axis from `x0` to `x1`, at `y` and `z`, emitted like `emit` and returned. `wire_y` and `wire_z` are the same along Y and Z. A dipole arm is `st.wire_x(0, arm)`. |
 | `wires` | The wires `emit` has collected, ready to return from `build_wires()`. |
 
 ### Example — stacked frames
@@ -214,4 +217,23 @@ with st.push_pop_tr(Transform.translate(0, 0, 10)):
         with st.push_pop_tr(Transform.scale(sx=mirror)):
             st.emit(((0.0, 0, 0), (5.0, 0, 0), None, None))
 wires = st.wires  # both arms, at z = 10
+```
+
+### Example — a closed loop as one path
+
+`path` lays the sides of a loop from its corners, and `ex_segment` feeds one
+side:
+
+```python
+from antennaknobs import TransformStack
+
+st = TransformStack()
+s = 2.5  # half a side
+st.path(
+    [(-s, 0, -s), (s, 0, -s), (s, 0, s), (-s, 0, s)],
+    closed=True,
+    ex=1 + 0j,
+    ex_segment=0,
+)
+wires = st.wires  # four sides, fed on the bottom one
 ```
