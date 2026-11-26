@@ -87,6 +87,9 @@ class TransformStack:
         # appended). Left None by designs; an editor sets it to learn which
         # statement ran under which frame (docs/design/block-builder.md).
         self.tracer = None
+        # The ``wire_spec`` blocks open around the current statement,
+        # innermost last; see :meth:`wire_spec`.
+        self._specs = []
 
     def push(self, tr):
         self.stack.append(self.stack[-1].postmult(tr))
@@ -103,6 +106,8 @@ class TransformStack:
         """Append ``raw_w`` (a ``Wire`` or a plain wire tuple) to ``wires``
         with both endpoints under the current transform."""
         w = as_wire(raw_w)
+        if w.spec is None and self._specs:
+            w = w._replace(spec=self._specs[-1])
         self.wires.append(w._replace(p0=self.hit(w.p0), p1=self.hit(w.p1)))
         if self.tracer is not None:
             self.tracer("emit", self)
@@ -116,6 +121,20 @@ class TransformStack:
             yield
         finally:
             self.pop()
+
+    @contextmanager
+    def wire_spec(self, spec):
+        """Make ``spec`` (a ``WireSpec``) the default for every wire emitted
+        inside the ``with`` block. Nested blocks stack, innermost wins, and
+        ``wire_spec(None)`` restores the design default inside it. A wire
+        given its own ``spec=`` keeps it, the precedence ``Wire`` defines;
+        the spec is never scaled by a transform, since it is the wire stock,
+        not geometry."""
+        self._specs.append(spec)
+        try:
+            yield
+        finally:
+            self._specs.pop()
 
     def path(self, points, *, closed=False, ex=None, ex_segment=None, **fields):
         """Emit one wire per consecutive pair of ``points``, under the current
