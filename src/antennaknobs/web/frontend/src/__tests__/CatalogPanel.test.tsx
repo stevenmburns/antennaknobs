@@ -214,7 +214,7 @@ describe("CatalogPanel — design note", () => {
     // (deck_pragma_note.py): it rides the same `notes` string, and no
     // element of its own.
     const asked =
-      "This deck asks for pair reuse (momwire: pair_reuse). antennaknobs does not act on deck cards; tick 'reuse repeated geometry (faster fill)' in the speed options to use it.";
+      "This file asks for pair reuse (momwire: pair_reuse). antennaknobs does not act on it; tick 'reuse repeated geometry (faster fill)' in the speed options to use it.";
     const { container } = renderPanel({
       currentExample: example({ notes: `Read as NEC-2. ${asked} Opens at 14.2 MHz.` }),
     });
