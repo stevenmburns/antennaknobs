@@ -167,18 +167,34 @@ def planes_of(net: Network) -> list[str]:
 def antenna_side(net: Network, feed: str) -> Network:
     """The parts of ``net`` the antenna carries itself, driven at ``feed``.
 
-    The design's station comes off: everything upstream of ``feed``
-    (`driven_at`'s cut), and also whatever hangs on ``feed`` alone, such as an
-    L network's shunt part or a matching stub there, since from the feed back
-    to the rig is the station's side. What stays is every branch that reaches
-    a real port other than ``feed`` (a trap on its own wire, an LPDA's phasing
-    line from the feed to the next element), so an antenna built partly from
-    circuit elements is still that antenna. The station rail
-    (`antennaknobs.station_rail`) puts its chain on what this returns.
+    Where the design's source already sits on ``feed`` it has no station, and
+    every branch is the antenna's: a loading coil in series at the feed, a
+    bond shorting an idle stub. Otherwise the design's station comes off:
+    everything upstream of ``feed`` (`driven_at`'s cut), and also whatever
+    hangs on ``feed`` alone, such as an L network's shunt part or a matching
+    stub there, since from the feed back to the rig is the station's side.
+    What stays is every branch that reaches a real port other than ``feed``
+    (a trap on its own wire, an LPDA's phasing line from the feed to the next
+    element, a bond on another port), so an antenna built partly from circuit
+    elements is still that antenna. The station rail
+    (`antennaknobs.station_rail`) puts its chain on what this returns, and
+    refuses a design whose station meets the antenna anywhere but ``feed``.
     """
+    src = net.sources[0] if len(net.sources) == 1 else None
+    if src is not None and src.port == feed:
+        out = Network(
+            ports=dict(net.ports),
+            branches=list(net.branches),
+            sources=[Driven(port=feed, voltage=1 + 0j)],
+        )
+        out.branch_paths = list(net.branch_paths or [""] * len(net.branches))
+        out.composites = dict(net.composites or {})
+        return out
     cut = driven_at(net, feed)
-    is_datum = _datum_nodes(cut)
     real = {n for n, p in cut.ports.items() if not isinstance(p, PortVirtual)}
+    # A node bonded to the datum is the datum, except a real port: a bond on
+    # an antenna port is wired to that port, and the branch is the antenna's.
+    is_datum = _datum_nodes(cut) - real
 
     # Components over the nodes other than the datum and the feed: a branch
     # stays when its component holds a real port that is not the feed.
@@ -216,6 +232,8 @@ def antenna_side(net: Network, feed: str) -> Network:
         ports=ports, branches=branches, sources=[Driven(port=feed, voltage=1 + 0j)]
     )
     out.branch_paths = paths
+    # Composite keys and branch paths end in the instance dot ("trap1.",
+    # "sta.tuner1."), so this prefix test cannot take "trap1." for "trap10.".
     out.composites = {
         k: v
         for k, v in (cut.composites or {}).items()

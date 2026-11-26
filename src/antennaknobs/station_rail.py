@@ -28,6 +28,7 @@ from __future__ import annotations
 
 import ast
 import copy
+import json
 import math
 from dataclasses import dataclass
 
@@ -126,6 +127,9 @@ _NODE_NOTE = {
     "bal": "balun line-side terminals",
     "pri": "unun line-side terminals",
 }
+# The text values that are not names from a catalog: `station.l_network_tuner`
+# takes these and nothing else.
+_CHOICES = {"shunt_at": ("out", "rig", "auto"), "mode": ("low", "high", "ll", "cc")}
 # Keys an item may carry besides its kind's values.
 _NAME_KEYS = ("kind", "name", "node")
 
@@ -206,6 +210,10 @@ def _check_item(item, where: str) -> dict:
         else:
             if not isinstance(v, str):
                 raise RailRefusal(f"{where}: {key} must be text, got {v!r}")
+            if key in _CHOICES and v not in _CHOICES[key]:
+                raise RailRefusal(
+                    f"{where}: {key} is one of {', '.join(_CHOICES[key])}, got {v!r}"
+                )
             out[key] = v
     missing = [p for p in kind.required if p not in out]
     if missing:
@@ -302,7 +310,10 @@ class Attachment:
 
     ``antenna`` is that antenna-side network at the knobs it was built with
     (form "cut" only). ``replaced`` counts the branches of the design's own
-    station the rail stands in for. ``balanced`` is whether the feed is a
+    station the rail stands in for; ``at_feed`` how many of those hang on the
+    feed alone (an L network's shunt arm across the feed), which the
+    workbench's own measurement plane at the feed keeps and the rail does
+    not, so the two read differently there. ``balanced`` is whether the feed is a
     balanced one, None where the rail does not know (the advisories that
     need it stay quiet then).
     """
@@ -314,6 +325,7 @@ class Attachment:
     balanced: bool | None = None
     antenna: Network | None = None
     replaced: int = 0
+    at_feed: int = 0
     reserved: frozenset = frozenset()
 
 
@@ -333,6 +345,7 @@ def attach(design: str, builder, module: str | None = None) -> Attachment:
     rail cannot feed it. ``module`` is what the generated file imports the
     antenna from: the catalog path for a catalog design."""
     from .plane import antenna_side, planes_of
+    from .schematic import _datum_nodes, terminals_of
 
     module = module or f"antennaknobs.designs.{design}"
     net = builder.build_network()
@@ -371,8 +384,18 @@ def attach(design: str, builder, module: str | None = None) -> Attachment:
         )
     feed = real[0]
     side = antenna_side(net, feed)
+    _station_meets_antenna_at_feed(net, side, feed)
     names = frozenset(side.ports)
     replaced = len(net.branches) - len(side.branches)
+    kept = {id(br) for br in side.branches}
+    bonded = _datum_nodes(net)
+    at_feed = sum(
+        1
+        for br in net.branches
+        if id(br) not in kept
+        and feed in terminals_of(br)
+        and all(t == feed or t in bonded for t in terminals_of(br))
+    )
     plain = (
         not side.branches
         and set(side.ports) == {feed}
@@ -381,12 +404,44 @@ def attach(design: str, builder, module: str | None = None) -> Attachment:
     if plain:
         return Attachment(
             design, module, "port", feed, BALANCED.get(design),
-            replaced=replaced, reserved=names,
+            replaced=replaced, at_feed=at_feed, reserved=names,
         )  # fmt: skip
     return Attachment(
         design, module, "cut", feed, BALANCED.get(design),
-        antenna=side, replaced=replaced, reserved=names,
+        antenna=side, replaced=replaced, at_feed=at_feed, reserved=names,
     )  # fmt: skip
+
+
+def _station_meets_antenna_at_feed(net: Network, side: Network, feed: str):
+    """RailRefusal unless the design's station (what `antenna_side` took off)
+    touches the antenna at ``feed`` and the datum only. Otherwise taking it
+    off is not taking off a station: a balun into both ends of an end-port
+    pair leaves the antenna driven single-ended, and a phasing harness cut at
+    one element leaves its other lines on an undriven junction. Both are
+    multi-feed designs, which the design note keeps for the free-schematic
+    mode."""
+    from .schematic import _datum_nodes, terminals_of
+
+    kept = {id(br) for br in side.branches}
+    bonded = _datum_nodes(net)
+    station_nodes, antenna_nodes = set(), set()
+    for br in net.branches:
+        ts = {t for t in terminals_of(br) if t not in bonded}
+        (antenna_nodes if id(br) in kept else station_nodes).update(ts)
+    others = {
+        n
+        for n in station_nodes - {feed}
+        if n in net.ports and not isinstance(net.ports[n], PortVirtual)
+    }
+    shared = (station_nodes & antenna_nodes) - {feed}
+    if others or shared:
+        where = sorted(others | shared)
+        raise RailRefusal(
+            f"this design's own feed network reaches the antenna at {feed} and "
+            f"also at {', '.join(where)} (a balun into an end-port pair, or a "
+            "phasing harness): it is a multi-feed design, and the rail feeds "
+            "one port; taking that network off would change the antenna"
+        )
 
 
 def wires_for(att: Attachment, wires) -> list:
@@ -562,7 +617,9 @@ def _lit(v) -> str:
         return repr(v)
     if isinstance(v, (int, float)):
         return repr(float(v))
-    return '"' + str(v).replace("\\", "\\\\").replace('"', '\\"') + '"'
+    # JSON's string escapes are a subset of Python's, and it escapes every
+    # control character, so any text is one valid double-quoted literal.
+    return json.dumps(str(v), ensure_ascii=False)
 
 
 @dataclass
