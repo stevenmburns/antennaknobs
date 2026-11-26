@@ -2829,6 +2829,174 @@ input[type=checkbox] {
   padding: 0 6px;
 }
 
+/* The Station view (the station rail, docs/design/block-builder.md): the
+   rail, then the Python and the schematic side by side, the palette and the
+   placement gallery. The whole view scrolls; on a narrow stage the two panes
+   stack. */
+.station-fill {
+  position: absolute;
+  inset: 0;
+  overflow: auto;
+  padding: var(--space-5);
+  padding-bottom: calc(var(--space-5) + var(--stage-readout-h, 0px));
+  box-sizing: border-box;
+  color: var(--fg);
+  font-size: var(--text-sm);
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-5);
+}
+.station-busy { opacity: 0.85; }
+.station-box { position: relative; max-width: 100%; }
+.station-thumb {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: var(--space-3);
+  color: var(--muted);
+  font-size: var(--text-xs);
+  overflow: hidden;
+}
+.station-thumb-rail { display: flex; align-items: center; gap: var(--space-2); }
+.station-thumb-line { width: 2.5em; border-top: 2px solid var(--accent); }
+.station-head {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--space-4);
+}
+.station-tabs { display: flex; flex-wrap: wrap; gap: var(--space-2); }
+.station-tabs button.active {
+  background: var(--accent-active);
+  border-color: var(--accent-border);
+}
+.station-meta { color: var(--muted); }
+.station-notice,
+.station-advisories {
+  background: var(--inset);
+  border-radius: var(--r-sm);
+  padding: var(--space-3) var(--space-4);
+  margin: 0;
+}
+.station-advisories { padding-left: 2em; color: var(--hot); }
+.station-error {
+  background: var(--danger-bg);
+  border: 1px solid var(--danger-border);
+  color: var(--danger);
+  border-radius: var(--r-sm);
+  padding: var(--space-3) var(--space-4);
+}
+.station-empty { color: var(--muted); padding: var(--space-4); }
+.station-rail {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--space-3);
+  padding: var(--space-4);
+  border: 1px solid var(--border);
+  border-radius: var(--r-md);
+  background: var(--panel);
+}
+.station-end {
+  font-weight: 600;
+  padding: var(--space-3) var(--space-4);
+  border-radius: var(--r-sm);
+  background: var(--inset);
+}
+.station-chip {
+  display: inline-flex;
+  align-items: stretch;
+  border: 1px solid var(--accent-border);
+  border-radius: var(--r-sm);
+  overflow: hidden;
+}
+.station-chip.shunt { border-style: dashed; }
+.station-chip button { border: 0; border-radius: 0; background: var(--panel); color: var(--fg); }
+.station-chip-body { display: flex; flex-direction: column; align-items: flex-start; }
+.station-chip-body small { color: var(--muted); font-size: var(--text-xs); }
+.station-chip-x { color: var(--muted); padding: 0 var(--space-3); }
+.station-panes {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(min(100%, 360px), 1fr));
+  gap: var(--space-5);
+}
+.station-pane h3,
+.station-palette h3,
+.station-gallery h3 {
+  margin: 0 0 var(--space-3);
+  font-size: var(--text-xs);
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+  color: var(--muted);
+}
+.station-code,
+.station-card-diff {
+  margin: 0;
+  font-family: var(--font-mono);
+  font-size: var(--text-xs);
+  background: var(--inset);
+  border-radius: var(--r-sm);
+  padding: var(--space-4);
+  overflow-x: auto;
+}
+.station-code .changed,
+.station-card-diff .add { background: var(--accent-active); }
+.station-card-diff .del { color: var(--danger); text-decoration: line-through; }
+.station-svg svg,
+.station-card-svg svg { max-width: 100%; height: auto; }
+.station-probes,
+.station-compare { border-collapse: collapse; margin-top: var(--space-4); }
+.station-probes caption { text-align: left; color: var(--muted); }
+.station-probes th,
+.station-probes td,
+.station-compare th,
+.station-compare td {
+  padding: var(--space-2) var(--space-4);
+  border-bottom: 1px solid var(--border);
+  text-align: left;
+  font-variant-numeric: tabular-nums;
+}
+.station-palette-row { display: flex; flex-wrap: wrap; gap: var(--space-3); }
+.station-gallery {
+  border: 1px solid var(--accent-border);
+  border-radius: var(--r-md);
+  padding: var(--space-4);
+}
+.station-gallery-head { display: flex; justify-content: space-between; align-items: center; }
+.station-cards {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(min(100%, 260px), 1fr));
+  gap: var(--space-4);
+}
+.station-card {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-3);
+  text-align: left;
+  background: var(--panel);
+  color: var(--fg);
+  border: 1px solid var(--border);
+  border-radius: var(--r-md);
+  padding: var(--space-4);
+  min-width: 0;
+}
+.station-card:hover { border-color: var(--border-hover); }
+.station-card.current { border-color: var(--accent); }
+.station-card-where { font-weight: 600; }
+.station-card-advisory { color: var(--hot); }
+.station-read textarea {
+  display: block;
+  width: 100%;
+  min-height: 10em;
+  font-family: var(--font-mono);
+  font-size: var(--text-xs);
+  margin: var(--space-3) 0;
+  box-sizing: border-box;
+}
+.station-read-msg { color: var(--muted); margin-top: var(--space-3); }
+
 /* The Files view (AK#1428): a tab row, then one monospace pane that scrolls
    on its own, so a long printout never grows the stage. */
 .files-fill,

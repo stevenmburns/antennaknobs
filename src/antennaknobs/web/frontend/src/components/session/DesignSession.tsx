@@ -344,6 +344,7 @@ import { useMobileCarousel } from "./useMobileCarousel";
 import { useOptimizer } from "./useOptimizer";
 import { useEngineFiles } from "./useEngineFiles";
 import { useSchematic } from "./useSchematic";
+import type { StationContext } from "../results/StationPanel";
 import { useSolveChannel } from "./useSolveChannel";
 import { useSolverSlots } from "./useSolverSlots";
 import { gridCells, gridShape, useViewPrefs, withChartCopies } from "./useViewPrefs";
@@ -5615,6 +5616,9 @@ function DesignSessionBody({
   const NO_CHART = { paramSweep: null, paramSweepRunning: false } as const;
   const chartPanelOf = (v: View) => chartUis[chartIndex(v)]?.panel ?? NO_CHART;
   const chartThumbOf = (v: View) => chartUis[chartIndex(v)]?.thumb ?? NO_CHART;
+  // The Station view's design and request: the rail solves the design on
+  // screen at the knobs on screen, posting the live solve's own request.
+  const stationContext: StationContext = { geometry, buildRequest };
   const viewPanel = (v: View, size: number, fill: boolean) => (
     <ViewPanel
       view={v}
@@ -5675,6 +5679,7 @@ function DesignSessionBody({
       refineEnabled={refineEnabled}
       schematicSvg={schematicSvg}
       schematicUnavailable={schematicUnavailable}
+      station={stationContext}
       files={files}
       fillRefusal={fillRefusal}
       sweepFill={primaryFreq.stale ? null : primaryFreq.fillReport}

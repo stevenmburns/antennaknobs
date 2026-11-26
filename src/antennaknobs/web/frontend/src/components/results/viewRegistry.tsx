@@ -39,6 +39,7 @@ import type { BandMarks } from "../../lib/optBands";
 import type { SmithBandPicker } from "../charts/SmithBandToggles";
 import type { HamBandSpan } from "../../lib/sweepAxis";
 import { SchematicPanel } from "./SchematicPanel";
+import { StationPanel, type StationContext } from "./StationPanel";
 
 // The render half of the view registry (the metadata half — id, label,
 // defaultPinned — is VIEWS in lib/view.ts, which stays component-free).
@@ -130,6 +131,9 @@ export type ViewRenderProps = {
   hamBands?: readonly HamBandSpan[];
   schematicSvg: string | null;
   schematicUnavailable: boolean;
+  /** The Station view's design and request (the station rail). Optional:
+   *  thumbnail call sites omit it, and the thumb draws a placeholder. */
+  station?: StationContext | null;
   /** The Files view's texts (AK#1428). Optional: thumbnail call sites omit
    *  it, and the panel's thumb carries no text anyway. */
   files?: FilesViewData | null;
@@ -356,6 +360,7 @@ export const VIEW_RENDERERS: Record<View, (p: ViewRenderProps) => ReactElement> 
       fill={p.fill}
     />
   ),
+  station: (p) => <StationPanel station={p.station ?? null} size={p.size} fill={p.fill} />,
   files: (p) => <FilesPanel data={p.files ?? null} size={p.size} fill={p.fill} />,
   fill: (p) => (
     <FillPanel

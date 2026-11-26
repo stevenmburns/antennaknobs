@@ -43,6 +43,7 @@ const EVERY_VIEW: Record<View, true> = {
   elevation: true,
   combined: true,
   schematic: true,
+  station: true,
   files: true,
   fill: true,
   zparam: true,
@@ -91,6 +92,8 @@ describe("view metadata", () => {
       // unit 3), which folded the Smith, VSWR and S11 views in.
       ["zparam", "Sweep"],
       ["schematic", "Schematic"],
+      // The station rail (docs/design/block-builder.md, phase S1).
+      ["station", "Station"],
       ["files", "Files"],
       ["fill", "Fill"],
     ]);
@@ -123,11 +126,13 @@ describe("view metadata", () => {
 
   // The stage readout floats over every view. It starts minimized only where
   // the view's own content already carries the numbers and the card would
-  // cover it: the Files view's printout and the Fill view's map. The analysis chart's default is the
+  // cover it: the Station view's probes, the Files view's printout and the
+  // Fill view's map. The analysis chart's default is the
   // session's, by what it shows (open on the Smith chart it opens on,
   // minimized on a knob sweep's R/X plot).
-  it("starts the readout minimized only on the Files and Fill views", () => {
+  it("starts the readout minimized only on the Station, Files and Fill views", () => {
     expect(VIEWS.filter((v) => v.readoutStartsCollapsed).map((v) => v.id)).toEqual([
+      "station",
       "files",
       "fill",
     ]);
@@ -170,6 +175,7 @@ const MARKERS: Record<View, string> = {
   elevation: 'canvas.farfield[data-cut="yz"]',
   combined: "canvas.farfield[data-fill]",
   schematic: ".schematic-fill",
+  station: ".station-thumb",
   files: ".files-fill",
   fill: ".fill-panel-fill",
   zparam: "canvas.zparam",
