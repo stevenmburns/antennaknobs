@@ -123,6 +123,12 @@ export function sameChain(a: StationChain | null, b: StationChain | null): boole
   return chainToJson(a) === chainToJson(b);
 }
 
+/** The chip whose generated lines hold `line`, or null (a line no box wrote). */
+export function chipAtLine(spans: [number, number][], line: number): number | null {
+  const i = spans.findIndex(([first, last]) => first <= line && line <= last);
+  return i < 0 ? null : i;
+}
+
 /** The chain with item `i` removed. */
 export function withoutItem(chain: StationChain, i: number): StationChain {
   return { ...chain, items: chain.items.filter((_it, k) => k !== i) };
@@ -145,6 +151,8 @@ export type RailResult = ZRow & {
   python: string;
   changed: number[];
   chips: Chip[];
+  /** Per chip, the 0-based [first, last] lines of `python` it wrote. */
+  spans: [number, number][];
   nodes: string[];
   advisories: string[];
   loss_db: number | null;

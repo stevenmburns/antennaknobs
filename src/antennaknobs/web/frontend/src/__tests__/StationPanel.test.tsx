@@ -2,7 +2,7 @@
 // renders both rails, and switching between A and B is a display switch over
 // that response, never another request (the antenna is solved once, server
 // side, per request).
-import { act, fireEvent, render, screen } from "@testing-library/react";
+import { act, fireEvent, render, screen, within } from "@testing-library/react";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import type { SolveRequest } from "../lib/api";
 
@@ -29,7 +29,8 @@ function rail(name: string, swr: number, chain: unknown) {
     chain,
     python: `# rail ${name}\nclass Builder(Antenna): ...`,
     changed: [],
-    chips: [],
+    chips: [{ label: "RG-8X 30.48 m", kind: "cable", series: true, a: "rig", b: "feed", name: null }],
+    spans: [[1, 1]],
     nodes: ["rig", "feed"],
     advisories: [],
     z_re: 40 + swr,
@@ -103,6 +104,24 @@ describe("StationPanel", () => {
     await settle();
     expect(screen.getByLabelText("Generated Python").textContent).toContain("# rail B");
     expect(calls.length).toBe(before);
+  });
+
+  it("lights a box and the lines it wrote, from either side", async () => {
+    render(<StationPanel station={station} size={600} fill={true} />);
+    await settle();
+    const lines = screen.getByLabelText("Generated Python").children;
+    const chip = within(screen.getByLabelText("Station rail")).getByText("RG-8X 30.48 m")
+      .closest(".station-chip")!;
+    fireEvent.mouseEnter(lines[1]);
+    expect(chip.className).toContain("lit");
+    expect(lines[1].className).toContain("lit");
+    expect(lines[0].className).not.toContain("lit");
+    fireEvent.mouseEnter(lines[0]); // a line no box wrote
+    expect(chip.className).not.toContain("lit");
+    fireEvent.mouseEnter(chip);
+    expect(lines[1].className).toContain("lit");
+    fireEvent.mouseLeave(chip);
+    expect(lines[1].className).not.toContain("lit");
   });
 
   it("does not re-post the frozen chains the server answered with", async () => {
