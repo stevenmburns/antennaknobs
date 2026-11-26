@@ -209,6 +209,20 @@ describe("CatalogPanel — design note", () => {
     expect(note?.textContent).toBe("careful with the feed point");
   });
 
+  it("renders a deck-card note beside the import's other notes", () => {
+    // The sentence the importer writes for a `CM momwire: <name>` card
+    // (deck_pragma_note.py): it rides the same `notes` string, and no
+    // element of its own.
+    const asked =
+      "This deck asks for pair reuse (momwire: pair_reuse). antennaknobs does not act on deck cards; tick 'reuse repeated geometry (faster fill)' in the speed options to use it.";
+    const { container } = renderPanel({
+      currentExample: example({ notes: `Read as NEC-2. ${asked} Opens at 14.2 MHz.` }),
+    });
+    const notes = container.querySelectorAll(".design-note");
+    expect(notes).toHaveLength(1);
+    expect(notes[0]?.textContent).toContain(asked);
+  });
+
   it.each([undefined, null, ""] as const)(
     "hides .design-note when notes is %s",
     (notes) => {
