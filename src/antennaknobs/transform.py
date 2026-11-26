@@ -1,9 +1,18 @@
+import math
 from contextlib import contextmanager
-from itertools import pairwise
+from itertools import pairwise, product
 
 import numpy as np
 
 from .wire_catalog import Wire, as_wire
+
+# shared_seams joins endpoints within this fraction of the block's size (its
+# largest coordinate, at least 1 m). A seam a rotation leaves behind is a few
+# ulps of the coordinate, about 1e-16 relative per transform, and stays under
+# 1e-12 through MAX_NESTING levels and 256 accumulated passes; 1e-9 is three
+# orders above that and, at a 1 m scale, five orders below the thinnest
+# catalog wire's radius, so no two ends a designer meant apart are joined.
+SEAM_TOL = 1e-9
 
 
 class Transform:
@@ -135,6 +144,46 @@ class TransformStack:
             yield
         finally:
             self._specs.pop()
+
+    @contextmanager
+    def shared_seams(self):
+        """Join the seams of the wires emitted inside the ``with`` block: an
+        endpoint within SEAM_TOL of one emitted earlier in the block takes
+        that earlier point exactly. So the copies a mirror or a rotation
+        makes meet where their author meant them to, not an ulp apart, and
+        the first copy is never moved. Wires emitted before the block are
+        left alone: a join stays inside the block that made it."""
+        start = len(self.wires)
+        yield
+        self._join_seams(start)
+
+    def _join_seams(self, start):
+        new = self.wires[start:]
+        coords = [float(c) for w in new for p in (w.p0, w.p1) for c in p]
+        if not coords or not all(math.isfinite(c) for c in coords):
+            return
+        tol = SEAM_TOL * max(1.0, max(abs(c) for c in coords))
+        # Cells one tolerance wide: a point within tol (per coordinate) of
+        # another lies in the same cell or one of its 26 neighbours.
+        cells = {}
+
+        def join(p):
+            key = tuple(math.floor(float(c) / tol) for c in p)
+            for d in product((-1, 0, 1), repeat=3):
+                near = (key[0] + d[0], key[1] + d[1], key[2] + d[2])
+                for q in cells.get(near, ()):
+                    if all(
+                        abs(float(a) - float(b)) <= tol
+                        for a, b in zip(p, q, strict=True)
+                    ):
+                        return q
+            cells.setdefault(key, []).append(p)
+            return p
+
+        for i, w in enumerate(new, start):
+            p0, p1 = join(w.p0), join(w.p1)
+            if p0 is not w.p0 or p1 is not w.p1:
+                self.wires[i] = w._replace(p0=p0, p1=p1)
 
     def path(self, points, *, closed=False, ex=None, ex_segment=None, **fields):
         """Emit one wire per consecutive pair of ``points``, under the current

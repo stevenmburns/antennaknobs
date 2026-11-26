@@ -176,3 +176,20 @@ def test_wire_spec_pops_when_the_block_raises():
         raise RuntimeError
     st.wire_x(0, 1)
     assert st.wires[0].spec is None
+
+
+def test_shared_seams_joins_near_ends_inside_the_block_only():
+    from antennaknobs.transform import SEAM_TOL
+
+    st = TransformStack()
+    st.wire_x(0, 1)  # before the block: never moved
+    with st.shared_seams():
+        st.wire_x(1, 2)
+        st.wire_x(2 + SEAM_TOL / 2, 3)  # an ulp-scale seam: joined
+        st.wire_x(1e-12, 5, y=1)  # far from every earlier end: kept
+        st.wire_x(3 + 1e-6, 4)  # a real gap: kept
+    w = st.wires
+    assert w[0].p1 == (1.0, 0.0, 0.0)
+    assert w[2].p0 == w[1].p1
+    assert float(w[3].p0[0]) == 1e-12
+    assert float(w[4].p0[0]) == 3 + 1e-6
