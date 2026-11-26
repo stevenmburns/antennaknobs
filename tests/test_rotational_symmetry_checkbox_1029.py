@@ -102,6 +102,7 @@ def test_every_other_served_spec_keeps_its_description_field_and_it_is_usually_n
             "kcl_nullspace",
             "nec2_end_cap",
             "nec2_far_approx",
+            "mixed_lu",
         ):
             assert row["description"] is None
 

@@ -81,11 +81,11 @@ export function backendEntry(over: Partial<BackendEntry> = {}): BackendEntry {
 // and the accelerators are excluded by their own capability rows — so the
 // family tuple is the bs2 tuple WITHOUT it, the same split the sinusoidal
 // pair got over `feed_model`.
-const SIN_KWARGS = ["n_qp_const", "extended_kernel", "rotational_symmetry", "pair_reuse", "transmitted_anchors", "point_cplx_staged", "nec2_end_cap", "nec2_far_approx"];
+const SIN_KWARGS = ["n_qp_const", "extended_kernel", "rotational_symmetry", "pair_reuse", "transmitted_anchors", "point_cplx_staged", "nec2_end_cap", "nec2_far_approx", "mixed_lu"];
 const SIN_GALERKIN_KWARGS = ["n_qp_const", "feed_model", "extended_kernel"];
 const BSPLINE_FAMILY_KWARGS = ["degree", "feed_model", "n_qp_pair", "n_qp_source", "feed_smoothing_factor", "use_singular_enrichment", "enrichment_variant", "tikhonov_lambda", "auto_tap_ratio_threshold", "n_qp_sing", "enrichment_min_k", "extended_kernel"];
-const BSPLINE_KWARGS = ["degree", "feed_model", "n_qp_pair", "n_qp_source", "feed_smoothing_factor", "use_singular_enrichment", "enrichment_variant", "tikhonov_lambda", "auto_tap_ratio_threshold", "n_qp_sing", "enrichment_min_k", "extended_kernel", "rotational_symmetry", "pair_reuse", "transmitted_anchors", "factored_columns", "height_sheet_recal", "crossing_table", "crossing_above_rule", "kcl_nullspace"];
-const RAZOR_KWARGS = ["extended_kernel", "pair_reuse", "factored_columns", "height_sheet_recal", "crossing_table"];
+const BSPLINE_KWARGS = ["degree", "feed_model", "n_qp_pair", "n_qp_source", "feed_smoothing_factor", "use_singular_enrichment", "enrichment_variant", "tikhonov_lambda", "auto_tap_ratio_threshold", "n_qp_sing", "enrichment_min_k", "extended_kernel", "rotational_symmetry", "pair_reuse", "transmitted_anchors", "factored_columns", "height_sheet_recal", "crossing_table", "crossing_above_rule", "kcl_nullspace", "mixed_lu"];
+const RAZOR_KWARGS = ["extended_kernel", "pair_reuse", "factored_columns", "height_sheet_recal", "crossing_table", "mixed_lu"];
 // The NEC-4.2 slot's one knob (pinned Python-side beside the others).
 const NEC42_KWARGS = ["sommerfeld"];
 // PyNEC's one knob, offered only where the installed PyNEC's nec_context has

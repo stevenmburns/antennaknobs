@@ -87,6 +87,7 @@ SAMPLE = {
     "crossing_above_rule": False,
     "kcl_nullspace": False,
     "nec2_far_approx": False,
+    "mixed_lu": False,
 }
 
 MOMWIRE = [b for b in _BACKENDS if b.kind == "momwire" and b.solver is not None]

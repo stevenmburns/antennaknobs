@@ -91,6 +91,7 @@ describe("defaultOptsFor", () => {
       point_cplx_staged: false,
       nec2_end_cap: false,
       nec2_far_approx: false,
+      mixed_lu: false,
     });
     expect(
       defaultOptsFor(entry("sg"), SERVED_OPTION_SPECS).model
