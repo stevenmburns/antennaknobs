@@ -51,7 +51,12 @@ def _served_labels() -> dict[str, str]:
     """Feature name -> the label of the option the app serves for it, over the
     momwire engines the roster offers it on. Computed on use: the roster
     follows live probes of the installed momwire."""
-    from .web import adapter  # noqa: PLC0415 — on use; the adapter loads every engine
+    # On use: the adapter loads every engine. Through `web.examples`, never
+    # the adapter first: the adapter imports `web.examples` part way down and
+    # that module calls `adapter.register_all()`, so entering at the adapter
+    # meets a half-built module (an import from the CLI, with no web server).
+    from .web import examples  # noqa: F401, PLC0415
+    from .web import adapter  # noqa: PLC0415
 
     labels: dict[str, str] = {}
     for row in adapter.backend_roster(have_pynec=False):
@@ -86,13 +91,13 @@ def pragma_notes(
         words = name.replace("_", " ")
         if name in labels:
             notes.append(
-                f"This deck asks for {words} ({how}). antennaknobs does not "
-                f"act on deck cards; tick '{labels[name]}' in the speed "
+                f"This file asks for {words} ({how}). antennaknobs does not "
+                f"act on it; tick '{labels[name]}' in the speed "
                 "options to use it."
             )
         else:
             notes.append(
-                f"This deck asks for {words} ({how}), which is not available "
-                "here. antennaknobs does not act on deck cards."
+                f"This file asks for {words} ({how}), which is not available "
+                "here. antennaknobs does not act on it."
             )
     return notes

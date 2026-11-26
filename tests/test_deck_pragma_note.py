@@ -53,8 +53,8 @@ def test_a_card_gives_one_note_with_the_served_label(tmp_path):
     label = adapter._OPTION_SPECS["pair_reuse"].label
     got = pragma_notes("CM momwire: pair_reuse\nCE\n")
     assert got == [
-        "This deck asks for pair reuse (momwire: pair_reuse). antennaknobs "
-        f"does not act on deck cards; tick '{label}' in the speed options "
+        "This file asks for pair reuse (momwire: pair_reuse). antennaknobs "
+        f"does not act on it; tick '{label}' in the speed options "
         "to use it."
     ]
     note = _note(_design(tmp_path, "CM momwire: pair_reuse\n"))
@@ -66,15 +66,15 @@ def test_a_card_gives_one_note_with_the_served_label(tmp_path):
 def test_duplicates_and_momwires_case_and_spacing_collapse_to_one(tmp_path):
     cards = "CM momwire: pair_reuse\ncm   MOMWIRE:\tPair_Reuse  trailing\nCM  momwire:pair_reuse\n"
     assert len(pragma_notes(cards)) == 1
-    assert _note(_design(tmp_path, cards)).count("This deck asks for") == 1
+    assert _note(_design(tmp_path, cards)).count("This file asks for") == 1
 
 
 @has_reader
 def test_a_name_that_is_not_offered_is_named_as_not_available(tmp_path):
     got = pragma_notes("CM momwire: no_such_feature\n")
     assert got == [
-        "This deck asks for no such feature (momwire: no_such_feature), "
-        "which is not available here. antennaknobs does not act on deck cards."
+        "This file asks for no such feature (momwire: no_such_feature), "
+        "which is not available here. antennaknobs does not act on it."
     ]
     assert "not available here" in _note(
         _design(tmp_path, "CM momwire: no_such_feature\n")
@@ -160,7 +160,7 @@ def test_which_env_assignments_ask_for_a_feature(name, value, feature):
 def test_an_ssn_osenv_line_gives_the_same_note(tmp_path):
     label = adapter._OPTION_SPECS["pair_reuse"].label
     note = _note(_ssn(tmp_path, 'NECOptions.OSEnv("MOMWIRE_X_PAIR_REUSE", 1);\n'))
-    assert note.count("This deck asks for pair reuse") == 1
+    assert note.count("This file asks for pair reuse") == 1
     assert f"tick '{label}'" in note
 
 
@@ -184,3 +184,26 @@ def test_the_same_feature_by_an_ssn_line_and_a_card_is_one_note():
         also=[("pair_reuse", 'NECOptions.OSEnv("MOMWIRE_X_PAIR_REUSE", 1)')],
     )
     assert len(got) == 1
+
+
+def test_a_carded_deck_imports_in_a_fresh_process(tmp_path):
+    """The note's roster lookup from a process that has not loaded the web
+    app (the CLI's `@file.nec`): the adapter must not be entered half-built."""
+    import subprocess
+    import sys
+
+    deck = tmp_path / "carded.nec"
+    deck.write_text(
+        "CM invented long wire\nCM momwire: pair_reuse\nCE\n"
+        "GW 1 41 0 0 10 20 0 10 0.001\nGE 0\nEX 0 1 21 0 1 0\n"
+        "FR 0 1 0 0 14.2 0\nXQ\nEN\n"
+    )
+    code = (
+        "from pathlib import Path; from antennaknobs.file_designs import "
+        "builder_from_file; b = builder_from_file(Path(%r)); "
+        "print(b.default_params['ui_params']['notes'])" % str(deck)
+    )
+    out = subprocess.run(
+        [sys.executable, "-c", code], capture_output=True, text=True, check=True
+    )
+    assert "asks for pair reuse" in out.stdout
