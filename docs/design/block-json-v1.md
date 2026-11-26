@@ -1,7 +1,8 @@
 # Block JSON, v1
 
-The stored form of a block-builder design (see `block-builder.md`, "How a
-block program is stored and run"). A program is one JSON object; the server
+The stored form of a block-builder design (the design note
+`docs/design/block-builder.md`, "How a block program is stored and run",
+which lands with the station-rail work; this page stands on its own). A program is one JSON object; the server
 checks it (`block_design.compile_program`), runs it with an interpreter
 (`block_design.run`, never `exec`), and renders it as Python
 (`block_codegen.generate`). Templates: `block_templates.py`.
@@ -19,7 +20,7 @@ takes `--builder`, or `--builder @FILE.json` anywhere a builder spec goes.
 
 | field | |
 |---|---|
-| `name` | one line of text, at most 80 characters. It is the generated file's first comment, so nothing that ends a line is allowed |
+| `name` | one line of text, at most 80 characters. It is a comment in the generated file (line 5, below the two lines Python reads for an encoding declaration), so nothing that ends a line is allowed |
 | `freq_mhz` | the design frequency: `design_freq` and `freq` in the knobs; λ is measured at it |
 | `params` | the knobs. `name`, `value` (a number), optional `unit` (`"m"`, `"λ"`, `"°"` or `""`, a label only), optional `min` / `max` (the slider's range, `ui_params`) |
 | `schema` | optional, `1` |
@@ -48,8 +49,8 @@ are refused.
 | `move` | `by: [dx, dy, dz]`, `body` | `with st.push_pop_tr(Transform.translate(dx, dy, dz)):` |
 | `rotate` | `axis` (`x` / `y` / `z`), `deg`, `body` | `with st.push_pop_tr(Transform.rotZ(deg)):` |
 | `mirror` | `across` (a plane), `body` | `with st.push_pop_tr(Transform.mirrorXZ()):` |
-| `both_sides` | `across`, `body` | `for side in (Transform(), Transform.mirrorXZ()):` + `with st.push_pop_tr(side):` |
-| `repeat` | `count`, optional `var` (default `i`), optional `each`, `body` | `for i in range(count):` |
+| `both_sides` | `across`, `body` | `with st.shared_seams():` + `for side in (Transform(), Transform.mirrorXZ()):` + `with st.push_pop_tr(side):` |
+| `repeat` | `count`, optional `var` (default `i`), optional `each`, `body` | `with st.shared_seams():` + `for i in range(count):` |
 | `with_wire` | `spec` (a `WIRES` name, e.g. `"14-awg"`), `body` | `with st.wire_spec(WIRES["14-awg"]):` |
 
 - `feed` is `"centre"`, the only position in v1: `ex=1 + 0j` on that wire.
@@ -98,6 +99,13 @@ atom  := number | name | "λ" | ("sqrt" | "sin" | "cos") "(" expr ")" | "(" expr
   points made in its own `move` / `rotate` / `mirror` / `both_sides` /
   `repeat`-with-`each` body. `with_wire` and a plain `repeat` do not change
   the frame and do not end it. A point is not seen after its body ends.
+- **`both_sides` and `repeat` share their seams** (the same decision): an
+  end of a wire the block emits that lies within `SEAM_TOL` (1e-9 of the
+  block's largest coordinate, at least 1 m) of an end emitted earlier in the
+  same block takes that earlier point exactly
+  (`TransformStack.shared_seams`). A rotation leaves the copies' corners a
+  few ulps apart; this makes them one point. Wires before the block are
+  never moved.
 
 ## Bounds
 
@@ -107,6 +115,7 @@ So that a program from anyone runs in bounded time and memory:
 |---|---|---|
 | repeat count | 0 to 256 | the catalog's largest repeat is 120 radials |
 | repeat nesting | 3 | an array of rotated elements of repeated parts |
+| block nesting | 12 | counted as the generated code nests: `both_sides` 3, `repeat` 2 (3 with `each`), every other block with a body 1. CPython refuses a function nested past 20 such blocks, so a deeper program would run but export as a file that cannot compile |
 | wires | 3000 | the hosted upload's segment cap; a wire is at least one segment |
 | steps (statements run + repeat passes) | 100 000 | three nested repeats of 256 emit nothing but run 16.7 M passes |
 | blocks | 2000 | bounds the compile pass |
