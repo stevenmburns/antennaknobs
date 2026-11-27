@@ -845,8 +845,18 @@ def _pair_reuse_needs_hint(solver_cls) -> bool:
     constructor, never a version compare or a list of names. momwire exposes
     no capability flag for this (its registry's ``pair_reuse`` row says only
     that the sinusoidal solver "finds its own"), so the hierarchy is the
-    signal."""
-    return _takes_pair_reuse(solver_cls) and issubclass(solver_cls, BSplineSolver)
+    signal.
+
+    A B-spline class with its own census (``_reuse_plan``, momwire#2063 stage
+    3, 0.98.0) reads no hint either: momwire reads a hint as ``True``, and an
+    empty hint (one straight wire) would pass no switch at all, so the
+    census, and the parts resolved from it (``offset_reuse``), would never
+    run (momwire#2063 step 4)."""
+    return (
+        _takes_pair_reuse(solver_cls)
+        and issubclass(solver_cls, BSplineSolver)
+        and getattr(solver_cls, "_reuse_plan", None) is None
+    )
 
 
 # momwire's opt-in features passed straight through as one solver keyword
@@ -1459,10 +1469,11 @@ class MomwireEngine(SimulationEngine):
           Fill each repeated edge-pair block once and copy it (AK#2165 stage
           2, momwire#1809): the engine finds its own mesh's congruent edge
           pairs (`structure.pair_reuse_hint`) once and hands them to the
-          solver, which checks each against its geometry before copying. On
-          a momwire that takes ``offset_reuse``, the same switch also fills
-          each uniform straight edge's own block by segment offset. Z moves
-          by a few ulp. None reads ``ANTENNAKNOBS_PAIR_REUSE`` (``1`` on;
+          solver, which checks each against its geometry before copying. The
+          switch is momwire's one umbrella: its parts (bs2's
+          ``offset_reuse``) are on with it, which momwire resolves from
+          ``pair_reuse`` alone (momwire#1982, #2063 step 4), so none is
+          passed. Z moves by a few ulp. None reads ``ANTENNAKNOBS_PAIR_REUSE`` (``1`` on;
           default off). Ignored by a solver that takes neither.
 
         solver:
@@ -1609,11 +1620,6 @@ class MomwireEngine(SimulationEngine):
         # class the engine was given.
         self._pair_reuse_hintless = self._pair_reuse and not _pair_reuse_needs_hint(
             self._solver
-        )
-        # The same switch fills a uniform edge's own block by segment offset
-        # (momwire#1809), on a momwire that takes it; no hint is needed.
-        self._offset_reuse = bool(asked_reuse) and _takes_kwarg(
-            self._solver, "offset_reuse"
         )
         self._pair_reuse_hint_cache = None
         # Pass-through features, folded the same way: the request, else the
@@ -2421,8 +2427,6 @@ class MomwireEngine(SimulationEngine):
             hint = self._pair_reuse_hint()
             if hint:
                 kwargs["pair_reuse"] = hint
-        if self._offset_reuse:
-            kwargs["offset_reuse"] = True
         solver = self._solver(**kwargs)
         # The construction kwargs, for a key over everything the operator
         # and the port solution depend on (`_z_fill_key`, `_swept_y`).

@@ -44,7 +44,13 @@ def _no_seed(monkeypatch):
 
 @needs_sin_reuse
 def test_the_probe_splits_the_two_families():
-    assert _pair_reuse_needs_hint(momwire.BSplineSolver)
+    # A bs2 with its own census (momwire#2063 stage 3) reads no hint; one
+    # without it (`_reuse_plan` absent, modelled here) is fed the hint.
+    class HintBS2(momwire.BSplineSolver):
+        _reuse_plan = None
+
+    assert not _pair_reuse_needs_hint(momwire.BSplineSolver)
+    assert _pair_reuse_needs_hint(HintBS2)
     assert not _pair_reuse_needs_hint(momwire.SinusoidalSolver)
 
 
@@ -68,20 +74,19 @@ def test_off_passes_no_pair_reuse_kwarg(monkeypatch, asked):
 
 
 @pytest.mark.parametrize("builder", [lone_dipole, lambda: fed_yagi(4)])
-def test_bspline_is_unchanged(monkeypatch, builder):
+def test_bspline_with_its_census_takes_true(monkeypatch, builder):
     if not _takes_pair_reuse(momwire.BSplineSolver):
         pytest.skip("no bs2 pair_reuse")
-    # on: the hint when there is one, nothing when there is none (never True)
+    if getattr(momwire.BSplineSolver, "_reuse_plan", None) is None:
+        pytest.skip("this bs2 reads the hint (no census, momwire#2063 stage 3)")
+    # on: True, a lone wire with no congruent edge pair included, and no
+    # part of the switch passed apart (momwire resolves `offset_reuse` from
+    # it, momwire#2063 step 4)
     e = engine(builder(), "momwire:bs2", pair_reuse=True)
-    want = e._pair_reuse_hint()
     seen = spy(monkeypatch, e)
     e.impedance()
-    assert seen
-    for k in seen:
-        if want:
-            assert k["pair_reuse"] is want
-        else:
-            assert "pair_reuse" not in k
+    assert seen and all(k.get("pair_reuse") is True for k in seen)
+    assert all("offset_reuse" not in k for k in seen)
     # off: nothing
     e = engine(builder(), "momwire:bs2")
     seen = spy(monkeypatch, e)
