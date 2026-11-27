@@ -43,6 +43,13 @@ class Builder(AntennaBuilder):
             # In-plane spread of the two bands about the y axis (deg). 0 keeps
             # each band in its own x = ±s/√2 plane (a true parallel fan).
             "gap_angle_deg": 0.0,
+            # Both bands' arms built on the same core: the longer band's arm
+            # is a core wire as long as the shorter band's arm, then an
+            # extension out to its own tip. The four cores are mirror images
+            # of one another and mesh equally, so pair_reuse copies the pairs
+            # between them. Off by default: it changes the mesh, not the
+            # antenna (the longer arm gains one collinear joint).
+            "uniform_cores": False,
             # Feed-junction split: how far out (m) the two bands separate from
             # the shared feed. This is the design's swept methodology knob.
             "s": 0.15,
@@ -139,6 +146,29 @@ class Builder(AntennaBuilder):
             junctions.append(G)
             tips.append(tip)
 
+        # uniform_cores: the longer arm's core ends where the shorter arm
+        # would, computed the same way from the shorter band's length, so at
+        # equal droop the core is the shorter arm's exact mirror in x = 0
+        # (same y and z, x negated), not a scaled point that rounds apart.
+        cores = list(tips)
+        if self.uniform_cores and n_bands == 2:
+            short = min(range(2), key=lambda i: float(active[i]["length"]))
+            long_ = 1 - short
+            if float(active[long_]["length"]) > float(active[short]["length"]):
+                sign = 1 if long_ == 0 else -1
+                droop = math.radians(float(active[long_]["angle_deg"]))
+                x_c, y_c, z_c = compute(
+                    float(active[short]["length"]) - 2 * s, droop, gap
+                )
+                G = junctions[long_]
+                cores[long_] = (sign * x_c + G[0], y_c + G[1], -z_c)
+
+        def arm(G, core, tip, flip=False):
+            m = ry if flip else (lambda p: p)
+            if core == tip:
+                return [Wire(m(G), m(tip))]
+            return [Wire(m(G), m(core)), Wire(m(core), m(tip))]
+
         # Arms and the feed gap mesh at the design density (auto_mesh:
         # nominal_nsegs per design_freq quarter-wave; the feed gap thereby
         # refines with the mesh, issue #435). Band 0's arm is the links'
@@ -159,12 +189,12 @@ class Builder(AntennaBuilder):
         tups = []
         for G in junctions:
             tups.append(Wire(S, G, n_seg=n_link))
-        for G, tip in zip(junctions, tips, strict=True):
-            tups.append(Wire(G, tip))
+        for G, core, tip in zip(junctions, cores, tips, strict=True):
+            tups.extend(arm(G, core, tip))
         for G in junctions:
             tups.append(Wire(T, ry(G), n_seg=n_link))
-        for G, tip in zip(junctions, tips, strict=True):
-            tups.append(Wire(ry(G), ry(tip)))
+        for G, core, tip in zip(junctions, cores, tips, strict=True):
+            tups.extend(arm(G, core, tip, flip=True))
         tups.append(Wire(T, S, ex=1 + 0j))
 
         return [
