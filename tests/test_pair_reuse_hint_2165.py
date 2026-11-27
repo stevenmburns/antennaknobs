@@ -134,23 +134,30 @@ takes_offset = pytest.mark.skipif(
 @takes_offset
 def test_the_switch_also_fills_a_straight_wire_by_offset(monkeypatch):
     """One long straight wire has no repeated edge pair, so no hint, but its
-    own block repeats by segment offset: the switch passes offset_reuse."""
+    own block repeats by segment offset: the switch is passed as True (bs2
+    finds its own classes) and momwire resolves ``offset_reuse`` from it, so
+    the engine passes no part apart (momwire#2063 step 4)."""
     import momwire._bspline_kernels as K
 
+    if getattr(momwire_bspline, "_reuse_plan", None) is None:
+        pytest.skip("this bs2 reads the hint (no census, momwire#2063 stage 3)")
     L = 0.5 * 299.792458 / 14.2 * 4
     w = design([Wire((0, -L / 2, 10), (0, L / 2, 10), n_seg=81, ex=1 + 0j)])
     z0 = np.asarray(engine(w).impedance(), dtype=complex)
     e = engine(w, pair_reuse=True)
-    seen = spy(monkeypatch, e)
+    solvers = []
+    seen = spy(monkeypatch, e, solvers)
     c0 = K.REG_TOEPLITZ_EDGES
     f0 = getattr(momwire_bspline_module(), "FREE_OFFSET_EDGES", 0)
     z1 = np.asarray(e.impedance(), dtype=complex)
-    assert seen and all(kw.get("offset_reuse") is True for kw in seen)
-    assert all("pair_reuse" not in kw for kw in seen)  # nothing repeats
-    # Step 1's Toeplitz reg block, or (momwire 0.87.1, step 2) the edge's own
-    # block assembled by offset, which replaces it on a whole-mesh fill.
+    assert seen and all(kw.get("pair_reuse") is True for kw in seen)
+    assert all("offset_reuse" not in kw for kw in seen)
+    assert solvers and all(s._offset_reuse for s in solvers)
+    # The wire's own block was served: by the offset block (momwire 0.98.0)
+    # or, since momwire#2063 step 3, by the census's same-edge classes.
     free = getattr(momwire_bspline_module(), "FREE_OFFSET_EDGES", 0)
-    assert K.REG_TOEPLITZ_EDGES + free > c0 + f0
+    served = any(getattr(s, "pair_reuse_served", None) for s in solvers)
+    assert free > f0 or served or K.REG_TOEPLITZ_EDGES > c0
     assert np.max(np.abs(z1 - z0) / np.abs(z0)) <= 1e-12
 
 
@@ -233,16 +240,21 @@ def wire_grid(cells=12, side=0.5, h=0.3):
     return design(ws)
 
 
+class HintBS2(momwire_bspline):
+    """A bs2 that reads the hint: one without its own census
+    (`_reuse_plan`, momwire#2063 stage 3). Constructed, never solved."""
+
+    _reuse_plan = None
+
+
 def test_a_wire_grid_gets_no_hint_when_momwire_would_decline_it(monkeypatch):
     import antennaknobs.mw._private as private
 
     monkeypatch.setattr(private, "pair_reuse_min_pairs_per_member", lambda: 8.0)
-    e = engine(wire_grid(cells=6), pair_reuse=True)
+    e = engine(wire_grid(cells=6), pair_reuse=True, solver=HintBS2)
     assert pair_reuse_hint(edges_from_wires(wire_grid(cells=6)))  # it does repeat
+    assert not e._pair_reuse_hintless
     assert e._pair_reuse_hint() is None
-    seen = spy(monkeypatch, e)
-    e.impedance()
-    assert seen and all("pair_reuse" not in kw for kw in seen)
 
 
 def test_a_momwire_without_a_floor_keeps_the_hint(monkeypatch):
