@@ -1,0 +1,21 @@
+case                         sw   segs   fill factor census  total   cold  route  reuse            Z (readout)  |dZ|/|Z| vs off
+vertical16_sector_bs2        off   256   0.07   0.00   0.00   0.07   0.09  dense  off          30.17 + j  6.98  
+                                  cold (rep 0, first solve of this geometry in the process): fill 0.08, census 0.00, factor 0.00, total 0.09
+vertical16_sector_bs2        on    256   0.01   0.00   0.00   0.01   0.03  sector off          30.17 + j  6.98  9.1e-13
+                                  cold (rep 0, first solve of this geometry in the process): fill 0.02, census 0.00, factor 0.00, total 0.03
+                                  sector: 16 sectors, 1 axis wire(s), 7,936 of 65,536 entries computed
+yagi10_reuse_bs2             off   267   0.06   0.00   0.00   0.06   0.09  dense  off          34.80 - j 46.47  
+                                  cold (rep 0, first solve of this geometry in the process): fill 0.08, census 0.00, factor 0.00, total 0.09
+yagi10_reuse_bs2             on    267   0.04   0.00   0.00   0.04   0.07  dense  served       34.80 - j 46.47  9.6e-14
+                                  cold (rep 0, first solve of this geometry in the process): fill 0.06, census 0.01, factor 0.00, total 0.07
+                                  families (pairs/computed/near): direct 71,289p/13,475c/1,999n, image 71,289p/13,500c/0n, remainder 71,289p/15,275c/0n
+                                  reuse: 213,867 pairs, 42,250 computed, 169,618 reused, 1,999 near; compression 4.8x
+longwire_reuse_bs2           off   209   0.03   0.00   0.00   0.03   0.05  dense  off         131.74 - j 13.32  
+                                  cold (rep 0, first solve of this geometry in the process): fill 0.04, census 0.00, factor 0.00, total 0.05
+longwire_reuse_bs2           on    209   0.01   0.00   0.00   0.02   0.04  dense  served      131.74 - j 13.32  1.0e-13
+                                  cold (rep 0, first solve of this geometry in the process): fill 0.03, census 0.00, factor 0.00, total 0.04
+                                  families (pairs/computed/near): direct 43,681p/205c/1,451n, image 43,681p/892c/0n, remainder 43,681p/1,876c/0n
+                                  reuse: 131,043 pairs, 2,973 computed, 126,619 reused, 1,451 near; compression 29.6x
+
+pooled off rows, verticals.vertical 16 radials (6 timed solves each):
+  bs2: fill 0.07, factor 0.00, total 0.07 (range 0.07-0.07)
