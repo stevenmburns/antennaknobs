@@ -50,7 +50,7 @@ Neither is meant to change the answer. Reuse copies an entry instead of
 computing it again; the sector route is another route through the same
 matrix. In every measurement below the impedance agrees with the switch off
 to all the digits the readout prints (two decimals), and the largest relative
-change is 3 × 10⁻¹⁰.
+change is 1 × 10⁻⁸.
 
 ## Reading the Fill view
 
@@ -82,16 +82,14 @@ entries were computed against the total.
   declined solve takes the same time as one with the box off, plus the
   search that found it would not pay.
 
-**The census** is the part of the fill spent finding what repeats. The
-Sinusoidal and `razor2p` engines search the geometry themselves, and pay the
-census once for each new geometry: a frequency sweep pays it once, and so
-does solving the same design again, but moving a knob that changes the
-geometry pays it again. `bs2` is told what repeats by the workbench, from the
-design's wires, and its census is close to zero.
+**The census** is the part of the fill spent finding what repeats. Each
+engine searches the geometry itself, and pays the census once for each new
+geometry: a frequency sweep pays it once, and so does solving the same design
+again, but moving a knob that changes the geometry pays it again.
 
 **Compression** is pairs ÷ (computed + near): how far the matrix shrank. It
-is not the time saved. The long wire below compresses 1254× on `bs2` and its
-solve gets 4× faster, because the factor, and the copying itself, still take
+is not the time saved. The long wire below compresses 108× on `bs2` and its
+solve gets 3× faster, because the factor, and the copying itself, still take
 time. Over a ground the counts come in two sections, the free-space term and
 the ground terms; the ground terms depend on height as well as spacing, so
 fewer pairs share them.
@@ -159,18 +157,18 @@ N = 150: 2,550 segments.
 
 | engine | switch | state | fill | factor | total | first | Z (Ω) |
 |---|---|---|---|---|---|---|---|
-| `bs2` | off | dense, off | 2.30 | 0.24 | 2.54 | | 30.20 + j7.18 |
-| `bs2` | rotational symmetry | sector, 16 sectors | 0.42 | 0.00 | 0.43 | | 30.20 + j7.18 |
-| `bs2` | reuse | dense, partial (2.8×) | 1.39 | 0.23 | 1.62 | | 30.20 + j7.18 |
-| Sinusoidal | off | dense, off | 0.93 | 0.22 | 1.16 | | 30.14 + j7.15 |
-| Sinusoidal | rotational symmetry | sector, 16 sectors | 0.14 | 0.00 | 0.15 | | 30.14 + j7.15 |
-| Sinusoidal | reuse | dense, served (16.9×) | 0.22 | 0.24 | 0.49 | 1.20 | 30.14 + j7.15 |
+| `bs2` | off | dense, off | 2.30 | 0.23 | 2.53 | | 30.20 + j7.18 |
+| `bs2` | rotational symmetry | sector, 16 sectors | 0.43 | 0.00 | 0.44 | | 30.20 + j7.18 |
+| `bs2` | reuse | dense, served (44×) | 0.84 | 0.23 | 1.14 | 2.06 | 30.20 + j7.18 |
+| Sinusoidal | off | dense, off | 0.93 | 0.22 | 1.15 | | 30.14 + j7.15 |
+| Sinusoidal | rotational symmetry | sector, 16 sectors | 0.15 | 0.00 | 0.16 | | 30.14 + j7.15 |
+| Sinusoidal | reuse | dense, served (16.9×) | 0.23 | 0.22 | 0.47 | 1.25 | 30.14 + j7.15 |
 
 This is the design the sector route is for: about 6× faster on `bs2` and
-8× on Sinusoidal. The sector route computed 765,000 of the matrix's
+7× on Sinusoidal. The sector route computed 765,000 of the matrix's
 6,502,500 entries, and its factor became too small to show. Reuse helps too,
 but it leaves the factor as it was and, on Sinusoidal, pays a census of
-about 0.7 s the first time. On a radial screen, tick rotational symmetry.
+about 0.6 s (`bs2`) or 0.7 s (Sinusoidal) the first time. On a radial screen, tick rotational symmetry.
 
 ### A long wire
 
@@ -179,16 +177,16 @@ segments.
 
 | engine | switch | state | fill | factor | total | first | Z (Ω) |
 |---|---|---|---|---|---|---|---|
-| `bs2` | off | dense, off | 2.96 | 0.21 | 3.17 | | 131.69 − j13.38 |
-| `bs2` | reuse | dense, served (1254×) | 0.56 | 0.21 | 0.77 | | 131.69 − j13.38 |
-| Sinusoidal | off | dense, off | 0.86 | 0.22 | 1.08 | | 131.69 − j13.38 |
-| Sinusoidal | reuse | dense, served (499×) | 0.12 | 0.21 | 0.35 | 0.79 | 131.69 − j13.38 |
-| `razor2p` | off | dense, off | 1.42 | 0.21 | 1.64 | | 131.59 − j14.07 |
-| `razor2p` | reuse | dense, served (675×) | 0.39 | 0.21 | 0.65 | 1.15 | 131.59 − j14.07 |
+| `bs2` | off | dense, off | 2.96 | 0.22 | 3.19 | | 131.69 − j13.38 |
+| `bs2` | reuse | dense, served (108×) | 0.69 | 0.21 | 0.97 | 1.70 | 131.69 − j13.38 |
+| Sinusoidal | off | dense, off | 0.86 | 0.21 | 1.07 | | 131.69 − j13.38 |
+| Sinusoidal | reuse | dense, served (499×) | 0.12 | 0.21 | 0.36 | 0.85 | 131.69 − j13.38 |
+| `razor2p` | off | dense, off | 1.43 | 0.21 | 1.65 | | 131.59 − j14.07 |
+| `razor2p` | reuse | dense, served (675×) | 0.33 | 0.21 | 0.57 | 1.08 | 131.59 − j14.07 |
 
 A uniform wire is the best case for reuse: every segment pair at a given
 spacing is the same pair, so almost nothing is computed. `bs2` goes from 3.2
-to 0.8 s. Read the fill share as well: on Sinusoidal it falls from 80 % with
+to 1.0 s. Read the fill share as well: on Sinusoidal it falls from 80 % with
 reuse off to 36 % with it on. What is left is mostly the factor, which reuse
 cannot shorten, so a finer mesh than this would gain less and less.
 
@@ -199,12 +197,12 @@ cannot shorten, so a finer mesh than this would gain less and less.
 
 | engine | switch | state | fill | factor | total | first | Z (Ω) |
 |---|---|---|---|---|---|---|---|
-| `bs2` | off | dense, off | 1.62 | 0.14 | 1.76 | | 34.80 − j45.92 |
-| `bs2` | reuse | dense, partial (1.9×) | 1.14 | 0.14 | 1.31 | | 34.80 − j45.92 |
-| Sinusoidal | off | dense, off | 0.68 | 0.14 | 0.82 | | 34.80 − j45.99 |
-| Sinusoidal | reuse | dense, served (5.5×) | 0.22 | 0.14 | 0.37 | 1.16 | 34.80 − j45.99 |
-| `razor2p` | off | dense, off | 1.12 | 0.15 | 1.27 | | 34.68 − j46.71 |
-| `razor2p` | reuse | dense, served (5.6×) | 0.38 | 0.14 | 0.55 | 1.33 | 34.68 − j46.71 |
+| `bs2` | off | dense, off | 1.63 | 0.15 | 1.78 | | 34.80 − j45.92 |
+| `bs2` | reuse | dense, served (5.5×) | 0.99 | 0.14 | 1.18 | 2.08 | 34.80 − j45.92 |
+| Sinusoidal | off | dense, off | 0.68 | 0.14 | 0.83 | | 34.80 − j45.99 |
+| Sinusoidal | reuse | dense, served (5.5×) | 0.21 | 0.14 | 0.36 | 1.20 | 34.80 − j45.99 |
+| `razor2p` | off | dense, off | 1.14 | 0.14 | 1.29 | | 34.68 − j46.71 |
+| `razor2p` | reuse | dense, served (5.5×) | 0.38 | 0.14 | 0.57 | 1.40 | 34.68 − j46.71 |
 
 The directors repeat, but the compression is modest: much of the matrix is
 still computed. The reason is in how the Yagi is built. Its elements have
@@ -224,27 +222,24 @@ default layout to within 0.05 Ω on every engine. The same Yagi with
 
 | engine | switch | state | fill | factor | total | first | Z (Ω) |
 |---|---|---|---|---|---|---|---|
-| `bs2` | off | dense, off | 1.67 | 0.15 | 1.82 | | 34.80 − j45.91 |
-| `bs2` | reuse | dense, partial (2.7×) | 0.88 | 0.14 | 1.04 | | 34.80 − j45.91 |
+| `bs2` | off | dense, off | 1.69 | 0.14 | 1.83 | | 34.80 − j45.91 |
+| `bs2` | reuse | dense, served (47×) | 0.55 | 0.15 | 0.75 | 1.32 | 34.80 − j45.91 |
 | Sinusoidal | off | dense, off | 0.68 | 0.15 | 0.83 | | 34.80 − j45.97 |
-| Sinusoidal | reuse | dense, served (55×) | 0.12 | 0.14 | 0.28 | 0.68 | 34.80 − j45.97 |
-| `razor2p` | off | dense, off | 1.12 | 0.15 | 1.28 | | 34.68 − j46.66 |
-| `razor2p` | reuse | dense, served (49×) | 0.25 | 0.14 | 0.42 | 0.91 | 34.68 − j46.66 |
+| Sinusoidal | reuse | dense, served (51×) | 0.12 | 0.15 | 0.29 | 0.69 | 34.80 − j45.97 |
+| `razor2p` | off | dense, off | 1.12 | 0.14 | 1.26 | | 34.68 − j46.66 |
+| `razor2p` | reuse | dense, served (46×) | 0.25 | 0.14 | 0.42 | 0.88 | 34.68 − j46.66 |
 
-On Sinusoidal and `razor2p` the compression goes from about 5.5× to about
-50×, and the fill becomes a small part of the solve. The first solve
+On every engine the compression goes from 5.5× to between 46× and 51×,
+and the fill becomes a small part of the solve. The first solve
 benefits most, because the census also finds the repeats faster: on
-Sinusoidal it now takes 0.68 s, which beats the 0.82 s with reuse off,
-where on the default layout it lost (1.16 s). `razor2p`'s first solve
-drops from 1.33 s to 0.91 s.
+Sinusoidal it now takes 0.69 s, which beats the 0.83 s with reuse off,
+where on the default layout it lost (1.20 s). `razor2p`'s first solve
+drops from 1.40 s to 0.88 s, and `bs2`'s from 2.08 s to 1.32 s.
 
-`bs2` gains less. Over Sommerfeld ground its compression only rises from
-1.9× to 2.7×, although in free space the same layout compresses 51×. Over
-ground `bs2` fills three terms, and it does not yet reuse one of them, the
-ground image, across wires
-([momwire#2074](https://github.com/stevenmburns/momwire/issues/2074)), so
-that term is still computed almost in full. Its repeat solve still drops
-from 1.31 s to 1.04 s.
+Over ground `bs2` fills three terms for each pair of wires: the free-space
+term, the ground image and the Sommerfeld remainder. It reuses all three, so
+over Sommerfeld ground it compresses as far as in free space, 47× against
+44× for the same layout.
 
 With reuse off, the two layouts take about the same time, so ticking
 **uniform_cores** costs nothing on its own. It is worth ticking whenever
@@ -253,7 +248,7 @@ you tick reuse on a long Yagi.
 In free space, with no ground terms to compute, the fill is already cheap:
 Sinusoidal fills the default layout in 0.13 s with reuse off. There the
 census can cost more than it saves: the first solve with reuse on takes
-0.60 s against 0.28 s off. Uniform cores narrows that to 0.38 s, but does
+0.63 s against 0.29 s off. Uniform cores narrows that to 0.41 s, but does
 not close it.
 
 The general lesson applies to any design you build: reuse rewards
@@ -266,7 +261,7 @@ extensions on a common core.
 
 - **A small deck.** At the stock `bs2` N of 15 the vertical with 16 radials
   has 256 segments and solves in 0.07 s; the sector route takes it to 0.01 s,
-  and the 10-element Yagi (267 segments) takes 0.07 s with reuse off and 0.08 s
+  and the 10-element Yagi (267 segments) takes 0.06 s with reuse off and 0.04 s
   with it on. Neither is
   something you will notice.
 - **A factor-dominated deck.** When the Fill view's share is low, reuse can
