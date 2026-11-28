@@ -39,7 +39,7 @@ Designs are addressed as `family.name` (the same names `list` prints):
 python -m antennaknobs list            # arrays.bowtiearray, beams.yagi, loops.delta_loop, ...
 ```
 
-Three spec forms work anywhere a `--builder` / `--builders` argument does:
+Four spec forms work anywhere a `--builder` / `--builders` argument does:
 
 - **`family.name`** — a catalog or user design.
 - **`family.name:variant`** — a stored knob-set overlay
@@ -65,6 +65,16 @@ Three spec forms work anywhere a `--builder` / `--builders` argument does:
   opens a here-string there and the path never reaches the program. The same
   files dropped in `~/.antennaknobs/designs/` become `user.<name>` designs
   with no stub (see [Importing a NEC deck](/reference/nec-import/#quick-start)).
+- **`@path/to/program.json`**, or **`--blocks program.json`** on its own:
+  a block program, a design written as JSON blocks (moves, rotations,
+  mirrors and repeats nested around wires) instead of Python. It runs
+  through a real `TransformStack`, so its knobs are live like any design's.
+  The schema is
+  [block-json-v1.md](https://github.com/stevenmburns/antennaknobs/blob/main/docs/design/block-json-v1.md).
+
+  ```bash
+  python -m antennaknobs sweep --blocks yagi2.json --swr
+  ```
 
 ## Patterns
 

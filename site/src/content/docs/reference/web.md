@@ -2116,6 +2116,26 @@ distribution. It counts toward the reported efficiency the same way the
 network rows do, and the Info pane shows the matching **wire length**
 and **wire weight** rows.
 
+## The Station view
+
+**Station**, under **All views**, shows the design's feed side as a rail of
+boxes from the rig on the left to the antenna on the right: lines, tuners,
+baluns and junctions. It runs on a local install. The hosted app shows a
+note instead.
+
+- **The Python pane** holds the `build_network()` the rail describes, in
+  house style. Click a box and the lines it wrote light up; click a line and
+  its box lights up.
+- **Probes** read Z and SWR at each junction, looking towards the antenna.
+- **A/B** puts a second rail beside the first. A table compares them: Z and
+  SWR at the rig, the station's loss, and the watts of every 100 that reach
+  the antenna. Both rails come from one antenna solve.
+- **The gallery** lists every valid place a new box can go, each with its
+  SWR at the rig, its loss and its code change.
+
+A design without a station opens with a bare rail: rig, feed, antenna. A
+station that meets the antenna at more than one point is refused by name.
+
 ## The schematic view
 
 The **Schematic** view draws the design's feed network — feedline, tuner,

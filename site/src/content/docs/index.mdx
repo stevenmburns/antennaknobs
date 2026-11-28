@@ -29,40 +29,33 @@ import { Card, CardGrid, LinkCard } from "@astrojs/starlight/components";
 {/* What's-new box: refresh as part of the release ritual (bump the version,
     swap the highlights) — a stale "new" box is worse than none. */}
 
-<Card title="New in v0.125.0" icon="star">
-  **On momwire 0.98.0, with two speed switches.** A momwire tab's gear menu
-  has **reuse repeated geometry (faster fill)** on the `bs2`, Sinusoidal and
-  `razor2p` tabs, and **rotational symmetry (radial screens)** on `bs2` and
-  Sinusoidal. Both are off unless you tick them, and neither is meant to
-  change the answer. The new [Faster solves](/advanced/faster-solves/) page
-  says when each one pays, with timings, and the Fill view says what the
-  reuse copied.
+<Card title="New in v0.126.0" icon="star">
+  **On momwire 0.99.0.** The **reuse repeated geometry (faster fill)** box
+  now speeds up `bs2` over a ground too: its ground terms are reused as well
+  as the free-space term, and smaller designs fill faster. The
+  [Faster solves](/advanced/faster-solves/) page has the new timings.
 
-  **Yagis on one element core.** The `beams.yagi` design takes a
-  `uniform_cores` option that builds every element on the director's core,
-  so the pairs between elements repeat. On the 10-element Yagi, Sinusoidal's
-  fill reuse then compresses the fill 46× instead of 5.4×, and the impedance
-  moves by 0.02 Ω.
+  **The Station view** (local installs). It shows a design's feed side as a
+  rail of boxes from the rig to the antenna: line, tuner, junctions. It
+  writes the `build_network()` Python for it, and a box and the lines it
+  wrote light up together. Probes at each junction and an A/B rail compare
+  two stations on the same solve.
 
-  **More for writing geometry.** `TransformStack` gains `st.path` (a run of
-  wires that share their corners exactly), the axis wires `wire_x`, `wire_y`
-  and `wire_z`, and `Transform.mirrorYZ` / `mirrorXZ` / `mirrorXY`. See the
-  [reference](/reference/drone-transform/).
+  **Block programs.** `--blocks FILE.json` runs a design written as a JSON
+  block program. Moves, rotations, mirrors and repeats nest around the
+  wires, and the program exports as house-style Python that reads back as
+  the same blocks. An editor for them is in the works.
 
-  **Insulated wires on the ground reopen as you wrote them.** A NEC-5 deck
-  exported from a design with insulated radials lying on the soil now opens
-  with each jacket resting on the ground, so bs2 solves it instead of
-  refusing it as sunk into the soil.
+  **Fan dipoles on one core.** `uniform_cores` builds both bands' arms on one
+  core, as the Yagi's does, so fill reuse finds the repeats.
 
-  **From v0.124.0: on momwire 0.97.0, with shorter engine names.** The engines are now
-  `bs2`, `bs1`, `sg` and `razor2p` (were `bspline`, `bspline-d1`,
-  `sinusoidal-galerkin` and `razor-2p`). The old names still work in saved
-  settings, kept studies and on the command line, and are read as the new
-  ones. `razor-nec5` is retired. A ↺ button beside the design picker puts
-  every knob back on the design's own values.
+  **From v0.125.0: on momwire 0.98.0, with two speed switches.** A momwire
+  tab's gear menu has **reuse repeated geometry (faster fill)** and
+  **rotational symmetry (radial screens)**, and the Yagi takes
+  `uniform_cores`.
 
-  Full notes: [v0.125.0](https://github.com/stevenmburns/antennaknobs/releases/tag/v0.125.0),
-  [v0.124.0](https://github.com/stevenmburns/antennaknobs/releases/tag/v0.124.0).
+  Full notes: [v0.126.0](https://github.com/stevenmburns/antennaknobs/releases/tag/v0.126.0),
+  [v0.125.0](https://github.com/stevenmburns/antennaknobs/releases/tag/v0.125.0).
 </Card>
 
 ## The whole pitch, in one line
