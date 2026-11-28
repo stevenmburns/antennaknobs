@@ -2846,6 +2846,10 @@ input[type=checkbox] {
   flex-direction: column;
   gap: var(--space-5);
 }
+/* Sections keep their own height and the view scrolls: a flex column under
+   overflow: auto would otherwise shrink them to fit, and their content would
+   spill over the next section. */
+.station-fill > * { flex-shrink: 0; }
 .station-busy { opacity: 0.85; }
 .station-box { position: relative; max-width: 100%; }
 .station-thumb {
